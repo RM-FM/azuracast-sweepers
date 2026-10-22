@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace Plugin\AzuracastDropins\EventHandler;
+namespace Plugin\AzuracastSweepers\EventHandler;
 
 use App\Enums\StationPermissions;
 use App\Event\BuildRoutes;
 use App\Event\Radio\WriteLiquidsoapConfiguration;
 use App\Middleware;
-use Plugin\AzuracastDropins\Controller\InternalController;
-use Plugin\AzuracastDropins\Controller\PanelController;
-use Plugin\AzuracastDropins\Service\Media;
-use Plugin\AzuracastDropins\Service\State;
-use Plugin\AzuracastDropins\ValueObject\Settings;
+use Plugin\AzuracastSweepers\Controller\InternalController;
+use Plugin\AzuracastSweepers\Controller\PanelController;
+use Plugin\AzuracastSweepers\Service\Media;
+use Plugin\AzuracastSweepers\Service\State;
+use Plugin\AzuracastSweepers\ValueObject\Settings;
 use RuntimeException;
 use Slim\Routing\RouteCollectorProxy;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
@@ -39,7 +39,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
     public function routes(BuildRoutes $event): void
     {
         $app = $event->getApp();
-        $app->group('/dropins/{station_id}', static function (RouteCollectorProxy $group): void {
+        $app->group('/sweepers/{station_id}', static function (RouteCollectorProxy $group): void {
             $group->get('', PanelController::class . ':indexAction');
             $group->get('/assets/{name:app\\.(?:js|css)}', PanelController::class . ':assetAction');
             $group->get('/state', PanelController::class . ':stateAction');
@@ -56,7 +56,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
             ->add(Middleware\InjectSession::class);
 
         $app->group(
-            '/api/internal/{station_id}/liquidsoap/dropins',
+            '/api/internal/{station_id}/liquidsoap/sweepers',
             static function (RouteCollectorProxy $group): void {
                 $group->post('/catalog', InternalController::class . ':catalogAction');
                 $group->post('/plan', InternalController::class . ':planAction');
@@ -67,7 +67,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
             ->add(Middleware\RequireStation::class)
             ->add(Middleware\GetStation::class);
 
-        $app->post('/api/station/{station_id}/dropins/intro/{id:[0-9]+}', PanelController::class . ':importAction')
+        $app->post('/api/station/{station_id}/sweepers/intro/{id:[0-9]+}', PanelController::class . ':importAction')
             ->add(new Middleware\Permissions(StationPermissions::Media, true))
             ->add(Middleware\RequireStation::class)
             ->add(Middleware\GetStation::class)
@@ -84,10 +84,10 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
             return;
         }
         if ($event->getBackendConfig()->use_manual_autodj) {
-            throw new RuntimeException('Drop-ins require AzuraCast AutoDJ queue management.');
+            throw new RuntimeException('Sweepers require AzuraCast AutoDJ queue management.');
         }
 
-        $path = dirname(__DIR__, 2) . '/liquidsoap/dropins.liq';
+        $path = dirname(__DIR__, 2) . '/liquidsoap/sweepers.liq';
         $event->appendBlock('%include ' . json_encode($path, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
     }
 
@@ -104,7 +104,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
         }
 
         $index = $matches[0];
-        $event->replaceLine($index, $lines[$index] . "\nradio = dropins.mix(radio)");
+        $event->replaceLine($index, $lines[$index] . "\nradio = sweepers.mix(radio)");
     }
 
     private function settings(WriteLiquidsoapConfiguration $event): Settings

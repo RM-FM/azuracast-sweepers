@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Plugin\AzuracastDropins\Controller;
+namespace Plugin\AzuracastSweepers\Controller;
 
 use App\Http\Response;
 use App\Http\ServerRequest;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
-use Plugin\AzuracastDropins\Service\Media;
-use Plugin\AzuracastDropins\Service\State;
-use Plugin\AzuracastDropins\ValueObject\Settings;
+use Plugin\AzuracastSweepers\Service\Media;
+use Plugin\AzuracastSweepers\Service\State;
+use Plugin\AzuracastSweepers\ValueObject\Settings;
 use Psr\Http\Message\ResponseInterface;
 
 final readonly class PanelController
@@ -29,7 +29,7 @@ final readonly class PanelController
         $html = file_get_contents(dirname(__DIR__, 2) . '/frontend/index.html');
         $html = strtr($html, [
             '__BASE__' => htmlspecialchars($base, ENT_QUOTES),
-            '__CSRF__' => htmlspecialchars($request->getCsrf()->generate('dropins'), ENT_QUOTES),
+            '__CSRF__' => htmlspecialchars($request->getCsrf()->generate('sweepers'), ENT_QUOTES),
         ]);
         $response->getBody()->write($html);
 
@@ -72,7 +72,7 @@ final readonly class PanelController
 
     public function settingsAction(ServerRequest $request, Response $response, array $params): ResponseInterface
     {
-        $request->getCsrf()->verify($request->getHeaderLine('X-CSRF-Token'), 'dropins');
+        $request->getCsrf()->verify($request->getHeaderLine('X-CSRF-Token'), 'sweepers');
         $settings = Settings::fromArray($this->body($request));
         $station = $request->getStation();
         if ($settings->enabled) {
@@ -127,7 +127,7 @@ final readonly class PanelController
 
     public function introAction(ServerRequest $request, Response $response, array $params): ResponseInterface
     {
-        $request->getCsrf()->verify($request->getHeaderLine('X-CSRF-Token'), 'dropins');
+        $request->getCsrf()->verify($request->getHeaderLine('X-CSRF-Token'), 'sweepers');
 
         return $this->saveIntro($request, $response, (int)$params['id'], true);
     }

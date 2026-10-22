@@ -1,4 +1,4 @@
-def dropins.sidechain(music, key) =
+def sweepers.sidechain(music, key) =
   main = ffmpeg.raw.encode.audio(%ffmpeg(%audio.raw), music)
   control = ffmpeg.raw.encode.audio(%ffmpeg(%audio.raw), key)
   ffmpeg.filter.create(fun (graph) -> begin

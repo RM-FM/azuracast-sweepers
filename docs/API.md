@@ -1,6 +1,6 @@
 # Intro import API
 
-`POST /api/station/{station_id}/dropins/intro/{media_id}`
+`POST /api/station/{station_id}/sweepers/intro/{media_id}`
 
 Authenticate with an AzuraCast API key whose account has Media permission for the
 station. Use `X-API-Key` over HTTPS, following AzuraCast's normal API configuration.
@@ -37,7 +37,7 @@ the boundary. Importing results does not start a GPU worker or scan media.
 
 ## Internal playback endpoints
 
-The Liquidsoap module uses `/api/internal/{station_id}/liquidsoap/dropins/`:
+The Liquidsoap module uses `/api/internal/{station_id}/liquidsoap/sweepers/`:
 
 | Endpoint | Purpose |
 | --- | --- |

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Plugin\AzuracastDropins\Service;
+namespace Plugin\AzuracastSweepers\Service;
 
 use App\Cache\AutoCueCache;
 use App\Entity\CustomField;
@@ -15,7 +15,7 @@ use App\Entity\StationPlaylist;
 use App\Event\Radio\AnnotateNextSong;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
-use Plugin\AzuracastDropins\ValueObject\Timing;
+use Plugin\AzuracastSweepers\ValueObject\Timing;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
 
@@ -32,7 +32,7 @@ final readonly class Media
     public function ensureField(): CustomField
     {
         $connection = $this->em->getConnection();
-        if ((int)$connection->fetchOne("SELECT GET_LOCK('rmfm_dropins_intro_end', 5)") !== 1) {
+        if ((int)$connection->fetchOne("SELECT GET_LOCK('rmfm_sweepers_intro_end', 5)") !== 1) {
             throw new RuntimeException('Cannot initialize intro_end.');
         }
 
@@ -49,7 +49,7 @@ final readonly class Media
 
             return $field;
         } finally {
-            $connection->executeQuery("SELECT RELEASE_LOCK('rmfm_dropins_intro_end')");
+            $connection->executeQuery("SELECT RELEASE_LOCK('rmfm_sweepers_intro_end')");
         }
     }
 

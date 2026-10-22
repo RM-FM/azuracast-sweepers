@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Plugin\AzuracastDropins\Service;
+namespace Plugin\AzuracastSweepers\Service;
 
 use App\Entity\Station;
 use InvalidArgumentException;
-use Plugin\AzuracastDropins\ValueObject\Settings;
+use Plugin\AzuracastSweepers\ValueObject\Settings;
 
 final readonly class Planner
 {

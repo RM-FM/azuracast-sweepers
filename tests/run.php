@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-use Plugin\AzuracastDropins\Service\Media;
-use Plugin\AzuracastDropins\Service\State;
-use Plugin\AzuracastDropins\ValueObject\Settings;
-use Plugin\AzuracastDropins\ValueObject\Timing;
+use Plugin\AzuracastSweepers\Service\Media;
+use Plugin\AzuracastSweepers\Service\State;
+use Plugin\AzuracastSweepers\ValueObject\Settings;
+use Plugin\AzuracastSweepers\ValueObject\Timing;
 
 spl_autoload_register(static function (string $class): void {
-    $prefix = 'Plugin\\AzuracastDropins\\';
+    $prefix = 'Plugin\\AzuracastSweepers\\';
     if (str_starts_with($class, $prefix)) {
         require dirname(__DIR__) . '/src/' . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
     }
@@ -91,7 +91,7 @@ foreach ([-1, 301, NAN, 'vocals', true, '30s+'] as $invalid) {
     rejects(static fn() => Media::parseIntro($invalid, 300));
 }
 
-$directory = sys_get_temp_dir() . '/dropins-test-' . bin2hex(random_bytes(6));
+$directory = sys_get_temp_dir() . '/sweepers-test-' . bin2hex(random_bytes(6));
 mkdir($directory);
 $state = new State();
 try {
@@ -103,7 +103,7 @@ try {
     } catch (RuntimeException) {
     }
     check($state->read($directory)['history'][42] === 100, 'An interrupted update preserves the previous state.');
-    check(glob($directory . '/dropins-*') === [], 'No abandoned temporary state.');
+    check(glob($directory . '/sweepers-*') === [], 'No abandoned temporary state.');
 } finally {
     foreach (glob($directory . '/*') as $path) {
         unlink($path);

@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<ruleset name="AzuraCast Drop-ins">
+<ruleset name="AzuraCast Sweepers">
     <file>src</file>
     <file>events.php</file>
     <arg name="extensions" value="php"/>

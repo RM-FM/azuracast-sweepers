@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-repo="RM-FM/azuracast-dropins"
+repo="RM-FM/azuracast-sweepers"
 identity="RM-FM <40538914+RM-FM@users.noreply.github.com>"
 git rev-parse --verify main >/dev/null
 

@@ -18,7 +18,7 @@ export function displayIntro(row) {
         return "Recording changed — review required";
     }
     if (row.review?.status === "veto") {
-        return "Veto — drop-ins blocked";
+        return "Veto — sweepers blocked";
     }
     if (row.review?.status === "unknown" || row.intro_end === null) {
         return "Not measured";
