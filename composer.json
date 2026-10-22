@@ -1,5 +1,5 @@
 {
-  "name": "rm-fm/azuracast-dropins",
+  "name": "rm-fm/azuracast-sweepers",
   "description": "Intro-aware jingle overlays for AzuraCast.",
   "type": "azuracast-plugin",
   "license": "AGPL-3.0-or-later",
@@ -13,7 +13,7 @@
   },
   "autoload": {
     "psr-4": {
-      "Plugin\\AzuracastDropins\\": "src/"
+      "Plugin\\AzuracastSweepers\\": "src/"
     }
   },
   "scripts": {

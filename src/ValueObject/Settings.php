@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Plugin\AzuracastDropins\ValueObject;
+namespace Plugin\AzuracastSweepers\ValueObject;
 
 use InvalidArgumentException;
 
@@ -27,7 +27,7 @@ final readonly class Settings
             || $duckDb > 0 || $duckDb < -20 || $jingleGain < 0 || $jingleGain > 2
             || ($enabled && ($playlistId === null || $playlistId < 1))
         ) {
-            throw new InvalidArgumentException('Invalid drop-in settings.');
+            throw new InvalidArgumentException('Invalid sweeper settings.');
         }
     }
 

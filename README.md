@@ -1,4 +1,4 @@
-# AzuraCast Drop-ins
+# AzuraCast Sweepers
 
 Intro-aware jingle overlays for AzuraCast AutoDJ.
 
@@ -8,7 +8,7 @@ AzuraCast station before use on air. The reference source is AzuraCast
 
 The plugin provides:
 
-- A standalone drop-in settings page and waveform intro editor.
+- A standalone sweeper settings page and waveform intro editor.
 - An automatically created `intro_end` custom field.
 - Selection of the oldest actually played jingle that fits the intro.
 - AutoCue-aware start, handover, loudness and tail handling.
@@ -20,13 +20,13 @@ are included.
 
 ## Installation
 
-Clone this repository into `/var/azuracast/plugins/azuracast-dropins`. Keep this
+Clone this repository into `/var/azuracast/plugins/azuracast-sweepers`. Keep this
 directory name: AzuraCast derives the PHP namespace from it.
 
 Build the frontend with Node 24:
 
 ```bash
-cd /var/azuracast/plugins/azuracast-dropins
+cd /var/azuracast/plugins/azuracast-sweepers
 npm install --ignore-scripts
 npm run build
 ```
@@ -48,16 +48,16 @@ services:
     environment:
       AZURACAST_PLUGIN_MODE: "true"
     volumes:
-      - ./plugins/azuracast-dropins:/var/azuracast/www/plugins/azuracast-dropins:ro
+      - ./plugins/azuracast-sweepers:/var/azuracast/www/plugins/azuracast-sweepers:ro
 ```
 
 Recreate the AzuraCast containers using the normal installation procedure.
-Open `/dropins/1`, replacing `1` with the station ID, while signed in. The plugin
+Open `/sweepers/1`, replacing `1` with the station ID, while signed in. The plugin
 creates or reuses `intro_end` on the first page visit or station configuration
 generation. It does not overwrite an existing field or change other custom fields.
 
-Create an **Advanced** playlist containing the drop-in jingles, select it in the
-plugin settings, enable drop-ins and restart broadcasting through AzuraCast.
+Create an **Advanced** playlist containing the sweeper jingles, select it in the
+plugin settings, enable sweepers and restart broadcasting through AzuraCast.
 Advanced playlists prevent the jingles from also entering the normal song rotation.
 The page requires station Media permission; changing settings also requires
 Broadcasting permission. It is a separate page, not a modification of the native
@@ -69,13 +69,13 @@ station sidebar or visual cue editor.
 
 | Value | Meaning |
 | --- | --- |
-| Blank | Unknown; no drop-in |
+| Blank | Unknown; no sweeper |
 | `0` | No usable intro |
 | Positive number | Available intro boundary |
 
 The plugin editor also records vocal/musical/30s+ type, approval/veto state and
 whether a manual review is protected. A 30s+ bound stores numeric `30`, with its
-type recorded separately. Vetoes block drop-ins. A changed media identity
+type recorded separately. Vetoes block sweepers. A changed media identity
 invalidates the plugin review. The editor supports auditioning, setting a cue at
 the playhead and dragging the Intro marker.
 
@@ -104,8 +104,8 @@ Network calls and request resolution run outside synchronous audio callbacks.
 Preparation failures leave the original song available. Late overlay activation
 is skipped. Live inputs bypass the overlay branch.
 
-Settings and rotation state live in the station config directory as `dropins.json`
-and `dropins.lock`. Keep these files when updating the plugin. Intro edits affect
+Settings and rotation state live in the station config directory as `sweepers.json`
+and `sweepers.lock`. Keep these files when updating the plugin. Intro edits affect
 future plans; an already-prefetched track may retain its previous plan.
 
 ## External cue import
@@ -136,8 +136,8 @@ brief and limited to non-obvious behavior.
 
 ## Removal
 
-Disable drop-ins and restart broadcasting before removing the plugin mount.
-Preserve `intro_end` and `dropins.json` if their data is still needed. Removal
+Disable sweepers and restart broadcasting before removing the plugin mount.
+Preserve `intro_end` and `sweepers.json` if their data is still needed. Removal
 does not require deleting media, rebuilding the database or resetting AutoCue.
 
 AGPL-3.0-or-later. Copyright 2026 RM-FM. This project is independent of AzuraCast.

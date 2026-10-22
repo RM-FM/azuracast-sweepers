@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Plugin\AzuracastDropins\ValueObject;
+namespace Plugin\AzuracastSweepers\ValueObject;
 
 final readonly class Timing
 {

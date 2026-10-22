@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Plugin\AzuracastDropins\Controller;
+namespace Plugin\AzuracastSweepers\Controller;
 
 use App\Http\Response;
 use App\Http\ServerRequest;
 use InvalidArgumentException;
-use Plugin\AzuracastDropins\Service\Media;
-use Plugin\AzuracastDropins\Service\Planner;
-use Plugin\AzuracastDropins\Service\State;
-use Plugin\AzuracastDropins\ValueObject\Settings;
-use Plugin\AzuracastDropins\ValueObject\Timing;
+use Plugin\AzuracastSweepers\Service\Media;
+use Plugin\AzuracastSweepers\Service\Planner;
+use Plugin\AzuracastSweepers\Service\State;
+use Plugin\AzuracastSweepers\ValueObject\Settings;
+use Plugin\AzuracastSweepers\ValueObject\Timing;
 use Psr\Http\Message\ResponseInterface;
 
 final readonly class InternalController

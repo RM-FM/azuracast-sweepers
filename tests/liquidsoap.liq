@@ -1,5 +1,5 @@
 %include "/azuracast/azuracast.liq"
-%include "/plugin/liquidsoap/dropins.liq"
+%include "/plugin/liquidsoap/sweepers.liq"
 
-radio = dropins.mix(blank(duration=1.))
+radio = sweepers.mix(blank(duration=1.))
 output.dummy(fallible=true, radio)

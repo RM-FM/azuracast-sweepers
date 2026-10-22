@@ -1,53 +1,53 @@
-let dropins = ()
-dropins.plans = ref([])
-dropins.pending = ref(null)
-dropins.reset = ref(false)
-dropins.now = ref(fun () -> 0.)
-dropins.duck_gain = ref(1.)
-dropins.duck_start = ref(-1.)
-dropins.duck_end = ref(-1.)
-dropins.seen = ref([])
-dropins.metadata = ref([])
-dropins.forwarded = ref([])
+let sweepers = ()
+sweepers.plans = ref([])
+sweepers.pending = ref(null)
+sweepers.reset = ref(false)
+sweepers.now = ref(fun () -> 0.)
+sweepers.duck_gain = ref(1.)
+sweepers.duck_start = ref(-1.)
+sweepers.duck_end = ref(-1.)
+sweepers.seen = ref([])
+sweepers.metadata = ref([])
+sweepers.forwarded = ref([])
 
-def dropins.next_overlay() =
-    clock = dropins.now()
+def sweepers.next_overlay() =
+    clock = sweepers.now()
     now = clock()
-    if null.defined(dropins.pending()) then
-        p = null.get(dropins.pending())
+    if null.defined(sweepers.pending()) then
+        p = null.get(sweepers.pending())
         if settings.azuracast.live_enabled() then
-            dropins.pending := null
+            sweepers.pending := null
             (source.fail() : source)
         elsif now >= p.due then
-            dropins.pending := null
-            dropins.reset := false
+            sweepers.pending := null
+            sweepers.reset := false
             if now > p.due + 0.1 then
-                log(label="dropins", "Late activation skipped: #{p.token}")
+                log(label="sweepers", "Late activation skipped: #{p.token}")
                 (source.fail() : source)
             else
-                dropins.duck_start := now
-                dropins.duck_end := p.duck_end
+                sweepers.duck_start := now
+                sweepers.duck_end := p.duck_end
                 p.source
             end
-        elsif dropins.reset() then
-            dropins.reset := false
+        elsif sweepers.reset() then
+            sweepers.reset := false
             (source.fail() : source)
         else
             null
         end
-    elsif dropins.reset() then
-        dropins.reset := false
+    elsif sweepers.reset() then
+        sweepers.reset := false
         (source.fail() : source)
     else
         null
     end
 end
 
-dropins.jingles = source.dynamic(id="dropins", track_sensitive=false, dropins.next_overlay)
+sweepers.jingles = source.dynamic(id="sweepers", track_sensitive=false, sweepers.next_overlay)
 
-def dropins.resolve_jingles() =
+def sweepers.resolve_jingles() =
     measurements = ref([])
-    result = azuracast.api_call("dropins/catalog", "{}")
+    result = azuracast.api_call("sweepers/catalog", "{}")
     if null.defined(result) then
         let json.parse (jobs : [{media_id: int, identity: string, uri: string}]) = null.get(result)
         list.iter(fun (job) -> begin
@@ -76,10 +76,10 @@ def dropins.resolve_jingles() =
     measurements()
 end
 
-dropins.original_next_song = azuracast.autodj_next_song
+sweepers.original_next_song = azuracast.autodj_next_song
 
 def azuracast.autodj_next_song() =
-    next = dropins.original_next_song()
+    next = sweepers.original_next_song()
     if null.defined(next) then
         r = null.get(next)
         try
@@ -87,7 +87,7 @@ def azuracast.autodj_next_song() =
                 m = request.metadata(r)
                 token = m["sq_id"]
                 if token != "" and m["media_id"] != "" then
-                    measurements = dropins.resolve_jingles()
+                    measurements = sweepers.resolve_jingles()
                     cue_in = float_of_string(default=0., m["liq_cue_in"])
                     cue_out = float_of_string(default=float_of_string(default=0., m["duration"]), m["liq_cue_out"])
                     transition = float_of_string(default=cue_out, m["liq_cross_start_next"])
@@ -99,7 +99,7 @@ def azuracast.autodj_next_song() =
                         cue_in=cue_in,
                         cue_out=window_end
                     })
-                    response = azuracast.api_call("dropins/plan", body)
+                    response = azuracast.api_call("sweepers/plan", body)
                     if null.defined(response) then
                         let json.parse (p : {
                             token: string, uri: string, offset: float,
@@ -114,7 +114,7 @@ def azuracast.autodj_next_song() =
                                     ready := true
                                     s = amplify(override=null, p.gain, request.once(jr))
                                     s.on_track(synchronous=false, fun (_) -> begin
-                                        ignore(azuracast.api_call("dropins/played", json.stringify({token=p.token})))
+                                        ignore(azuracast.api_call("sweepers/played", json.stringify({token=p.token})))
                                     end)
                                     s
                                 else
@@ -122,16 +122,16 @@ def azuracast.autodj_next_song() =
                                     overlay
                                 end
                             else overlay end
-                        overlay = dropins.jingles.prepare(overlay)
-                        dropins.plans := list.prefix(16, [(token, {
+                        overlay = sweepers.jingles.prepare(overlay)
+                        sweepers.plans := list.prefix(16, [(token, {
                             source=overlay, ready=ready(), offset=p.offset,
                             duration=p.duck_duration, duck_gain=p.duck_gain
-                        }), ...dropins.plans()])
+                        }), ...sweepers.plans()])
                     end
                 end
             end
         catch err do
-            log(label="dropins", "Planning skipped: #{error.message(err)}")
+            log(label="sweepers", "Planning skipped: #{error.message(err)}")
         end
         r
     else
@@ -141,23 +141,23 @@ end
 
 %include "sidechain.liq"
 
-def dropins.mix(music) =
-    dropins.now := music.time
+def sweepers.mix(music) =
+    sweepers.now := music.time
     music.on_metadata(synchronous=true, fun (m) -> begin
-        dropins.metadata := m
+        sweepers.metadata := m
         token = m["sq_id"]
-        if token == "" or not list.mem(token, dropins.seen()) then
+        if token == "" or not list.mem(token, sweepers.seen()) then
             if token != "" then
-                dropins.seen := list.prefix(64, [token, ...dropins.seen()])
+                sweepers.seen := list.prefix(64, [token, ...sweepers.seen()])
             end
-            dropins.pending := null
-            dropins.reset := true
-            dropins.duck_end := -1.
-            if list.assoc.mem(token, dropins.plans()) then
-                p = list.assoc(token, dropins.plans())
-                dropins.duck_gain := p.duck_gain
+            sweepers.pending := null
+            sweepers.reset := true
+            sweepers.duck_end := -1.
+            if list.assoc.mem(token, sweepers.plans()) then
+                p = list.assoc(token, sweepers.plans())
+                sweepers.duck_gain := p.duck_gain
                 if p.ready then
-                    dropins.pending := {
+                    sweepers.pending := {
                         source=p.source,
                         due=music.time() + p.offset,
                         duck_end=music.time() + p.offset + p.duration,
@@ -170,21 +170,21 @@ def dropins.mix(music) =
 
     def blend() =
         now = music.time()
-        if dropins.jingles.is_ready() and now < dropins.duck_end() then
-            attack = min(1., max(0., (now - dropins.duck_start()) / 0.15))
-            release = min(1., max(0., (dropins.duck_end() - now) / 0.15))
-            (1. - dropins.duck_gain()) * min(attack, release)
+        if sweepers.jingles.is_ready() and now < sweepers.duck_end() then
+            attack = min(1., max(0., (now - sweepers.duck_start()) / 0.15))
+            release = min(1., max(0., (sweepers.duck_end() - now) / 0.15))
+            (1. - sweepers.duck_gain()) * min(attack, release)
         else 0. end
     end
 
-    let (dry, wet, jingle) = dropins.sidechain(music, mksafe(dropins.jingles))
+    let (dry, wet, jingle) = sweepers.sidechain(music, mksafe(sweepers.jingles))
     dry = amplify(override=null, {1. - blend()}, dry)
     wet = amplify(override=null, {blend()}, wet)
     mixed = add(normalize=false, [dry, wet, jingle])
     mixed.on_frame(before=true, synchronous=true, fun () -> begin
-        m = dropins.metadata()
-        if m != [] and m != dropins.forwarded() then
-            dropins.forwarded := m
+        m = sweepers.metadata()
+        if m != [] and m != sweepers.forwarded() then
+            sweepers.forwarded := m
             mixed.insert_metadata(m)
         end
     end)

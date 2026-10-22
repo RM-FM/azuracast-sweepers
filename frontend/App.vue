@@ -2,7 +2,7 @@
     <header>
         <div>
             <a :href="stationUrl">← AzuraCast</a>
-            <h1>Drop-ins</h1>
+            <h1>Sweepers</h1>
             <p>{{ station.name }}</p>
         </div>
         <nav aria-label="Plugin pages">
@@ -17,9 +17,9 @@
         <p v-if="loading">Loading…</p>
 
         <section v-if="tab === 'settings' && !loading" class="card">
-            <h2>Drop-in settings</h2>
+            <h2>Sweeper settings</h2>
             <form @submit.prevent="saveSettings">
-                <label class="check"><input v-model="settings.enabled" type="checkbox"> Enable drop-ins</label>
+                <label class="check"><input v-model="settings.enabled" type="checkbox"> Enable sweepers</label>
                 <label>
                     Jingle playlist
                     <select v-model="settings.playlist_id">
@@ -128,7 +128,7 @@
                                 <option value="confirmed">Confirmed</option>
                                 <option value="no_intro">No intro</option>
                                 <option value="unknown">Not measured</option>
-                                <option value="veto">Veto — block drop-ins</option>
+                                <option value="veto">Veto — block sweepers</option>
                             </select>
                         </label>
                     </div>
