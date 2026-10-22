@@ -1,0 +1,105 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Plugin\AzuracastDropins\Controller;
+
+use App\Http\Response;
+use App\Http\ServerRequest;
+use InvalidArgumentException;
+use Plugin\AzuracastDropins\Service\Media;
+use Plugin\AzuracastDropins\Service\Planner;
+use Plugin\AzuracastDropins\Service\State;
+use Plugin\AzuracastDropins\ValueObject\Settings;
+use Plugin\AzuracastDropins\ValueObject\Timing;
+use Psr\Http\Message\ResponseInterface;
+
+final readonly class InternalController
+{
+    public function __construct(
+        private Media $media,
+        private Planner $planner,
+        private State $state
+    ) {
+    }
+
+    private function authorize(ServerRequest $request): void
+    {
+        $key = $request->getHeaderLine('X-Liquidsoap-Api-Key');
+        if ($key === '' || !$request->getStation()->validateAdapterApiKey($key)) {
+            throw new InvalidArgumentException('Invalid station adapter key.');
+        }
+    }
+
+    private function payload(ServerRequest $request): array
+    {
+        $this->authorize($request);
+
+        return json_decode((string)$request->getBody(), true, flags: JSON_THROW_ON_ERROR);
+    }
+
+    public function catalogAction(ServerRequest $request, Response $response, array $params): ResponseInterface
+    {
+        $this->authorize($request);
+        $station = $request->getStation();
+        $data = $this->state->read($station->getRadioConfigDir());
+        $settings = Settings::fromArray($data['settings'] ?? []);
+        $jobs = [];
+        if ($settings->enabled) {
+            foreach ($this->media->jingles($station, $settings->playlistId) as $jingle) {
+                $jobs[] = [
+                    'media_id' => $jingle->id,
+                    'identity' => Media::identity($jingle),
+                    'uri' => $this->media->uri($station, $jingle),
+                ];
+            }
+        }
+
+        return $response->withJson($jobs);
+    }
+
+    public function planAction(ServerRequest $request, Response $response, array $params): ResponseInterface
+    {
+        $body = $this->payload($request);
+        foreach (['cue_in', 'cue_out', 'media_id'] as $key) {
+            if (!isset($body[$key]) || !is_numeric($body[$key]) || !is_finite((float)$body[$key])) {
+                throw new InvalidArgumentException('Invalid ' . $key . '.');
+            }
+        }
+
+        $station = $request->getStation();
+        $data = $this->state->read($station->getRadioConfigDir());
+        $settings = Settings::fromArray($data['settings'] ?? []);
+        $allowed = [];
+        foreach ($this->media->jingles($station, $settings->playlistId) as $jingle) {
+            $allowed[$jingle->id] = $jingle;
+        }
+        $measurements = [];
+        foreach ($body['jingles'] ?? [] as $row) {
+            $jingle = $allowed[$row['media_id'] ?? 0] ?? null;
+            if ($jingle !== null && ($row['identity'] ?? '') === Media::identity($jingle)) {
+                $timing = Timing::fromMetadata((array)($row['metadata'] ?? []), $jingle->length);
+                if ($timing !== null) {
+                    $measurements[$jingle->id] = $timing;
+                }
+            }
+        }
+
+        return $response->withJson($this->planner->plan(
+            $request->getStation(),
+            (int)$body['media_id'],
+            (string)($body['token'] ?? ''),
+            (float)$body['cue_in'],
+            (float)$body['cue_out'],
+            $measurements
+        ));
+    }
+
+    public function playedAction(ServerRequest $request, Response $response, array $params): ResponseInterface
+    {
+        $body = $this->payload($request);
+        $this->planner->played($request->getStation(), (string)($body['token'] ?? ''));
+
+        return $response->withJson(['success' => true]);
+    }
+}

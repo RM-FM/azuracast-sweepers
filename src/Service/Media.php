@@ -1,0 +1,176 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Plugin\AzuracastDropins\Service;
+
+use App\Cache\AutoCueCache;
+use App\Entity\CustomField;
+use App\Entity\Enums\PlaylistTypes;
+use App\Entity\Repository\CustomFieldRepository;
+use App\Entity\Station;
+use App\Entity\StationMedia;
+use App\Entity\StationMediaCustomField;
+use App\Entity\StationPlaylist;
+use App\Event\Radio\AnnotateNextSong;
+use Doctrine\ORM\EntityManagerInterface;
+use InvalidArgumentException;
+use Plugin\AzuracastDropins\ValueObject\Timing;
+use Psr\EventDispatcher\EventDispatcherInterface;
+use RuntimeException;
+
+final readonly class Media
+{
+    public function __construct(
+        private EntityManagerInterface $em,
+        private CustomFieldRepository $customFields,
+        private AutoCueCache $autoCueCache,
+        private EventDispatcherInterface $dispatcher
+    ) {
+    }
+
+    public function ensureField(): CustomField
+    {
+        $connection = $this->em->getConnection();
+        if ((int)$connection->fetchOne("SELECT GET_LOCK('rmfm_dropins_intro_end', 5)") !== 1) {
+            throw new RuntimeException('Cannot initialize intro_end.');
+        }
+
+        try {
+            $repository = $this->em->getRepository(CustomField::class);
+            $field = $repository->findOneBy(['short_name' => 'intro_end']);
+            if ($field === null) {
+                $field = new CustomField();
+                $field->name = 'Intro End';
+                $field->short_name = 'intro_end';
+                $this->em->persist($field);
+                $this->em->flush();
+            }
+
+            return $field;
+        } finally {
+            $connection->executeQuery("SELECT RELEASE_LOCK('rmfm_dropins_intro_end')");
+        }
+    }
+
+    public function get(Station $station, int $id): StationMedia
+    {
+        $media = $this->em->find(StationMedia::class, $id);
+        if ($media === null || $media->storage_location_id !== $station->media_storage_location->id) {
+            throw new InvalidArgumentException('Media does not belong to this station.');
+        }
+
+        return $media;
+    }
+
+    public function intro(StationMedia $media): ?float
+    {
+        $raw = $this->customFields->getCustomFields($media)['intro_end'] ?? null;
+        if ($raw === null || trim((string)$raw) === '') {
+            return null;
+        }
+
+        try {
+            return self::parseIntro($raw, $media->length);
+        } catch (InvalidArgumentException) {
+            return null;
+        }
+    }
+
+    public static function parseIntro(mixed $value, float $duration): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (!is_numeric($value) || !is_finite((float)$value) || (float)$value < 0 || (float)$value > $duration) {
+            throw new InvalidArgumentException('Intro End must be seconds from the original file start.');
+        }
+
+        return (float)$value;
+    }
+
+    public function saveIntro(StationMedia $media, mixed $value): ?float
+    {
+        $intro = self::parseIntro($value, $media->length);
+        $field = $this->ensureField();
+        $entry = $this->em->getRepository(StationMediaCustomField::class)->findOneBy([
+            'media' => $media,
+            'field' => $field,
+        ]);
+
+        if ($entry === null) {
+            $entry = new StationMediaCustomField($media, $field);
+            $this->em->persist($entry);
+        }
+        $entry->value = $intro === null ? null : (string)$intro;
+        $this->em->flush();
+
+        return $intro;
+    }
+
+    public function playlists(Station $station): array
+    {
+        return $this->em->getRepository(StationPlaylist::class)->findBy([
+            'station' => $station,
+            'type' => PlaylistTypes::Advanced,
+        ]);
+    }
+
+    public function jingles(Station $station, ?int $playlistId): array
+    {
+        if ($playlistId === null) {
+            return [];
+        }
+        $playlist = $this->em->find(StationPlaylist::class, $playlistId);
+        if ($playlist === null || $playlist->station_id !== $station->id || $playlist->type !== PlaylistTypes::Advanced) {
+            throw new InvalidArgumentException('Choose an Advanced playlist belonging to this station.');
+        }
+
+        $unique = [];
+        foreach ($playlist->media_items as $entry) {
+            $media = $this->get($station, $entry->media_id);
+            $unique[$media->id] = $media;
+        }
+
+        return array_values($unique);
+    }
+
+    public function timing(StationMedia $media): ?Timing
+    {
+        $cached = $this->autoCueCache->getForCacheKey($this->autoCueCache->getCacheKey($media)) ?? [];
+        $manual = array_filter($media->extra_metadata->toArray() ?? [], static fn($value) => $value !== null);
+
+        return Timing::fromArray(array_replace($cached, $manual), $media->length);
+    }
+
+    public function list(Station $station, string $search): array
+    {
+        $query = $this->em->createQueryBuilder()
+            ->select('m')
+            ->from(StationMedia::class, 'm')
+            ->where('m.storage_location = :storage')
+            ->setParameter('storage', $station->media_storage_location)
+            ->orderBy('m.path', 'ASC')
+            ->setMaxResults(100);
+
+        if ($search !== '') {
+            $query->andWhere('m.path LIKE :search OR m.title LIKE :search OR m.artist LIKE :search')
+                ->setParameter('search', '%' . $search . '%');
+        }
+
+        return $query->getQuery()->getResult();
+    }
+
+    public function uri(Station $station, StationMedia $media): string
+    {
+        $event = AnnotateNextSong::fromStationMedia($station, $media);
+        $this->dispatcher->dispatch($event);
+
+        return $event->buildAnnotations();
+    }
+
+    public static function identity(StationMedia $media): string
+    {
+        return $media->unique_id . ':' . $media->mtime . ':' . $media->size;
+    }
+}

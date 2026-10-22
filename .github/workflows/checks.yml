@@ -1,0 +1,53 @@
+name: Checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  php:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer
+          coverage: none
+      - run: composer validate --no-check-publish
+      - run: find src tests -name '*.php' -print0 | xargs -0 -n1 php -l
+      - run: php -l events.php
+      - run: php tests/run.php
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --ignore-scripts
+      - run: npm test
+      - run: npm run build
+
+  liquidsoap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch the reference AzuraCast runtime
+        run: |
+          mkdir -p /tmp/azuracast-runtime
+          for file in azuracast crossfade utilities; do
+            curl --fail --silent --show-error --location \
+              "https://raw.githubusercontent.com/AzuraCast/AzuraCast/19d68c47b1e4d569885ca7cf4c40609cbabefda7/util/docker/stations/liquidsoap/$file.liq" \
+              --output "/tmp/azuracast-runtime/$file.liq"
+          done
+      - name: Check the native Liquidsoap source types
+        run: |
+          docker run --rm --entrypoint liquidsoap \
+            -v "$PWD:/plugin:ro" \
+            -v /tmp/azuracast-runtime:/azuracast:ro \
+            savonet/liquidsoap:v2.4.5 --check /plugin/tests/liquidsoap.liq
