@@ -10,6 +10,7 @@ use App\Event\Radio\WriteLiquidsoapConfiguration;
 use App\Middleware;
 use Plugin\AzuracastSweepers\Controller\InternalController;
 use Plugin\AzuracastSweepers\Controller\PanelController;
+use Plugin\AzuracastSweepers\Middleware\SidebarNavigation;
 use Plugin\AzuracastSweepers\Service\Media;
 use Plugin\AzuracastSweepers\Service\State;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
@@ -39,6 +40,8 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
     public function routes(BuildRoutes $event): void
     {
         $app = $event->getApp();
+        $app->add(new SidebarNavigation($app->getBasePath()));
+        $app->get('/sweepers/assets/navigation.js', PanelController::class . ':navigationAction');
         $app->group('/sweepers/{station_id}', static function (RouteCollectorProxy $group): void {
             $group->get('', PanelController::class . ':indexAction');
             $group->get('/assets/{name:app\\.(?:js|css)}', PanelController::class . ':assetAction');
