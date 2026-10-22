@@ -1,11 +1,12 @@
 # Validation status
 
-This initial repository is an alpha implementation, not an on-air certified build.
+This initial implementation has not been validated on a running station.
 
 Locally completed:
 
 - Three Node tests covering cue validation and status distinctions.
-- JavaScript syntax checks.
+- JavaScript syntax checks, including both Vue component script sections.
+- Shell syntax and Git whitespace checks.
 - Source review against AzuraCast `19d68c47b1e4d569885ca7cf4c40609cbabefda7`.
 
 Not executed in the authoring environment:

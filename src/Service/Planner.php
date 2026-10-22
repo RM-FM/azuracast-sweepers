@@ -132,6 +132,13 @@ final readonly class Planner
 
     private static function emptyPlan(string $token): array
     {
-        return ['token' => $token, 'uri' => '', 'offset' => 0.0, 'duck_duration' => 0.0, 'gain' => 1.0, 'duck_gain' => 1.0];
+        return [
+            'token' => $token,
+            'uri' => '',
+            'offset' => 0.0,
+            'duck_duration' => 0.0,
+            'gain' => 1.0,
+            'duck_gain' => 1.0,
+        ];
     }
 }

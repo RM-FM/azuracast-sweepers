@@ -55,11 +55,14 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
             ->add(Middleware\Auth\StandardAuth::class)
             ->add(Middleware\InjectSession::class);
 
-        $app->group('/api/internal/{station_id}/liquidsoap/dropins', static function (RouteCollectorProxy $group): void {
-            $group->post('/catalog', InternalController::class . ':catalogAction');
-            $group->post('/plan', InternalController::class . ':planAction');
-            $group->post('/played', InternalController::class . ':playedAction');
-        })
+        $app->group(
+            '/api/internal/{station_id}/liquidsoap/dropins',
+            static function (RouteCollectorProxy $group): void {
+                $group->post('/catalog', InternalController::class . ':catalogAction');
+                $group->post('/plan', InternalController::class . ':planAction');
+                $group->post('/played', InternalController::class . ':playedAction');
+            }
+        )
             ->add(Middleware\RequireInternalConnection::class)
             ->add(Middleware\RequireStation::class)
             ->add(Middleware\GetStation::class);

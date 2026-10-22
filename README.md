@@ -123,6 +123,11 @@ npm test
 npm run build
 ```
 
+`./bin/check.sh --liquidsoap` runs these checks together, using a PHP container
+when PHP is not installed locally, and checks the pinned Liquidsoap runtime.
+Install Node dependencies first. Run `composer install && vendor/bin/phpcs` for
+the PHP style checks used by CI.
+
 GitHub Actions also checks the module against the pinned AzuraCast Liquidsoap
 runtime. See [docs/VALIDATION.md](docs/VALIDATION.md) for the on-air acceptance checks.
 Use AzuraCast's PHP conventions: PSR-12, strict types, typed methods, sorted imports,
