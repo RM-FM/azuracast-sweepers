@@ -23,8 +23,7 @@ final readonly class Planner
         float $cueIn,
         float $cueOut,
         array $measurements
-    ): array
-    {
+    ): array {
         if (!preg_match('/^\d{1,20}$/D', $token)) {
             throw new InvalidArgumentException('A queue token is required.');
         }
