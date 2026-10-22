@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<ruleset name="AzuraCast Drop-ins">
+    <file>src</file>
+    <file>events.php</file>
+    <arg name="extensions" value="php"/>
+    <rule ref="PSR12"/>
+</ruleset>

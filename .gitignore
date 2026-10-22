@@ -1,0 +1,10 @@
+/node_modules/
+/dist/
+/vendor/
+/.phpunit.cache/
+/.env
+*.key
+*.sts
+*.mp3
+*.wav
+*.flac

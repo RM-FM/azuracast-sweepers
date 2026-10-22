@@ -1,0 +1,113 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Plugin\AzuracastDropins\EventHandler;
+
+use App\Enums\StationPermissions;
+use App\Event\BuildRoutes;
+use App\Event\Radio\WriteLiquidsoapConfiguration;
+use App\Middleware;
+use Plugin\AzuracastDropins\Controller\InternalController;
+use Plugin\AzuracastDropins\Controller\PanelController;
+use Plugin\AzuracastDropins\Service\Media;
+use Plugin\AzuracastDropins\Service\State;
+use Plugin\AzuracastDropins\ValueObject\Settings;
+use RuntimeException;
+use Slim\Routing\RouteCollectorProxy;
+use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+
+final readonly class PluginSubscriber implements EventSubscriberInterface
+{
+    public function __construct(
+        private Media $media,
+        private State $state
+    ) {
+    }
+
+    public static function getSubscribedEvents(): array
+    {
+        return [
+            BuildRoutes::class => 'routes',
+            WriteLiquidsoapConfiguration::class => [
+                ['header', 32],
+                ['mixer', 24],
+            ],
+        ];
+    }
+
+    public function routes(BuildRoutes $event): void
+    {
+        $app = $event->getApp();
+        $app->group('/dropins/{station_id}', static function (RouteCollectorProxy $group): void {
+            $group->get('', PanelController::class . ':indexAction');
+            $group->get('/assets/{name:app\\.(?:js|css)}', PanelController::class . ':assetAction');
+            $group->get('/state', PanelController::class . ':stateAction');
+            $group->get('/media', PanelController::class . ':mediaAction');
+            $group->post('/settings', PanelController::class . ':settingsAction')
+                ->add(new Middleware\Permissions(StationPermissions::Broadcasting, true));
+            $group->post('/intro/{id:[0-9]+}', PanelController::class . ':introAction');
+        })
+            ->add(new Middleware\Permissions(StationPermissions::Media, true))
+            ->add(Middleware\RequireStation::class)
+            ->add(Middleware\GetStation::class)
+            ->add(Middleware\RequireLogin::class)
+            ->add(Middleware\Auth\StandardAuth::class)
+            ->add(Middleware\InjectSession::class);
+
+        $app->group('/api/internal/{station_id}/liquidsoap/dropins', static function (RouteCollectorProxy $group): void {
+            $group->post('/catalog', InternalController::class . ':catalogAction');
+            $group->post('/plan', InternalController::class . ':planAction');
+            $group->post('/played', InternalController::class . ':playedAction');
+        })
+            ->add(Middleware\RequireInternalConnection::class)
+            ->add(Middleware\RequireStation::class)
+            ->add(Middleware\GetStation::class);
+
+        $app->post('/api/station/{station_id}/dropins/intro/{id:[0-9]+}', PanelController::class . ':importAction')
+            ->add(new Middleware\Permissions(StationPermissions::Media, true))
+            ->add(Middleware\RequireStation::class)
+            ->add(Middleware\GetStation::class)
+            ->add(Middleware\Module\Api::class)
+            ->add(Middleware\Auth\ApiAuth::class)
+            ->add(Middleware\InjectSession::class);
+    }
+
+    public function header(WriteLiquidsoapConfiguration $event): void
+    {
+        $this->media->ensureField();
+        $settings = $this->settings($event);
+        if (!$settings->enabled || $event->isForEditing()) {
+            return;
+        }
+        if ($event->getBackendConfig()->use_manual_autodj) {
+            throw new RuntimeException('Drop-ins require AzuraCast AutoDJ queue management.');
+        }
+
+        $path = dirname(__DIR__, 2) . '/liquidsoap/dropins.liq';
+        $event->appendBlock('%include ' . json_encode($path, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+    }
+
+    public function mixer(WriteLiquidsoapConfiguration $event): void
+    {
+        if (!$this->settings($event)->enabled || $event->isForEditing()) {
+            return;
+        }
+
+        $lines = explode("\n", $event->buildConfiguration());
+        $matches = array_keys($lines, 'radio = azuracast.apply_crossfade(radio)', true);
+        if (count($matches) !== 1) {
+            throw new RuntimeException('Unsupported Liquidsoap configuration: crossfade insertion point not found.');
+        }
+
+        $index = $matches[0];
+        $event->replaceLine($index, $lines[$index] . "\nradio = dropins.mix(radio)");
+    }
+
+    private function settings(WriteLiquidsoapConfiguration $event): Settings
+    {
+        $data = $this->state->read($event->getStation()->getRadioConfigDir());
+
+        return Settings::fromArray($data['settings'] ?? []);
+    }
+}

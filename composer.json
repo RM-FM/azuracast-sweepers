@@ -1,0 +1,10 @@
+{
+  "name": "rm-fm/azuracast-dropins",
+  "description": "Intro-aware jingle overlays for AzuraCast.",
+  "type": "azuracast-plugin",
+  "license": "AGPL-3.0-or-later",
+  "authors": [{"name": "RM-FM"}],
+  "require": {"php": "^8.4"},
+  "autoload": {"psr-4": {"Plugin\\AzuracastDropins\\": "src/"}},
+  "scripts": {"test": "php tests/run.php"}
+}
