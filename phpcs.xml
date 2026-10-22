@@ -3,5 +3,8 @@
     <file>src</file>
     <file>events.php</file>
     <arg name="extensions" value="php"/>
+    <config name="installed_paths" value="../../slevomat/coding-standard"/>
     <rule ref="PSR12"/>
+    <rule ref="SlevomatCodingStandard.Arrays.TrailingArrayComma"/>
+    <rule ref="SlevomatCodingStandard.Namespaces.AlphabeticallySortedUses"/>
 </ruleset>

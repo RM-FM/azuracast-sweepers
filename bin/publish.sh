@@ -4,6 +4,7 @@ cd "$(dirname "$0")/.."
 
 repo="RM-FM/azuracast-dropins"
 identity="RM-FM <40538914+RM-FM@users.noreply.github.com>"
+git rev-parse --verify main >/dev/null
 
 [[ "$(gh api user --jq .login)" == "RM-FM" ]] || {
     echo "Authenticate GitHub CLI as RM-FM before publishing." >&2

@@ -143,8 +143,15 @@ final readonly class PanelController
         $media = $this->media->get($station, $id);
         $body = $this->body($request);
         $identity = Media::identity($media);
-        if (!$manual && (($body['unique_id'] ?? null) !== $media->unique_id || ($body['mtime'] ?? null) !== $media->mtime)) {
-            return $response->withStatus(409)->withJson(['message' => 'The recording changed. Read its identity again.']);
+        if (
+            !$manual && (
+                ($body['unique_id'] ?? null) !== $media->unique_id
+                || ($body['mtime'] ?? null) !== $media->mtime
+            )
+        ) {
+            return $response->withStatus(409)->withJson([
+                'message' => 'The recording changed. Read its identity again.',
+            ]);
         }
 
         $status = $body['status'] ?? 'confirmed';

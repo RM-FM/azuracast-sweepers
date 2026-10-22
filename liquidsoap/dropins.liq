@@ -146,8 +146,10 @@ def dropins.mix(music) =
     music.on_metadata(synchronous=true, fun (m) -> begin
         dropins.metadata := m
         token = m["sq_id"]
-        if token != "" and not list.mem(token, dropins.seen()) then
-            dropins.seen := list.prefix(64, [token, ...dropins.seen()])
+        if token == "" or not list.mem(token, dropins.seen()) then
+            if token != "" then
+                dropins.seen := list.prefix(64, [token, ...dropins.seen()])
+            end
             dropins.pending := null
             dropins.reset := true
             dropins.duck_end := -1.

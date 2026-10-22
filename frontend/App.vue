@@ -31,10 +31,29 @@
                 </label>
                 <p>Jingles rotate by oldest actual playback, choosing those that fit the available intro.</p>
                 <div class="grid">
-                    <label>Maximum start delay (s)<input v-model.number="settings.max_wait" type="number" min="0" max="30" step="0.1" required></label>
-                    <label>Handover margin (s)<input v-model.number="settings.margin" type="number" min="0" max="5" step="0.1" required></label>
-                    <label>Maximum ducking (dB)<input v-model.number="settings.duck_db" type="number" min="-20" max="0" step="0.5" required></label>
-                    <label>Jingle gain<input v-model.number="settings.jingle_gain" type="number" min="0" max="2" step="0.05" required></label>
+                    <label>
+                        Maximum start delay (s)
+                        <input
+                            v-model.number="settings.max_wait"
+                            type="number"
+                            min="0"
+                            max="30"
+                            step="0.1"
+                            required
+                        >
+                    </label>
+                    <label>
+                        Handover margin (s)
+                        <input v-model.number="settings.margin" type="number" min="0" max="5" step="0.1" required>
+                    </label>
+                    <label>
+                        Maximum ducking (dB)
+                        <input v-model.number="settings.duck_db" type="number" min="-20" max="0" step="0.5" required>
+                    </label>
+                    <label>
+                        Jingle gain
+                        <input v-model.number="settings.jingle_gain" type="number" min="0" max="2" step="0.05" required>
+                    </label>
                 </div>
                 <p>Sidechain attack: 150 ms · release: 750 ms. AutoCue supplies jingle start, handover and tail.</p>
                 <button class="primary" :disabled="saving">Save settings</button>
@@ -74,8 +93,20 @@
                 />
                 <div class="toolbar">
                     <button type="button" @click="setAtPlayhead">Set Intro at playhead</button>
-                    <button type="button" :disabled="marker === null" @click="waveform?.playAt(marker)">Listen at Intro</button>
-                    <button type="button" :disabled="marker === null" @click="waveform?.playAt(marker - 3)">Listen −3 s</button>
+                    <button
+                        type="button"
+                        :disabled="marker === null"
+                        @click="waveform?.playAt(marker)"
+                    >
+                        Listen at Intro
+                    </button>
+                    <button
+                        type="button"
+                        :disabled="marker === null"
+                        @click="waveform?.playAt(marker - 3)"
+                    >
+                        Listen −3 s
+                    </button>
                 </div>
                 <form @submit.prevent="saveIntro">
                     <div class="grid">
@@ -102,7 +133,10 @@
                         </label>
                     </div>
                     <p>Blank means unknown. Zero means no usable intro.</p>
-                    <label class="check"><input v-model="draft.lock_manual" type="checkbox"> Protect this review from automatic updates</label>
+                    <label class="check">
+                        <input v-model="draft.lock_manual" type="checkbox">
+                        Protect this review from automatic updates
+                    </label>
                     <button class="primary" :disabled="saving">Save intro</button>
                 </form>
                 <dl v-if="selected.timing" class="grid timings">
@@ -173,7 +207,8 @@ function select(row) {
     position.value = 0;
     draft.intro_end = row.intro_end ?? row.review?.candidate ?? "";
     draft.kind = row.review?.kind ?? "vocal";
-    draft.status = row.stale ? "unknown" : row.review?.status ?? (row.intro_end === null ? "unknown" : row.intro_end === 0 ? "no_intro" : "confirmed");
+    const status = row.intro_end === null ? "unknown" : row.intro_end === 0 ? "no_intro" : "confirmed";
+    draft.status = row.stale ? "unknown" : row.review?.status ?? status;
     draft.lock_manual = row.review?.manual ?? true;
 }
 

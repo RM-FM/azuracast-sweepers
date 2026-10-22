@@ -122,7 +122,10 @@ final readonly class Media
             return [];
         }
         $playlist = $this->em->find(StationPlaylist::class, $playlistId);
-        if ($playlist === null || $playlist->station_id !== $station->id || $playlist->type !== PlaylistTypes::Advanced) {
+        if (
+            $playlist === null || $playlist->station_id !== $station->id
+            || $playlist->type !== PlaylistTypes::Advanced
+        ) {
             throw new InvalidArgumentException('Choose an Advanced playlist belonging to this station.');
         }
 
