@@ -27,7 +27,7 @@ Build the frontend with Node 24:
 
 ```bash
 cd /var/azuracast/plugins/azuracast-sweepers
-npm install --ignore-scripts
+npm ci --ignore-scripts
 npm run build
 ```
 
@@ -37,7 +37,7 @@ Alternatively, build in a temporary Node container:
 docker run --rm --user "$(id -u):$(id -g)" \
   -e npm_config_cache=/tmp/npm-cache \
   -v "$PWD:/plugin" -w /plugin node:24-alpine \
-  sh -c 'npm install --ignore-scripts && npm run build'
+  sh -c 'npm ci --ignore-scripts && npm run build'
 ```
 
 Merge this into `/var/azuracast/docker-compose.override.yml`:
@@ -52,16 +52,24 @@ services:
 ```
 
 Recreate the AzuraCast containers using the normal installation procedure.
-Open `/sweepers/1`, replacing `1` with the station ID, while signed in. The plugin
-creates or reuses `intro_end` on the first page visit or station configuration
+After reloading the dashboard, open **Media → Sweepers** in the station sidebar.
+The link appears alongside Music Files for users with station Media permission.
+Direct access at `/sweepers/1` (replace `1` with the station ID) remains available.
+The plugin creates or reuses `intro_end` on the first page visit or station configuration
 generation. It does not overwrite an existing field or change other custom fields.
 
 Create an **Advanced** playlist containing the sweeper jingles, select it in the
 plugin settings, enable sweepers and restart broadcasting through AzuraCast.
 Advanced playlists prevent the jingles from also entering the normal song rotation.
 The page requires station Media permission; changing settings also requires
-Broadcasting permission. It is a separate page, not a modification of the native
-station sidebar or visual cue editor.
+Broadcasting permission. It is a separate page, not a modification of the
+native visual cue editor.
+
+The sidebar link uses a small plugin-owned script injected into successful HTML
+responses from the authenticated dashboard. It follows station switches and Vue
+sidebar redraws without modifying core files or Vue internals. If the expected
+Media menu is absent, the script leaves the sidebar unchanged. This DOM integration
+is not an official navigation hook; verify the link after AzuraCast upgrades.
 
 ## Intro cues
 
@@ -117,7 +125,8 @@ return HTTP 409 rather than being overwritten.
 ## Development
 
 ```bash
-php tests/run.php
+composer install
+composer test
 find src tests -name '*.php' -print0 | xargs -0 -n1 php -l
 npm test
 npm run build

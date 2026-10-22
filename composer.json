@@ -17,10 +17,20 @@
     }
   },
   "scripts": {
-    "test": "php tests/run.php"
+    "test": [
+      "php tests/run.php",
+      "php tests/navigation.php"
+    ]
   },
   "require-dev": {
-    "squizlabs/php_codesniffer": "^4",
-    "slevomat/coding-standard": "^8.24"
+    "guzzlehttp/psr7": "^2.7",
+    "psr/http-server-middleware": "^1.0",
+    "slevomat/coding-standard": "^8.24",
+    "squizlabs/php_codesniffer": "^4"
+  },
+  "config": {
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    }
   }
 }

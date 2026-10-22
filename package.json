@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.0",
+    "linkedom": "^0.18.12",
     "vite": "^7.0.0"
   },
   "engines": {

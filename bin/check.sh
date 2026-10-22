@@ -16,6 +16,9 @@ while IFS= read -r file; do
 done < <(find src tests -name '*.php')
 "${php_command[@]}" -l events.php
 "${php_command[@]}" tests/run.php
+if [[ -f vendor/autoload.php ]]; then
+    "${php_command[@]}" tests/navigation.php
+fi
 npm test
 npm run build
 

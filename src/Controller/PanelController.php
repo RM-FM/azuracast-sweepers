@@ -37,6 +37,15 @@ final readonly class PanelController
             ->withHeader('Cache-Control', 'no-store');
     }
 
+    public function navigationAction(ServerRequest $request, Response $response): ResponseInterface
+    {
+        $response->getBody()->write(file_get_contents(dirname(__DIR__, 2) . '/frontend/navigation.js'));
+
+        return $response->withHeader('Content-Type', 'text/javascript; charset=utf-8')
+            ->withHeader('Cache-Control', 'no-cache')
+            ->withHeader('X-Content-Type-Options', 'nosniff');
+    }
+
     public function assetAction(ServerRequest $request, Response $response, array $params): ResponseInterface
     {
         $name = $params['name'];
