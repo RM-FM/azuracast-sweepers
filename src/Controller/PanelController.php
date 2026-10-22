@@ -165,8 +165,10 @@ final readonly class PanelController
 
         $status = $body['status'] ?? 'confirmed';
         $kind = $body['kind'] ?? 'vocal';
-        if (!in_array($status, ['confirmed', 'unknown', 'no_intro', 'veto'], true)
-            || !in_array($kind, ['vocal', 'musical', '30s+'], true)) {
+        if (
+            !in_array($status, ['confirmed', 'unknown', 'no_intro', 'veto'], true)
+            || !in_array($kind, ['vocal', 'musical', '30s+'], true)
+        ) {
             throw new InvalidArgumentException('Invalid intro status or type.');
         }
         $value = Media::parseIntro($body['intro_end'] ?? null, $media->length);

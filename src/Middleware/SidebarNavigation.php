@@ -26,11 +26,13 @@ final readonly class SidebarNavigation implements MiddlewareInterface
             return $response;
         }
         $path = substr($path, strlen($base));
-        if ($request->getMethod() !== 'GET'
+        if (
+            $request->getMethod() !== 'GET'
             || !preg_match('~^/(?:dashboard|profile|admin|station)(?:/|$)~', $path)
             || $response->getStatusCode() !== 200
             || !str_starts_with(strtolower($response->getHeaderLine('Content-Type')), 'text/html')
-            || $response->hasHeader('Content-Encoding')) {
+            || $response->hasHeader('Content-Encoding')
+        ) {
             return $response;
         }
 
