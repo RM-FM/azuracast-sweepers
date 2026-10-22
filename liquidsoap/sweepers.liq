@@ -1,21 +1,21 @@
 let sweepers = ()
-sweepers.plans = ref([])
-sweepers.pending = ref(null)
-sweepers.reset = ref(false)
-sweepers.now = ref(fun () -> 0.)
-sweepers.duck_gain = ref(1.)
-sweepers.duck_start = ref(-1.)
-sweepers.duck_end = ref(-1.)
-sweepers.seen = ref([])
-sweepers.metadata = ref([])
-sweepers.forwarded = ref([])
+let sweepers.plans = ref([])
+let sweepers.pending = ref(null)
+let sweepers.reset = ref(false)
+let sweepers.now = ref(fun () -> 0.)
+let sweepers.duck_gain = ref(1.)
+let sweepers.duck_start = ref(-1.)
+let sweepers.duck_end = ref(-1.)
+let sweepers.seen = ref([])
+let sweepers.metadata = ref([])
+let sweepers.forwarded = ref([])
 
 def sweepers.next_overlay() =
-    clock = sweepers.now()
-    now = clock()
+    music_clock = sweepers.now()
+    now = music_clock()
     if null.defined(sweepers.pending()) then
         p = null.get(sweepers.pending())
-        if settings.azuracast.live_enabled() then
+        if azuracast.live_enabled() then
             sweepers.pending := null
             (source.fail() : source)
         elsif now >= p.due then
@@ -43,7 +43,7 @@ def sweepers.next_overlay() =
     end
 end
 
-sweepers.jingles = source.dynamic(id="sweepers", track_sensitive=false, sweepers.next_overlay)
+let sweepers.jingles = source.dynamic(id="sweepers", track_sensitive=false, sweepers.next_overlay)
 
 def sweepers.resolve_jingles() =
     measurements = ref([])
@@ -76,7 +76,7 @@ def sweepers.resolve_jingles() =
     measurements()
 end
 
-sweepers.original_next_song = azuracast.autodj_next_song
+let sweepers.original_next_song = azuracast.autodj_next_song
 
 def azuracast.autodj_next_song() =
     next = sweepers.original_next_song()

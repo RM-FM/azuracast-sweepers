@@ -8,17 +8,19 @@ Locally completed:
   rendering, missing permissions and sidebar replacement.
 - JavaScript syntax checks, including both Vue component script sections.
 - Vue production build.
+- Native Liquidsoap 2.4.5 type check against the pinned AzuraCast runtime.
 - Shell syntax and Git whitespace checks.
 - Source review against AzuraCast `19d68c47b1e4d569885ca7cf4c40609cbabefda7`.
 
 Not executed in the authoring environment:
 
 - PHP lint/runtime checks: PHP is unavailable.
-- Native Liquidsoap checks: Docker and Liquidsoap are unavailable.
 - Actual AzuraCast installation, permissions, playback or waveform auditioning.
 
-The GitHub workflow runs PHP checks, the frontend build and native Liquidsoap type
-checks after publishing. A green workflow does not replace station audio testing.
+GitHub Actions has also passed PHP lint/style checks, 39 backend checks and 33
+navigation middleware checks. The workflow checks the frontend and native
+Liquidsoap source types on each push. A green workflow does not replace station
+audio testing.
 
 ## Station acceptance
 
