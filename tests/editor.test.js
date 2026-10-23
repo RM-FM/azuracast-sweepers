@@ -34,7 +34,12 @@ let releaseSave;
 globalThis.fetch = async (url, options) => {
     let data;
     if (url.endsWith("/state")) {
-        data = { station: { id: 1, name: "Test" }, settings: { enabled: false }, playlists: [] };
+        data = { station: { id: 1, name: "Test" }, settings: {
+            enabled: false, playlist_id: null, max_wait: null, margin: .8, duck_db: -7, jingle_gain: 1,
+            minimum_songs: 0, count_jingle_mode: true, jingle_playlist_ids: [], longest_fit: false, length_tolerance: 20,
+        }, playlists: [{ id: 10, name: "Sweepers" }], jingle_playlists: [
+            { id: 20, name: "Station IDs", is_jingle: true }, { id: 21, name: "Promos", is_jingle: false },
+        ] };
     } else if (url.includes("/media?")) {
         data = { rows: [
             { id: 1, path: "First song", duration: 180, intro_end: 10, audio_url: "/first", waveform_url: "/wave/first" },
@@ -111,6 +116,55 @@ test("intro editor saves one field from numeric, marker and playhead input", asy
         releaseSave = null;
         await settle();
         assert.equal(input().value, "6", "Saving the first song changed the second song's draft");
+    } finally {
+        app.unmount();
+    }
+});
+
+test("settings save spacing, playlist selection, longest fit and nullable delay", async () => {
+    const app = createApp(App, { base: "/sweepers/1", csrf: "session-token" });
+    app.mount(document.querySelector("#app"));
+    const field = (label) => [...document.querySelectorAll("section.card label")]
+        .find((node) => node.textContent.includes(label)).querySelector("input,select");
+    const change = async (label, value, checkbox = false) => {
+        const node = field(label);
+        if (checkbox) node.checked = value;
+        else node.value = value;
+        node.dispatchEvent(new Event(checkbox ? "change" : "input", { bubbles: true }));
+        await settle();
+    };
+    const submit = async () => {
+        document.querySelector("section.card form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        await settle();
+        return writes.at(-1).body;
+    };
+    try {
+        await settle();
+        assert.equal(field("Limit start delay").checked, false);
+        assert.equal((await submit()).max_wait, null);
+        await change("Minimum songs", "2");
+        await change("Count Jingle Mode", false, true);
+        await change("Prefer the longest", true, true);
+        await change("Intro length tolerance", "20");
+        const select = field("Additional jingle playlists");
+        assert.ok(select.hasAttribute("multiple"));
+        Object.defineProperty(select, "multiple", { value: true });
+        for (const option of select.options) Object.defineProperty(option, "selected", { configurable: true, writable: true, value: true });
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        await settle();
+        await change("Limit start delay", true, true);
+        const settings = await submit();
+        assert.equal(settings.max_wait, 0);
+        assert.equal(settings.minimum_songs, 2);
+        assert.equal(settings.count_jingle_mode, false);
+        assert.equal(settings.longest_fit, true);
+        assert.equal(settings.length_tolerance, 20);
+        assert.deepEqual(settings.jingle_playlist_ids, [20, 21]);
+        await change("Maximum start delay", "5");
+        assert.equal((await submit()).max_wait, 5);
+        await change("Limit start delay", false, true);
+        assert.equal((await submit()).max_wait, null);
+        assert.equal(writes.at(-1).url, "/sweepers/1/settings");
     } finally {
         app.unmount();
     }

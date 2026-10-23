@@ -10,7 +10,8 @@ The plugin provides:
 
 - A sweeper configuration page with playlist selection and visual intro cue editor.
 - An automatically created `intro_end` custom field.
-- Selection of the oldest actually played jingle that fits the intro.
+- Rotation by oldest playback or longest fitting sweeper, with configurable length tolerance.
+- Song spacing after jingles/sweepers and optional immediate starts for long intros.
 - AutoCue-aware start, handover, loudness and tail handling.
 - Sidechain ducking with 150 ms attack and 750 ms release.
 - An authenticated endpoint that updates only `intro_end`.
@@ -72,6 +73,42 @@ sidebar redraws without modifying core files or Vue internals. If the expected
 Media menu is absent, the script leaves the sidebar unchanged. This DOM integration
 is not an official navigation hook; verify the link after AzuraCast upgrades.
 
+## Rotation and timing
+
+Configure these options on **Media → Sweepers**, then restart broadcasting:
+
+- **Minimum songs** defaults to `0` (disabled). With `1`, a jingle is followed by
+  one song without a sweeper; the next song may carry one. A song carrying a
+  sweeper does not itself count as an intervening song. Only tracks that reached
+  playback count, including a played track subsequently skipped. Prefetch and
+  cancelled overlays never reset the gap or advance sweeper rotation.
+- **Count Jingle Mode playlists** defaults to enabled. **Additional jingle
+  playlists** accepts multiple station playlists, including ordinary playlists.
+  Recognition follows the playing track's playlist annotation, like AzuraCast's
+  Jingle Mode, not every playlist the file belongs to. The sweeper playlist itself
+  always counts. Recognized jingles never receive an overlay.
+- **Limit start delay** defaults to disabled (`max_wait: null`): align the sweeper
+  handover to the intro boundary minus the safety margin. With a limit, retain
+  that timing if it fits; otherwise start immediately. `0` always starts at song
+  start. Previously saved numeric limits remain enabled after an update.
+- **Prefer the longest fitting sweepers** defaults to disabled. When enabled,
+  the tolerance defines an eligible length range: with 30 seconds available and
+  20%, bodies of 24–30 seconds participate in oldest-played rotation. If none are
+  in range, choose the longest body that still fits (oldest-played for ties).
+  `0%` prefers an exact fit or the longest fitting body; `100%` restores the full
+  fitting pool. Small pools can repeat often.
+
+Available intro time subtracts song AutoCue cue-in and the configured handover
+margin. Sweeper length means AutoCue cue-in to handover; its reverb tail may
+continue afterward but must finish before the song's next transition. Start-delay
+limits do not make an otherwise oversized sweeper eligible.
+
+Spacing is enforced in Liquidsoap at playback, even for prefetched plans. After
+restarting Liquidsoap, the configured number of intervening songs is required
+before the first sweeper. Unknown sources reset that count conservatively.
+Settings and rotation history use the existing station configuration file; these
+options introduce no database tables or new cue fields.
+
 ## Intro cues
 
 `intro_end` contains seconds from the original file start:
@@ -108,8 +145,8 @@ track without an overlay until its jingle measurements are ready. Slow catalogue
 requests cannot delay music prefetch.
 
 Song cue-in is subtracted once. A jingle's handover, rather than its file end,
-determines its fit. Playback is delayed by at most the configured maximum wait;
-ducking ends at handover and the remaining tail plays out. The tail must fit
+determines its fit. The handover aligns to the intro boundary unless the optional
+start-delay limit selects immediate playback. Ducking ends at handover and the remaining tail plays out. The tail must fit
 inside the song's remaining playback window. Jingle normalization is applied once.
 
 Planning reserves a jingle; only its playback callback updates rotation history.

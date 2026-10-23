@@ -94,6 +94,12 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
 
         $path = dirname(__DIR__, 2) . '/liquidsoap/sweepers.liq';
         $event->appendBlock('%include ' . json_encode($path, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+        $event->appendBlock('sweepers.minimum_songs := ' . $settings->minimumSongs);
+        $event->appendBlock('sweepers.count_jingle_mode := ' . ($settings->countJingleMode ? 'true' : 'false'));
+        $event->appendBlock('sweepers.jingle_playlists := ' . json_encode(
+            array_values(array_unique([$settings->playlistId, ...$settings->jinglePlaylistIds])),
+            JSON_THROW_ON_ERROR
+        ));
     }
 
     public function mixer(WriteLiquidsoapConfiguration $event): void

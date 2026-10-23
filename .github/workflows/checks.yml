@@ -68,9 +68,15 @@ jobs:
             -v "$PWD:/plugin:ro" \
             -v /tmp/azuracast-runtime:/azuracast:ro \
             savonet/liquidsoap:v2.4.5 --check /plugin/tests/liquidsoap.liq
+      - name: Check song spacing policy
+        run: |
+          docker run --rm --entrypoint liquidsoap \
+            -v "$PWD:/plugin:ro" \
+            -v /tmp/azuracast-runtime:/azuracast:ro \
+            savonet/liquidsoap:v2.4.5 /plugin/tests/spacing.liq
       - name: Render playback and cancellation with AzuraCast's AutoDJ factory
         run: |
-          for scenario in normal skip live unavailable; do
+          for scenario in normal skip live unavailable spacing playlist-spacing; do
             python3 tests/playback.py --scenario "$scenario" \
               --runtime /tmp/azuracast-runtime \
               --liquidsoap "docker run --rm --network host --user $(id -u):$(id -g) \

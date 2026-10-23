@@ -11,48 +11,90 @@ final readonly class Settings
     public function __construct(
         public bool $enabled = false,
         public ?int $playlistId = null,
-        public float $maxWait = 5.0,
+        public ?float $maxWait = null,
         public float $margin = 0.8,
         public float $duckDb = -7.0,
-        public float $jingleGain = 1.0
+        public float $jingleGain = 1.0,
+        public int $minimumSongs = 0,
+        public bool $countJingleMode = true,
+        public array $jinglePlaylistIds = [],
+        public bool $longestFit = false,
+        public float $lengthTolerance = 20.0
     ) {
-        foreach ([$maxWait, $margin, $duckDb, $jingleGain] as $value) {
+        foreach ([$maxWait ?? 0.0, $margin, $duckDb, $jingleGain, $lengthTolerance] as $value) {
             if (!is_finite($value)) {
                 throw new InvalidArgumentException('Settings must be finite.');
             }
         }
 
         if (
-            $maxWait < 0 || $maxWait > 30 || $margin < 0 || $margin > 5
+            ($maxWait !== null && ($maxWait < 0 || $maxWait > 3600)) || $margin < 0 || $margin > 5
             || $duckDb > 0 || $duckDb < -20 || $jingleGain < 0 || $jingleGain > 2
+            || $minimumSongs < 0 || $minimumSongs > 1000 || $lengthTolerance < 0 || $lengthTolerance > 100
             || ($enabled && ($playlistId === null || $playlistId < 1))
         ) {
             throw new InvalidArgumentException('Invalid sweeper settings.');
+        }
+        foreach ($jinglePlaylistIds as $id) {
+            if (!is_int($id) || $id < 1) {
+                throw new InvalidArgumentException('Invalid jingle playlist ID.');
+            }
         }
     }
 
     public static function fromArray(array $data): self
     {
-        $enabled = $data['enabled'] ?? false;
-        if (!is_bool($enabled)) {
-            throw new InvalidArgumentException('Enabled must be a boolean.');
+        $booleans = [];
+        foreach (['enabled' => false, 'count_jingle_mode' => true, 'longest_fit' => false] as $key => $default) {
+            $value = $data[$key] ?? $default;
+            if (!is_bool($value)) {
+                throw new InvalidArgumentException('Invalid boolean for ' . $key . '.');
+            }
+            $booleans[$key] = $value;
         }
-
         $playlistId = $data['playlist_id'] ?? null;
         if ($playlistId !== null && (!is_int($playlistId) || $playlistId < 1)) {
             throw new InvalidArgumentException('Invalid playlist ID.');
         }
+        $minimumSongs = $data['minimum_songs'] ?? 0;
+        $playlistIds = $data['jingle_playlist_ids'] ?? [];
+        if (!is_int($minimumSongs) || !is_array($playlistIds) || !array_is_list($playlistIds)) {
+            throw new InvalidArgumentException('Invalid song spacing or jingle playlists.');
+        }
 
         $values = [];
-        foreach (['max_wait' => 5.0, 'margin' => 0.8, 'duck_db' => -7.0, 'jingle_gain' => 1.0] as $key => $default) {
+        $defaults = [
+            'max_wait' => null,
+            'margin' => 0.8,
+            'duck_db' => -7.0,
+            'jingle_gain' => 1.0,
+            'length_tolerance' => 20.0,
+        ];
+        foreach ($defaults as $key => $default) {
             $value = $data[$key] ?? $default;
+            if ($key === 'max_wait' && $value === null) {
+                $values[$key] = null;
+                continue;
+            }
             if (!is_int($value) && !is_float($value)) {
                 throw new InvalidArgumentException('Invalid value for ' . $key . '.');
             }
-            $values[] = (float)$value;
+            $values[$key] = (float)$value;
         }
 
-        return new self($enabled, $playlistId, ...$values);
+        return new self(
+            enabled: $booleans['enabled'],
+            playlistId: $playlistId,
+            maxWait: $values['max_wait'],
+            margin: $values['margin'],
+            duckDb: $values['duck_db'],
+            jingleGain: $values['jingle_gain'],
+            minimumSongs: $minimumSongs,
+            countJingleMode: $booleans['count_jingle_mode'],
+            jinglePlaylistIds: $playlistIds,
+            longestFit: $booleans['longest_fit'],
+            lengthTolerance: $values['length_tolerance']
+        );
     }
 
     public function toArray(): array
@@ -64,6 +106,11 @@ final readonly class Settings
             'margin' => $this->margin,
             'duck_db' => $this->duckDb,
             'jingle_gain' => $this->jingleGain,
+            'minimum_songs' => $this->minimumSongs,
+            'count_jingle_mode' => $this->countJingleMode,
+            'jingle_playlist_ids' => $this->jinglePlaylistIds,
+            'longest_fit' => $this->longestFit,
+            'length_tolerance' => $this->lengthTolerance,
         ];
     }
 }

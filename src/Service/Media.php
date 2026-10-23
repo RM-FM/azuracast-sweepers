@@ -109,12 +109,24 @@ final readonly class Media
         });
     }
 
-    public function playlists(Station $station): array
+    public function playlists(Station $station, bool $advancedOnly = true): array
     {
-        return $this->em->getRepository(StationPlaylist::class)->findBy([
-            'station' => $station,
-            'type' => PlaylistTypes::Advanced,
-        ]);
+        $criteria = ['station' => $station];
+        if ($advancedOnly) {
+            $criteria['type'] = PlaylistTypes::Advanced;
+        }
+
+        return $this->em->getRepository(StationPlaylist::class)->findBy($criteria, ['name' => 'ASC']);
+    }
+
+    public function validateJinglePlaylists(Station $station, array $ids): void
+    {
+        foreach ($ids as $id) {
+            $playlist = $this->em->find(StationPlaylist::class, $id);
+            if ($playlist === null || $playlist->station_id !== $station->id) {
+                throw new InvalidArgumentException('Jingle playlists must belong to this station.');
+            }
+        }
     }
 
     public function jingles(Station $station, ?int $playlistId): array

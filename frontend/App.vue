@@ -25,15 +25,38 @@
                         </option>
                     </select>
                 </label>
-                <p>Jingles rotate by oldest actual playback, choosing those that fit the available intro.</p>
+                <label>
+                    Minimum songs between jingles or sweepers
+                    <input v-model.number="settings.minimum_songs" type="number" min="0" max="1000" step="1" required>
+                </label>
+                <p>0 disables spacing. With 1, one song plays without a sweeper between events. The song carrying the previous sweeper does not count.</p>
+                <label class="check"><input v-model="settings.count_jingle_mode" type="checkbox"> Count Jingle Mode playlists</label>
+                <label>
+                    Additional jingle playlists
+                    <select v-model="settings.jingle_playlist_ids" multiple size="5">
+                        <option v-for="playlist in jinglePlaylists" :key="playlist.id" :value="playlist.id">
+                            {{ playlist.name }}{{ playlist.is_jingle ? ' (Jingle Mode)' : '' }}
+                        </option>
+                    </select>
+                </label>
+                <p>Hold Ctrl/Cmd to select several. Tracks played from these playlists reset the spacing. The sweeper playlist always counts.</p>
+                <label class="check"><input v-model="settings.longest_fit" type="checkbox"> Prefer the longest fitting sweepers</label>
+                <label v-if="settings.longest_fit">
+                    Intro length tolerance (%)
+                    <input v-model.number="settings.length_tolerance" type="number" min="0" max="100" step="1" required>
+                </label>
+                <p v-if="settings.longest_fit">20% selects bodies covering 80–100% of the available intro, then rotates by oldest playback. If none qualify, use the longest fitting body. A small selection may repeat often.</p>
+                <p v-else>Rotate by oldest actual playback among all sweepers that fit.</p>
+                <label class="check"><input v-model="limitDelay" type="checkbox"> Limit start delay</label>
+                <p>Disabled: time the handover to the intro end. Enabled: if that would exceed the limit, start immediately. 0 always starts immediately.</p>
                 <div class="grid">
-                    <label>
+                    <label v-if="limitDelay">
                         Maximum start delay (s)
                         <input
                             v-model.number="settings.max_wait"
                             type="number"
                             min="0"
-                            max="30"
+                            max="3600"
                             step="0.1"
                             required
                         >
@@ -119,6 +142,7 @@ const props = defineProps({ base: { type: String, required: true }, csrf: { type
 const station = ref({});
 const settings = ref({});
 const playlists = ref([]);
+const jinglePlaylists = ref([]);
 const rows = ref([]);
 const search = ref("");
 const selected = ref(null);
@@ -136,6 +160,10 @@ const validDraft = computed(() => draft.value === "" || (
     && Number(draft.value) >= 0
     && Number(draft.value) <= (selected.value?.duration ?? 0)
 ));
+const limitDelay = computed({
+    get: () => settings.value.max_wait !== null && settings.value.max_wait !== undefined,
+    set: (enabled) => { settings.value.max_wait = enabled ? 0 : null; },
+});
 const marker = computed(() => validDraft.value && draft.value !== "" ? Number(draft.value) : null);
 
 function formatIntro(value) {
@@ -219,6 +247,7 @@ onMounted(async () => {
         station.value = state.station;
         settings.value = state.settings;
         playlists.value = state.playlists;
+        jinglePlaylists.value = state.jingle_playlists ?? [];
         await loadMedia();
     } catch (exception) {
         error.value = exception.message;

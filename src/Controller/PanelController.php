@@ -76,6 +76,11 @@ final readonly class PanelController
                 'id' => $playlist->id,
                 'name' => $playlist->name,
             ], $this->media->playlists($station)),
+            'jingle_playlists' => array_map(static fn($playlist): array => [
+                'id' => $playlist->id,
+                'name' => $playlist->name,
+                'is_jingle' => $playlist->is_jingle,
+            ], $this->media->playlists($station, false)),
         ]);
     }
 
@@ -88,6 +93,7 @@ final readonly class PanelController
             $this->media->jingles($station, $settings->playlistId);
         }
 
+        $this->media->validateJinglePlaylists($station, $settings->jinglePlaylistIds);
         $this->state->update($station->getRadioConfigDir(), static function (array $data) use ($settings): array {
             $data['settings'] = $settings->toArray();
 

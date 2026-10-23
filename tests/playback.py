@@ -3,6 +3,7 @@
 import argparse
 import json
 import math
+import re
 from pathlib import Path
 import shlex
 import struct
@@ -15,11 +16,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--liquidsoap', default='liquidsoap')
-parser.add_argument('--scenario', choices=['normal', 'skip', 'live', 'unavailable'], default='normal')
+parser.add_argument('--scenario', choices=['normal', 'skip', 'live', 'unavailable', 'spacing', 'playlist-spacing'], default='normal')
 parser.add_argument('--runtime', type=Path, required=True)
 args = parser.parse_args()
 plugin = Path(__file__).resolve().parents[1]
 rate = 44100
+spacing = args.scenario in ('spacing', 'playlist-spacing')
 
 
 def tone(path, hz, duration):
@@ -37,8 +39,8 @@ def amplitude(samples, hz, start, duration=.1):
 
 with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
     root = Path(temporary)
-    tone(root / 'song.wav', 440, 8)
-    tone(root / 'sweeper.wav', 880, 2)
+    tone(root / 'song.wav', 440, 1.2 if spacing else 8)
+    tone(root / 'sweeper.wav', 880, .5 if spacing else 2)
     calls = []
     song_requests = 0
 
@@ -52,14 +54,16 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
             global song_requests
             if self.path == '/nextsong':
                 song_requests += 1
-                token = '123' if song_requests == 1 else '124'
-                value = {'uri': f'annotate:liq_disable_autocue="true",sq_id="{token}",media_id="1",liq_cue_in="0",liq_cue_out="8":{root}/song.wav'}
+                token = str(122 + song_requests) if spacing else ('123' if song_requests == 1 else '124')
+                jingle = ('jingle_mode="true",' if args.scenario == 'spacing' else 'playlist_id="7",') if spacing and song_requests <= 2 else ''
+                duration = 1.2 if spacing else 8
+                value = {'uri': f'annotate:liq_disable_autocue="true",sq_id="{token}",{jingle}media_id="1",liq_cue_in="0",liq_cue_out="{duration}":{root}/song.wav'}
             elif self.path == '/sweepers/catalog':
                 time.sleep(1.5)
                 value = []
             elif self.path == '/sweepers/plan':
-                value = dict(token='123', uri=f'annotate:liq_cue_in="0",liq_cue_out="2":{root}/sweeper.wav' if json.loads(body)['token'] == '123' else '',
-                             offset=3. if args.scenario == 'skip' else 1., duck_duration=1., gain=1., duck_gain=.4467)
+                value = dict(token=json.loads(body)['token'], uri=f'annotate:liq_cue_in="0",liq_cue_out="{0.5 if spacing else 2}":{root}/sweeper.wav' if spacing or json.loads(body)['token'] == '123' else '',
+                             offset=.1 if spacing else (3. if args.scenario == 'skip' else 1.), duck_duration=.3 if spacing else 1., gain=1., duck_gain=.4467)
             else:
                 value = {'success': True}
             self.send_response(503 if args.scenario == 'unavailable' and self.path == '/sweepers/plan' else 200)
@@ -76,6 +80,8 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
     script.write_text(f'''settings.init.allow_root := true
 %include {json.dumps(str(args.runtime.resolve() / 'azuracast.liq'))}
 %include {json.dumps(str(plugin / 'liquidsoap/sweepers.liq'))}
+sweepers.minimum_songs := {1 if spacing else 0}
+sweepers.jingle_playlists := [7]
 settings.azuracast.api_url := "http://127.0.0.1:{server.server_port}"
 radio = sweepers.enable_autodj(fallback([blank(duration=0.1)]))
 music = radio
@@ -100,10 +106,22 @@ thread.run(delay=7., {{shutdown()}})
     onset = next(t / 100 for t in range(500) if amplitude(samples, 440, t / 100, .02) > 3000)
     normal = amplitude(samples, 440, onset + .5)
     assert any(path == '/sweepers/plan' for path, _, _ in calls), 'Native factory bypassed plugin'
-    assert 'sq_id", "123' in result.stdout, 'Song metadata lost'
+    metadata = [int(re.search(r'\("sq_id", "(\d+)"\)', line)[1])
+                for line in result.stdout.splitlines() if line.startswith('SONG_METADATA') and '("sq_id",' in line]
+    assert (124 if spacing else 123) in metadata, 'Song metadata lost'
     events = [event for path, body, _ in calls if path == '/sweepers/heartbeat'
               for event in body.get('events', [])]
-    if args.scenario in ('skip', 'unavailable'):
+    if spacing:
+        played = {e['token'] for e in events if e['event'] == 'played'}
+        assert '124' not in played and '125' not in played, ('Jingle or immediately following song overlaid', played)
+        assert '126' in played, ('Sweeper missing after one intervening song', played)
+        assert '127' not in played, ('Song carrying sweeper incorrectly counted as intervening song', played)
+        for token in (124, 125, 127):
+            at = onset + (token - metadata[0]) * 1.2 + .25
+            assert amplitude(samples, 880, at) < 50, ('Unexpected sweeper', token)
+        at = onset + (126 - metadata[0]) * 1.2 + .25
+        assert amplitude(samples, 880, at) > 5000, 'Allowed sweeper missing'
+    elif args.scenario in ('skip', 'unavailable'):
         assert max(amplitude(samples, 880, t / 10) for t in range(5, 60)) < 100, 'Unexpected sweeper'
         if args.scenario == 'skip':
             assert {'event': 'release', 'token': '123'} in events, 'Skipped reservation not released'

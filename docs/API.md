@@ -57,3 +57,22 @@ The Liquidsoap module uses `/api/internal/{station_id}/liquidsoap/sweepers/`:
 
 These endpoints require AzuraCast's internal connection and the station's adapter
 API key. They are not public control endpoints.
+
+## Panel rotation settings
+
+The session/CSRF-protected `POST /sweepers/{station_id}/settings` requires station
+Broadcasting permission. It accepts the existing settings plus:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `minimum_songs` | `0` | Intervening AutoDJ songs, integer 0–1000 |
+| `count_jingle_mode` | `true` | Recognize the native `jingle_mode` annotation |
+| `jingle_playlist_ids` | `[]` | Additional station playlist IDs (integer array) |
+| `max_wait` | `null` | Disabled; numeric 0–3600 sets the immediate-start threshold |
+| `longest_fit` | `false` | Prefer bodies closest to the available intro length |
+| `length_tolerance` | `20` | Eligible range below the intro length, percent 0–100 |
+
+The panel state supplies Advanced `playlists` for sweeper selection and all station
+`jingle_playlists` for spacing classification. Foreign or missing jingle playlist
+IDs are rejected before saving. Existing settings remain compatible. Restart
+broadcasting after saving to apply the spacing configuration.
