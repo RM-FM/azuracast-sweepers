@@ -7,7 +7,8 @@
     "test": "node --test tests/*.test.js"
   },
   "dependencies": {
-    "vue": "^3.5.0"
+    "vue": "^3.5.0",
+    "wavesurfer.js": "^7.12.12"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.0",

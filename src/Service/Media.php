@@ -144,6 +144,24 @@ final readonly class Media
         return self::identity($media) . ':' . hash('sha256', $this->uri($station, $media));
     }
 
+    public function list(Station $station, string $search): array
+    {
+        $query = $this->em->createQueryBuilder()
+            ->select('m')
+            ->from(StationMedia::class, 'm')
+            ->where('m.storage_location = :storage')
+            ->setParameter('storage', $station->media_storage_location)
+            ->orderBy('m.path', 'ASC')
+            ->setMaxResults(100);
+
+        if ($search !== '') {
+            $query->andWhere('m.path LIKE :search OR m.title LIKE :search OR m.artist LIKE :search')
+                ->setParameter('search', '%' . $search . '%');
+        }
+
+        return $query->getQuery()->getResult();
+    }
+
     public function uri(Station $station, StationMedia $media): string
     {
         $event = AnnotateNextSong::fromStationMedia($station, $media);

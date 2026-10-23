@@ -8,7 +8,7 @@ AzuraCast station before use on air. The reference source is AzuraCast
 
 The plugin provides:
 
-- A sweeper configuration page with playlist selection.
+- A sweeper configuration page with playlist selection and read-only intro cue preview.
 - An automatically created `intro_end` custom field.
 - Selection of the oldest actually played jingle that fits the intro.
 - AutoCue-aware start, handover, loudness and tail handling.
@@ -62,8 +62,9 @@ Create an **Advanced** playlist containing the sweeper jingles, select it in the
 plugin settings, enable sweepers and restart broadcasting through AzuraCast.
 Advanced playlists prevent the jingles from also entering the normal song rotation.
 The page requires station Media permission; changing settings also requires
-Broadcasting permission. It is a separate page, not a modification of the
-native visual cue editor.
+Broadcasting permission. The page includes an audio waveform and saved intro
+marker for listening at the cue or three seconds earlier. It is a separate
+page, not a modification of the native visual cue editor.
 
 The sidebar link uses a small plugin-owned script injected into successful HTML
 responses from the authenticated dashboard. It follows station switches and Vue
@@ -86,6 +87,8 @@ Edit this value in AzuraCast's Music Files editor under Custom Fields, or use th
 plugin. Only the resulting numeric cue is published to AzuraCast. A verified
 30-second opening can be published as `30`; the plugin needs no separate type.
 The native waveform editor does not display custom fields as cue markers.
+The plugin's waveform preview reads `intro_end` and displays it without offering
+edits. Refresh the search results after changing a cue elsewhere.
 
 ## AutoCue and playback
 

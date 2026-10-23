@@ -99,6 +99,34 @@ final readonly class PanelController
         return $response->withJson(['success' => true, 'needs_restart' => true]);
     }
 
+    public function mediaAction(ServerRequest $request, Response $response, array $params): ResponseInterface
+    {
+        $station = $request->getStation();
+        $search = substr((string)$request->getQueryParam('search', ''), 0, 200);
+        $router = $request->getRouter();
+        $rows = [];
+
+        foreach ($this->media->list($station, $search) as $media) {
+            $rows[] = [
+                'id' => $media->id,
+                'path' => $media->path,
+                'duration' => $media->length,
+                'intro_end' => $this->media->intro($media),
+                'audio_url' => $router->fromHere('api:stations:files:play', [
+                    'station_id' => $station->id,
+                    'id' => $media->id,
+                ]),
+                'waveform_url' => $router->fromHere('api:stations:media:waveform', [
+                    'station_id' => $station->id,
+                    'media_id' => $media->unique_id,
+                    'timestamp' => $media->art_updated_at,
+                ]),
+            ];
+        }
+
+        return $response->withHeader('Cache-Control', 'no-store')->withJson(['rows' => $rows, 'limit' => 100]);
+    }
+
     public function importAction(ServerRequest $request, Response $response, array $params): ResponseInterface
     {
         $body = $this->body($request);
