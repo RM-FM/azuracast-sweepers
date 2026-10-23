@@ -89,7 +89,10 @@ final readonly class Timing
 
         $body = $this->handover - $this->cueIn;
         $available = $introEnd - $songCueIn - $settings->margin;
-        $offset = min($settings->maxWait, $available - $body);
+        $offset = $available - $body;
+        if ($settings->maxWait !== null && $offset > $settings->maxWait) {
+            $offset = 0.0;
+        }
         if (
             $songCueIn < 0 || $introEnd > $songCueOut || $offset < 0
             || $offset + $this->cueOut - $this->cueIn > $songCueOut - $songCueIn

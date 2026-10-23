@@ -4,12 +4,13 @@ The plugin has not yet been validated on a running AzuraCast station.
 
 Locally completed:
 
-- Seven Node tests covering sidebar insertion, station switches, delayed
+- Eight Node tests covering sidebar insertion, station switches, delayed
   rendering, permissions and sidebar replacement, plus editor value handling,
-  marker/playhead inputs and switching tracks during a save.
-- 39 PHP behavior checks, 33 navigation checks and reservation checks.
+  marker/playhead inputs, switching tracks during a save and the rotation settings form.
+- 62 PHP behavior checks, 33 navigation checks and reservation checks.
 - Native Liquidsoap 2.4.5 renders using the pinned AzuraCast request factory:
-  normal playback, skip, live takeover and unavailable planning. The rendered
+  normal playback, skip, live takeover, unavailable planning and spacing after
+  Jingle Mode/selected-playlist tracks. The rendered
   audio checks onset, ducking, tail, metadata and reservation events.
 - PHP syntax/style checks with PHP 8.4 and Composer dependencies.
 - JavaScript syntax checks, including both Vue component script sections.
@@ -26,6 +27,12 @@ Not executed in the authoring environment:
 GitHub Actions checks the frontend, PHP, MariaDB custom-field preservation and rendered
 native Liquidsoap playback on each push. A green workflow does not replace
 station audio testing.
+
+AutoDJ startup is confirmed by its track callback, without a competing readiness
+probe; a 120-second timeout still ends startup loading when no track is available.
+
+Song spacing policy also checks one/two-song gaps, cancelled overlays, multiple
+playlist IDs, disabled Jingle Mode recognition and unknown sources.
 
 ## Station acceptance
 
@@ -64,3 +71,13 @@ Use a disposable station and verify:
    playing. A late activation is skipped.
 10. Disabling/removing the plugin restores normal AzuraCast playback without
     deleting media or custom-field values.
+
+11. Set minimum songs to 1: after a Jingle Mode track or a track played from a
+    selected jingle playlist, the next song remains clear. After an actual sweeper,
+    one other song remains clear before another overlay. A prefetched plan must
+    not bypass this restriction. Try 0 and 2, plus a skipped/prefetched track.
+12. Disable the delay limit and check end alignment. Enable a limit smaller than
+    the natural offset and check immediate playback; 0 always starts immediately.
+13. Enable longest-fit selection at 20%, using several different-length jingles.
+    Verify rotation within the 80–100% range, longest-fit fallback when no body is
+    in range and continued exclusion of bodies too long for the intro.

@@ -6,6 +6,7 @@ namespace Plugin\AzuracastSweepers\Service;
 
 use App\Entity\Station;
 use InvalidArgumentException;
+use Plugin\AzuracastSweepers\ValueObject\Selection;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
 
 final readonly class Planner
@@ -76,10 +77,7 @@ final readonly class Planner
                 static fn(array $plan): bool => !($plan['played'] ?? false)
             ), 'jingle_id');
             $jingles = $this->media->jingles($station, $settings->playlistId);
-            usort($jingles, static fn($a, $b): int => [
-                $data['history'][$a->id] ?? 0,
-                $a->id,
-            ] <=> [$data['history'][$b->id] ?? 0, $b->id]);
+            $candidates = [];
 
             foreach ($jingles as $jingle) {
                 if (in_array($jingle->id, $reserved, true) || $jingle->id === $song->id) {
@@ -91,6 +89,21 @@ final readonly class Planner
                     continue;
                 }
 
+                $candidates[] = [
+                    'id' => $jingle->id,
+                    'last_played' => $data['history'][$jingle->id] ?? 0,
+                    'body' => $fit['duck_duration'],
+                    'jingle' => $jingle,
+                    'timing' => $timing,
+                    'fit' => $fit,
+                ];
+            }
+            $candidates = Selection::order($candidates, $intro - $cueIn - $settings->margin, $settings);
+            if ($candidates !== []) {
+                $candidate = $candidates[0];
+                $jingle = $candidate['jingle'];
+                $timing = $candidate['timing'];
+                $fit = $candidate['fit'];
                 $uri = 'annotate:liq_disable_autocue="true",liq_cue_in="' . $timing->cueIn
                     . '",liq_cue_out="' . $timing->cueOut . '":media:' . ltrim($jingle->path, '/');
                 $result = [
@@ -110,7 +123,6 @@ final readonly class Planner
                     'played' => false,
                     'payload' => $result,
                 ];
-                break;
             }
 
             return $data;

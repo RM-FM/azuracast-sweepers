@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Plugin\AzuracastSweepers\Service\Media;
 use Plugin\AzuracastSweepers\Service\State;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
+use Plugin\AzuracastSweepers\ValueObject\Selection;
 use Plugin\AzuracastSweepers\ValueObject\Timing;
 
 spl_autoload_register(static function (string $class): void {
@@ -42,7 +43,12 @@ check($timing !== null, 'Valid jingle timing.');
 $fit = $timing->fit(12, 2, 180, $settings);
 check(abs($fit['offset'] - 3.2) < 0.001, 'Subtract song cue-in once.');
 check(abs($fit['duck_duration'] - 6) < 0.001, 'Use body handover, not jingle file end.');
-check($timing->fit(30, 0, 180, $settings)['offset'] === 5.0, 'Cap the delay for a long intro.');
+check(abs($timing->fit(30, 0, 180, $settings)['offset'] - 23.2) < 0.001, 'Default handover aligns to intro minus margin.');
+check($timing->fit(30, 0, 180, new Settings(maxWait: 5))['offset'] === 0.0, 'Long delay falls back to immediate start.');
+check(abs($timing->fit(12, 2, 180, new Settings(maxWait: 5))['offset'] - 3.2) < 0.001, 'Short delay retains end alignment.');
+check(Settings::fromArray([])->maxWait === null, 'Start delay disabled by default.');
+check(Settings::fromArray(['max_wait' => null])->maxWait === null, 'Explicit null disables delay limit.');
+check(Settings::fromArray(['max_wait' => 5])->maxWait === 5.0, 'Keep previously saved delay setting.');
 check($timing->fit(5, 0, 180, $settings) === null, 'Reject a jingle body that does not fit.');
 check($timing->fit(12, 2, 13, $settings) === null, 'The tail must fit before the next transition.');
 check($timing->fit(12, 2, 180, new Settings(maxWait: 0))['offset'] === 0.0, 'Allow an immediate overlay.');
@@ -81,6 +87,32 @@ $metadata['liq_amplify'] = '0.5';
 check(abs(Timing::fromMetadata($metadata, 12)->gainDb + 6.0206) < 0.001, 'Linear amplification metadata.');
 check(Settings::fromArray($settings->toArray())->toArray() === $settings->toArray(), 'Settings round trip.');
 foreach ([['enabled' => 'false'], ['enabled' => true], ['duck_db' => -21], ['max_wait' => -1]] as $invalid) {
+    rejects(static fn() => Settings::fromArray($invalid));
+}
+
+$rotation = [
+    ['id' => 1, 'body' => 10.0, 'last_played' => 1],
+    ['id' => 2, 'body' => 24.0, 'last_played' => 2],
+    ['id' => 3, 'body' => 29.0, 'last_played' => 3],
+];
+check(Selection::order($rotation, 30, new Settings())[0]['id'] === 1, 'Default rotates all fitting sweepers.');
+$longest = new Settings(longestFit: true);
+check(array_column(Selection::order($rotation, 30, $longest), 'id') === [2, 3], '20% includes 24 to 30 seconds.');
+check(Selection::order($rotation, 30, new Settings(longestFit: true, lengthTolerance: 0))[0]['id'] === 3,
+    'If no exact-length body exists, choose the longest fitting one.');
+check(Selection::order($rotation, 100, $longest)[0]['id'] === 3, 'No candidate in tolerance falls back to longest.');
+check(Selection::order([], 30, $longest) === [], 'No fitting sweeper remains empty.');
+$rotation[1]['last_played'] = 4;
+check(Selection::order($rotation, 30, $longest)[0]['id'] === 3, 'Within tolerance actual playback advances rotation.');
+check(Selection::order($rotation, 30, new Settings(longestFit: true, lengthTolerance: 100))[0]['id'] === 1,
+    '100% tolerance admits every fitting body.');
+$custom = new Settings(minimumSongs: 2, countJingleMode: false, jinglePlaylistIds: [3, 7], longestFit: true);
+check(Settings::fromArray($custom->toArray())->toArray() === $custom->toArray(), 'New settings persist without conversion.');
+foreach ([
+    ['minimum_songs' => -1], ['minimum_songs' => 1.5], ['count_jingle_mode' => 'false'],
+    ['jingle_playlist_ids' => '2'], ['jingle_playlist_ids' => ['2']], ['jingle_playlist_ids' => [0]],
+    ['longest_fit' => 1], ['length_tolerance' => -1], ['length_tolerance' => 101], ['max_wait' => ''],
+] as $invalid) {
     rejects(static fn() => Settings::fromArray($invalid));
 }
 

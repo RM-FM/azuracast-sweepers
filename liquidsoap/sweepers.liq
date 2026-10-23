@@ -14,14 +14,41 @@ let sweepers.catalog = ref([])
 let sweepers.attempted = ref([])
 let sweepers.catalog_at = ref(-60.)
 let sweepers.started = ref(false)
+let sweepers.minimum_songs = ref(0)
+let sweepers.count_jingle_mode = ref(true)
+let sweepers.jingle_playlists = ref([])
+let sweepers.songs_since_jingle = ref(0)
+let sweepers.previous_song = ref(false)
 
 def sweepers.notify(event, token) =
     if token != "" then
+        if event == "played" then
+            sweepers.songs_since_jingle := 0
+            sweepers.previous_song := false
+        end
         sweepers.events := list.prefix(128, [{event=event, token=token}, ...sweepers.events()])
         sweepers.plans := list.assoc.remove(token, sweepers.plans())
     end
 end
 
+
+def sweepers.is_jingle(m) =
+    (sweepers.count_jingle_mode() and m["jingle_mode"] == "true") or
+        list.mem(int_of_string(default=0, m["playlist_id"]), sweepers.jingle_playlists())
+end
+
+def sweepers.track_allowed(m) =
+    token = m["sq_id"]
+    is_jingle = sweepers.is_jingle(m)
+    is_song = token != "" and m["media_id"] != "" and not is_jingle
+    if is_jingle or not is_song then
+        sweepers.songs_since_jingle := 0
+    elsif sweepers.previous_song() then
+        sweepers.songs_since_jingle := min(sweepers.minimum_songs(), sweepers.songs_since_jingle() + 1)
+    end
+    sweepers.previous_song := is_song
+    is_song and sweepers.songs_since_jingle() >= sweepers.minimum_songs()
+end
 
 def sweepers.next_overlay() =
     music_clock = sweepers.now()
@@ -135,7 +162,8 @@ def sweepers.next_song() =
                 m = request.metadata(r)
                 token = m["sq_id"]
                 cue_in = float_of_string(default=0., m["liq_cue_in"])
-                if token != "" and m["media_id"] != "" and not list.assoc.mem(token, sweepers.plans()) then
+                if token != "" and m["media_id"] != "" and not sweepers.is_jingle(m) and
+                    not list.assoc.mem(token, sweepers.plans()) then
                     measurements = sweepers.measurements()
                     cue_out = float_of_string(default=float_of_string(default=0., m["duration"]), m["liq_cue_out"])
                     transition = float_of_string(default=cue_out, m["liq_cross_start_next"])
@@ -216,8 +244,8 @@ def sweepers.enable_autodj(s) =
 
     s = fallback(id="autodj_fallback", track_sensitive = true, [dynamic_startup, s])
 
-    ref_dynamic = ref(dynamic);
-    thread.run.recurrent(delay=0.25, { azuracast.wait_for_next_song(ref_dynamic()) })
+    dynamic.on_track(synchronous=true, fun (_) -> azuracast.autodj_is_loading := false)
+    thread.run(delay=120., { azuracast.autodj_is_loading := false })
 
     s
 end
@@ -233,6 +261,7 @@ def sweepers.mix(music) =
             if token != "" then
                 sweepers.seen := list.prefix(64, [token, ...sweepers.seen()])
             end
+            allowed = sweepers.track_allowed(m)
             if null.defined(sweepers.pending()) then
                 sweepers.notify("release", null.get(sweepers.pending()).token)
             end
@@ -244,13 +273,15 @@ def sweepers.mix(music) =
             if list.assoc.mem(token, sweepers.plans()) then
                 p = list.assoc(token, sweepers.plans())
                 sweepers.duck_gain := p.duck_gain
-                if p.ready then
+                if p.ready and allowed then
                     sweepers.pending := {
                         source=p.source,
                         due=now() + p.offset,
                         duck_end=now() + p.offset + p.duration,
                         token=token
                     }
+                else
+                    sweepers.notify("release", token)
                 end
             end
         end
