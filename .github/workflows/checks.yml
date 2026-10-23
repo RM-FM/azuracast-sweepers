@@ -34,7 +34,7 @@ jobs:
       - run: find src tests -name '*.php' -print0 | xargs -0 -n1 php -l
       - run: php -l events.php
       - run: composer test
-      - run: php tests/reviews.php
+      - run: php tests/media.php
 
   frontend:
     runs-on: ubuntu-latest

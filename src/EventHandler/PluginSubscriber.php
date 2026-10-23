@@ -12,7 +12,6 @@ use Plugin\AzuracastSweepers\Controller\InternalController;
 use Plugin\AzuracastSweepers\Controller\PanelController;
 use Plugin\AzuracastSweepers\Middleware\SidebarNavigation;
 use Plugin\AzuracastSweepers\Service\Media;
-use Plugin\AzuracastSweepers\Service\Reviews;
 use Plugin\AzuracastSweepers\Service\State;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
 use RuntimeException;
@@ -23,8 +22,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
 {
     public function __construct(
         private Media $media,
-        private State $state,
-        private Reviews $reviews
+        private State $state
     ) {
     }
 
@@ -48,10 +46,8 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
             $group->get('', PanelController::class . ':indexAction');
             $group->get('/assets/{name:app\\.(?:js|css)}', PanelController::class . ':assetAction');
             $group->get('/state', PanelController::class . ':stateAction');
-            $group->get('/media', PanelController::class . ':mediaAction');
             $group->post('/settings', PanelController::class . ':settingsAction')
                 ->add(new Middleware\Permissions(StationPermissions::Broadcasting, true));
-            $group->post('/intro/{id:[0-9]+}', PanelController::class . ':introAction');
         })
             ->add(new Middleware\Permissions(StationPermissions::Media, true))
             ->add(Middleware\RequireStation::class)
@@ -86,7 +82,6 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
     public function header(WriteLiquidsoapConfiguration $event): void
     {
         $this->media->ensureField();
-        $this->reviews->initialize();
         $settings = $this->settings($event);
         if (!$settings->enabled || $event->isForEditing()) {
             return;

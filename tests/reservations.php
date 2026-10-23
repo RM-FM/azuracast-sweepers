@@ -24,8 +24,7 @@ namespace {
     $station = new \App\Entity\Station($directory);
     $state = new \Plugin\AzuracastSweepers\Service\State();
     $media = (new ReflectionClass(\Plugin\AzuracastSweepers\Service\Media::class))->newInstanceWithoutConstructor();
-    $reviews = (new ReflectionClass(\Plugin\AzuracastSweepers\Service\Reviews::class))->newInstanceWithoutConstructor();
-    $planner = new \Plugin\AzuracastSweepers\Service\Planner($state, $media, $reviews);
+    $planner = new \Plugin\AzuracastSweepers\Service\Planner($state, $media);
     $seed = static fn(int $expires): array => ['plans' => ['123' => [
         'jingle_id' => 42, 'expires_at' => $expires, 'played' => false,
     ]]];

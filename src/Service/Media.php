@@ -12,9 +12,9 @@ use App\Entity\StationMedia;
 use App\Entity\StationMediaCustomField;
 use App\Entity\StationPlaylist;
 use App\Event\Radio\AnnotateNextSong;
+use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
-use Plugin\AzuracastSweepers\ValueObject\Timing;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
 
@@ -87,23 +87,26 @@ final readonly class Media
         return (float)$value;
     }
 
-    public function saveIntro(StationMedia $media, mixed $value, ?CustomField $field = null): ?float
+    public function saveIntro(StationMedia $media, mixed $value): ?float
     {
-        $intro = self::parseIntro($value, $media->length);
-        $field ??= $this->ensureField();
-        $entry = $this->em->getRepository(StationMediaCustomField::class)->findOneBy([
-            'media' => $media,
-            'field' => $field,
-        ]);
+        $field = $this->ensureField();
 
-        if ($entry === null) {
-            $entry = new StationMediaCustomField($media, $field);
-            $this->em->persist($entry);
-        }
-        $entry->value = $intro === null ? null : (string)$intro;
-        $this->em->flush();
+        return $this->em->wrapInTransaction(function () use ($media, $value, $field): ?float {
+            $this->em->refresh($media, LockMode::PESSIMISTIC_WRITE);
+            $intro = self::parseIntro($value, $media->length);
+            $entry = $this->em->getRepository(StationMediaCustomField::class)->findOneBy([
+                'media' => $media,
+                'field' => $field,
+            ]);
 
-        return $intro;
+            if ($entry === null) {
+                $entry = new StationMediaCustomField($media, $field);
+                $this->em->persist($entry);
+            }
+            $entry->value = $intro === null ? null : (string)$intro;
+
+            return $intro;
+        });
     }
 
     public function playlists(Station $station): array
@@ -136,48 +139,9 @@ final readonly class Media
         return array_values($unique);
     }
 
-    public function timing(Station $station, StationMedia $media): ?Timing
-    {
-        $metadata = $this->annotations($station, $media);
-
-        return Timing::fromMetadata($metadata, $media->length);
-    }
-
-    public function annotations(Station $station, StationMedia $media): array
-    {
-        $event = AnnotateNextSong::fromStationMedia($station, $media);
-        $this->dispatcher->dispatch($event);
-        $uri = $event->buildAnnotations();
-        preg_match_all('/(?:^annotate:|,)([a-z_]+)="((?:\\\\.|[^"\\\\])*)"/', $uri, $matches, PREG_SET_ORDER);
-        $metadata = [];
-        foreach ($matches as $match) {
-            $metadata[$match[1]] = str_replace('\\"', '"', $match[2]);
-        }
-
-        return $metadata;
-    }
-
     public function timingIdentity(Station $station, StationMedia $media): string
     {
         return self::identity($media) . ':' . hash('sha256', $this->uri($station, $media));
-    }
-
-    public function list(Station $station, string $search): array
-    {
-        $query = $this->em->createQueryBuilder()
-            ->select('m')
-            ->from(StationMedia::class, 'm')
-            ->where('m.storage_location = :storage')
-            ->setParameter('storage', $station->media_storage_location)
-            ->orderBy('m.path', 'ASC')
-            ->setMaxResults(100);
-
-        if ($search !== '') {
-            $query->andWhere('m.path LIKE :search OR m.title LIKE :search OR m.artist LIKE :search')
-                ->setParameter('search', '%' . $search . '%');
-        }
-
-        return $query->getQuery()->getResult();
     }
 
     public function uri(Station $station, StationMedia $media): string

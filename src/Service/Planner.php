@@ -12,8 +12,7 @@ final readonly class Planner
 {
     public function __construct(
         private State $state,
-        private Media $media,
-        private Reviews $reviews
+        private Media $media
     ) {
     }
 
@@ -30,7 +29,6 @@ final readonly class Planner
         }
 
         $song = $this->media->get($station, $mediaId);
-        $this->reviews->initialize();
         $intro = $this->media->intro($song);
         $directory = $station->getRadioConfigDir();
         $result = self::emptyPlan($token);
@@ -49,15 +47,10 @@ final readonly class Planner
                 $data['plans'] ?? [],
                 static fn(array $plan): bool => $plan['expires_at'] > time()
             );
-            $review = $this->reviews->get($song, $data['intros'][$song->id] ?? []);
-            $blocked = $review !== [] && (
-                ($review['identity'] ?? '') !== Media::identity($song)
-                || in_array($review['status'] ?? '', ['veto', 'unknown'], true)
-            );
             $fingerprint = hash('sha256', json_encode([
-                Media::identity($song), $intro, $review, $settings->toArray(), $measurements,
+                Media::identity($song), $intro, $settings->toArray(), $measurements,
             ], JSON_THROW_ON_ERROR));
-            if (!$settings->enabled || $intro === null || $intro <= $cueIn || $blocked) {
+            if (!$settings->enabled || $intro === null || $intro <= $cueIn) {
                 unset($data['plans'][$token]);
 
                 return $data;

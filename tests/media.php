@@ -75,7 +75,6 @@ namespace {
     use Doctrine\ORM\ORMSetup;
     use Doctrine\ORM\Tools\SchemaTool;
     use Plugin\AzuracastSweepers\Service\Media;
-    use Plugin\AzuracastSweepers\Service\Reviews;
     use Psr\EventDispatcher\EventDispatcherInterface;
 
     require dirname(__DIR__) . '/vendor/autoload.php';
@@ -96,7 +95,6 @@ namespace {
         CustomField::class,
         StationMediaCustomField::class,
     ]);
-    $connection->executeStatement('DROP TABLE IF EXISTS azuracast_sweeper_review');
     foreach (['StationMediaCustomField', 'CustomField', 'StationMedia'] as $name) {
         $connection->executeStatement('DROP TABLE IF EXISTS `' . $name . '`');
     }
@@ -109,33 +107,42 @@ namespace {
         }
     };
     $mediaService = new Media($em, new \App\Entity\Repository\CustomFieldRepository(), $dispatcher);
-    $reviews = new Reviews($em, $mediaService);
-    $reviews->initialize();
     $recording = new StationMedia();
     $recording->id = 1;
     $em->persist($recording);
     $em->flush();
-    $identity = Media::identity($recording);
-    $input = [
-        'identity' => $identity, 'unique_id' => 'recording', 'mtime' => 123, 'size' => 456,
-        'status' => 'confirmed', 'kind' => 'vocal', 'intro_end' => 21.0,
-    ];
-    $reviews->save($recording, $input, true);
-    $fieldValue = static fn(): ?string => $connection->fetchOne('SELECT value FROM StationMediaCustomField WHERE media_id = 1');
-    if ($fieldValue() !== '21' || $reviews->get($recording)['manual'] !== true) {
-        throw new RuntimeException('Manual cue or lock was not saved.');
-    }
+    $other = new CustomField();
+    $other->name = 'Category';
+    $other->short_name = 'category';
+    $em->persist($other);
+    $entry = new StationMediaCustomField($recording, $other);
+    $entry->value = 'rotation-a';
+    $em->persist($entry);
+    $em->flush();
 
-    $connection->executeStatement('CREATE TRIGGER reject_sweeper_review BEFORE UPDATE ON azuracast_sweeper_review '
-        . "FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Injected write failure'");
+    foreach ([21.5, 0.0, null, 14.0] as $value) {
+        if ($mediaService->saveIntro($recording, $value) !== $value) {
+            throw new RuntimeException('Unexpected cue response.');
+        }
+        $stored = $connection->fetchAllKeyValue('SELECT f.short_name, v.value '
+            . 'FROM StationMediaCustomField v JOIN CustomField f ON f.id = v.field_id WHERE v.media_id = 1 ORDER BY f.short_name');
+        $expected = $value === null ? null : (string)$value;
+        if ($stored !== ['category' => 'rotation-a', 'intro_end' => $expected]) {
+            throw new RuntimeException('Cue update changed another custom field or lost the cue.');
+        }
+        if ((int)$connection->fetchOne('SELECT COUNT(*) FROM StationMediaCustomField WHERE media_id = 1') !== 2) {
+            throw new RuntimeException('Cue updates created duplicate fields.');
+        }
+    }
     try {
-        $reviews->save($recording, [...$input, 'intro_end' => 25.0], true);
-        throw new RuntimeException('Expected the review write to fail.');
-    } catch (\Doctrine\DBAL\Exception\DriverException) {
+        $mediaService->saveIntro($recording, 999.0);
+        throw new RuntimeException('An out-of-file cue was accepted.');
+    } catch (InvalidArgumentException) {
     }
-    if ($fieldValue() !== '21' || (float)$reviews->get($recording)['candidate'] !== 21.0) {
-        throw new RuntimeException('Cue or review changed after a failed transaction.');
+    $value = $connection->fetchOne('SELECT v.value FROM StationMediaCustomField v '
+        . "JOIN CustomField f ON f.id = v.field_id WHERE v.media_id = 1 AND f.short_name = 'intro_end'");
+    if ($value !== '14') {
+        throw new RuntimeException('Invalid cue changed the saved value.');
     }
-    $connection->executeStatement('DROP TRIGGER reject_sweeper_review');
-    echo "Transactional cue and review save passed.\n";
+    echo "Single-field intro updates preserve other custom fields.\n";
 }

@@ -91,29 +91,6 @@ foreach ([-1, 301, NAN, 'vocals', true, '30s+'] as $invalid) {
     rejects(static fn() => Media::parseIntro($invalid, 300));
 }
 
-$recording = ['identity' => 'abc:10:20', 'unique_id' => 'abc', 'mtime' => 10, 'size' => 20, 'duration' => 180.];
-$body = [...$recording, 'intro_end' => 12., 'status' => 'confirmed'];
-$review = \Plugin\AzuracastSweepers\ValueObject\Review::prepare($body, true, $recording, []);
-check($review['manual'] && $review['candidate'] === 12., 'Manual save preserves lock and candidate.');
-foreach ([['mtime' => 9], ['size' => 19], ['identity' => 'abc:9:20'], ['unique_id' => 'old']] as $stale) {
-    try {
-        \Plugin\AzuracastSweepers\ValueObject\Review::prepare([...$body, ...$stale], true, $recording, []);
-        check(false, 'Stale review accepted.');
-    } catch (RuntimeException $e) {
-        check($e->getCode() === 409, 'Stale review returns conflict.');
-    }
-}
-try {
-    \Plugin\AzuracastSweepers\ValueObject\Review::prepare($body, false, $recording, $review);
-    check(false, 'Automatic import overwrote a manual lock.');
-} catch (RuntimeException $e) {
-    check($e->getCode() === 409, 'Automatic import preserves manual lock.');
-}
-foreach (['veto' => null, 'unknown' => null, 'no_intro' => 0.0] as $status => $expected) {
-    $value = \Plugin\AzuracastSweepers\ValueObject\Review::prepare([...$body, 'status' => $status], true, $recording, []);
-    check(\Plugin\AzuracastSweepers\ValueObject\Review::active($value) === $expected, 'Status controls active cue.');
-}
-
 $directory = sys_get_temp_dir() . '/sweepers-test-' . bin2hex(random_bytes(6));
 mkdir($directory);
 $state = new State();
