@@ -4,8 +4,9 @@ The plugin has not yet been validated on a running AzuraCast station.
 
 Locally completed:
 
-- Six Node tests covering sidebar insertion, station switches, delayed
-  rendering, missing permissions and sidebar replacement.
+- Seven Node tests covering sidebar insertion, station switches, delayed
+  rendering, permissions and sidebar replacement, plus editor value handling,
+  marker/playhead inputs and switching tracks during a save.
 - 39 PHP behavior checks, 33 navigation checks and reservation checks.
 - Native Liquidsoap 2.4.5 renders using the pinned AzuraCast request factory:
   normal playback, skip, live takeover and unavailable planning. The rendered
@@ -38,12 +39,15 @@ Use a disposable station and verify:
 - Remove the plugin and reload: the link and injected script must disappear.
 - Select a track on the plugin page: its original waveform and saved `intro_end`
   marker should appear. Check playback at the marker and three seconds earlier;
-  the marker should not allow dragging or editing.
+  drag the marker, set it at the playhead and save. Reload and check the cue
+  persists. Set zero, then clear it and check both remain distinct. Other custom
+  fields must retain their values.
 
 1. First visit/config generation creates exactly one `intro_end` field. Existing
    custom fields and their values remain unchanged.
 2. Users without station Media permission cannot access the panel or cue API.
-   Settings require Broadcasting permission and CSRF protection.
+   Settings require Broadcasting permission. Browser cue and settings edits
+   require CSRF protection.
 3. Positive, zero and blank intro values remain distinct. Cue API updates preserve
    all other custom fields and reject additional request fields.
 4. Jingles with blank native cue fields work using cached AutoCue annotations.

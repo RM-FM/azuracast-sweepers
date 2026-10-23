@@ -28,6 +28,10 @@ existing custom-field table. Other custom fields, playlists, cue-in/out, fades
 and loudness values are preserved. Concurrent calls to this endpoint serialize
 updates for the same media record.
 
+The visual editor uses `POST /sweepers/{station_id}/intro/{media_id}` with the same
+single-field body. This route requires a signed-in session, station Media permission
+and the `sweepers` CSRF token in `X-CSRF-Token`. It calls the same save operation.
+
 ## Using the native media API
 
 AzuraCast also supports `GET` and `PUT /api/station/{station_id}/file/{media_id}`.

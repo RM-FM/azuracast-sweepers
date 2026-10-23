@@ -53,7 +53,7 @@
                 </div>
                 <p>Sidechain attack: 150 ms · release: 750 ms. AutoCue supplies jingle start, handover and tail.</p>
                 <button class="primary" :disabled="saving">Save settings</button>
-                <p>Set Intro End under Music Files → Edit → Custom Fields, or use the intro API.</p>
+                <p>Edit Intro End in the waveform below, under Music Files → Custom Fields, or through the intro API.</p>
             </form>
         </section>
         <section v-if="!loading" class="layout">
@@ -67,7 +67,7 @@
                 <p>Up to 100 matches. Refine your search to find more.</p>
                 <ul class="media-list">
                     <li v-for="row in rows" :key="row.id">
-                        <button type="button" :class="{ selected: selected?.id === row.id }" @click="selected = row">
+                        <button type="button" :class="{ selected: selected?.id === row.id }" @click="select(row)">
                             <strong>{{ row.path }}</strong>
                             <span>{{ formatIntro(row.intro_end) }}</span>
                         </button>
@@ -78,19 +78,33 @@
 
             <article v-if="selected" class="card">
                 <h2>{{ selected.path }}</h2>
-                <p>Intro End: {{ formatIntro(selected.intro_end) }} · Original file position</p>
+                <p>Saved Intro End: {{ formatIntro(selected.intro_end) }} · Original file position</p>
                 <Waveform
                     :key="selected.id"
                     ref="waveform"
                     :audio-url="selected.audio_url"
                     :waveform-url="selected.waveform_url"
-                    :intro="selected.intro_end"
+                    :intro="marker"
+                    @position="position = $event"
+                    @intro="draft = $event"
                 />
-                <div v-if="selected.intro_end !== null" class="toolbar">
-                    <button type="button" @click="waveform?.playAt(selected.intro_end)">Listen at Intro</button>
-                    <button type="button" @click="waveform?.playAt(selected.intro_end - 3)">Listen −3 s</button>
+                <div class="toolbar">
+                    <button type="button" :disabled="!waveform?.ready" @click="draft = Math.round(position * 100) / 100">Set at playhead</button>
+                    <button type="button" :disabled="marker === null || !waveform?.ready" @click="waveform?.playAt(marker)">Listen at Intro</button>
+                    <button type="button" :disabled="marker === null || !waveform?.ready" @click="waveform?.playAt(marker - 3)">Listen −3 s</button>
                 </div>
-                <p>Change the cue under Music Files → Custom Fields or through the intro API. Search again to refresh the marker.</p>
+                <form @submit.prevent="saveIntro">
+                    <label>
+                        Intro End (s)
+                        <input v-model="draft" type="number" min="0" :max="selected.duration" step="0.01">
+                    </label>
+                    <p>Move the marker, or seek in the waveform and set the cue at the playhead. Blank means unknown; zero means no intro.</p>
+                    <div class="toolbar">
+                        <button type="button" @click="draft = 0">No intro (0 s)</button>
+                        <button type="button" @click="draft = ''">Clear cue</button>
+                        <button class="primary" :disabled="saving || !validDraft">Save Intro End</button>
+                    </div>
+                </form>
             </article>
             <article v-else class="card"><p>Select a file to view its intro cue.</p></article>
         </section>
@@ -109,11 +123,20 @@ const rows = ref([]);
 const search = ref("");
 const selected = ref(null);
 const waveform = ref(null);
+const draft = ref("");
+const position = ref(0);
 const loading = ref(true);
 const saving = ref(false);
 const notice = ref("");
 const error = ref("");
 const stationUrl = computed(() => `${props.base.replace(/\/sweepers\/[^/]+$/, "")}/station/${station.value.id ?? ""}`);
+const validDraft = computed(() => draft.value === "" || (
+    draft.value !== null && draft.value !== undefined
+    && Number.isFinite(Number(draft.value))
+    && Number(draft.value) >= 0
+    && Number(draft.value) <= (selected.value?.duration ?? 0)
+));
+const marker = computed(() => validDraft.value && draft.value !== "" ? Number(draft.value) : null);
 
 function formatIntro(value) {
     if (value === null) return "Not measured";
@@ -141,10 +164,33 @@ async function api(path, data) {
 async function loadMedia() {
     try {
         rows.value = (await api(`media?search=${encodeURIComponent(search.value)}`)).rows;
-        selected.value = rows.value.find((row) => row.id === selected.value?.id) ?? null;
+        const updated = rows.value.find((row) => row.id === selected.value?.id);
+        if (updated) select(updated);
+        else selected.value = null;
     } catch (exception) {
         error.value = exception.message;
     }
+}
+
+function select(row) {
+    if (selected.value?.id !== row.id) position.value = 0;
+    selected.value = row;
+    draft.value = row.intro_end ?? "";
+}
+
+async function saveIntro() {
+    if (!validDraft.value) return;
+    await save(async () => {
+        const id = selected.value.id;
+        const value = marker.value;
+        const result = await api(`intro/${id}`, { intro_end: value });
+        rows.value = rows.value.map((row) => row.id === id ? { ...row, intro_end: result.intro_end } : row);
+        if (selected.value?.id === id) {
+            selected.value = { ...selected.value, intro_end: result.intro_end };
+            if (marker.value === value) draft.value = result.intro_end ?? "";
+        }
+        notice.value = "Intro End saved. Already-prefetched tracks may retain their previous plan.";
+    });
 }
 
 async function saveSettings() {

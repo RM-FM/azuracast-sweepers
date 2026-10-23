@@ -139,6 +139,13 @@ final readonly class PanelController
         return $response->withJson(['success' => true, 'intro_end' => $intro]);
     }
 
+    public function introAction(ServerRequest $request, Response $response, array $params): ResponseInterface
+    {
+        $request->getCsrf()->verify($request->getHeaderLine('X-CSRF-Token'), 'sweepers');
+
+        return $this->importAction($request, $response, $params);
+    }
+
     private function body(ServerRequest $request): array
     {
         $body = json_decode((string)$request->getBody(), true, flags: JSON_THROW_ON_ERROR);
