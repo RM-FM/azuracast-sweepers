@@ -7,19 +7,17 @@ namespace Plugin\AzuracastSweepers\Controller;
 use App\Http\Response;
 use App\Http\ServerRequest;
 use Doctrine\ORM\EntityManagerInterface;
+use InvalidArgumentException;
 use Plugin\AzuracastSweepers\Service\Media;
-use Plugin\AzuracastSweepers\Service\Reviews;
 use Plugin\AzuracastSweepers\Service\State;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
 use Psr\Http\Message\ResponseInterface;
-use RuntimeException;
 
 final readonly class PanelController
 {
     public function __construct(
         private Media $media,
         private State $state,
-        private Reviews $reviews,
         private EntityManagerInterface $em
     ) {
     }
@@ -27,7 +25,6 @@ final readonly class PanelController
     public function indexAction(ServerRequest $request, Response $response, array $params): ResponseInterface
     {
         $this->media->ensureField();
-        $this->reviews->initialize();
         $base = rtrim($request->getUri()->getPath(), '/');
         $html = file_get_contents(dirname(__DIR__, 2) . '/frontend/index.html');
         $html = strtr($html, [
@@ -102,78 +99,25 @@ final readonly class PanelController
         return $response->withJson(['success' => true, 'needs_restart' => true]);
     }
 
-    public function mediaAction(ServerRequest $request, Response $response, array $params): ResponseInterface
-    {
-        $station = $request->getStation();
-        $data = $this->state->read($station->getRadioConfigDir());
-        $this->reviews->initialize();
-        $search = substr((string)$request->getQueryParam('search', ''), 0, 200);
-        $router = $request->getRouter();
-        $rows = [];
-
-        foreach ($this->media->list($station, $search) as $media) {
-            $review = $this->reviews->get($media, $data['intros'][$media->id] ?? []) ?: null;
-            $rows[] = [
-                'id' => $media->id,
-                'unique_id' => $media->unique_id,
-                'identity' => Media::identity($media),
-                'size' => $media->size,
-                'mtime' => $media->mtime,
-                'path' => $media->path,
-                'duration' => $media->length,
-                'intro_end' => $this->media->intro($media),
-                'review' => $review,
-                'stale' => $review !== null && $review['identity'] !== Media::identity($media),
-                'timing' => $this->media->timing($station, $media),
-                'audio_url' => $router->fromHere('api:stations:files:play', [
-                    'station_id' => $station->id,
-                    'id' => $media->id,
-                ]),
-                'waveform_url' => $router->fromHere('api:stations:media:waveform', [
-                    'station_id' => $station->id,
-                    'media_id' => $media->unique_id,
-                    'timestamp' => $media->art_updated_at,
-                ]),
-            ];
-        }
-
-        return $response->withHeader('Cache-Control', 'no-store')->withJson(['rows' => $rows, 'limit' => 100]);
-    }
-
-    public function introAction(ServerRequest $request, Response $response, array $params): ResponseInterface
-    {
-        $request->getCsrf()->verify($request->getHeaderLine('X-CSRF-Token'), 'sweepers');
-
-        return $this->saveIntro($request, $response, (int)$params['id'], true);
-    }
-
     public function importAction(ServerRequest $request, Response $response, array $params): ResponseInterface
     {
-        return $this->saveIntro($request, $response, (int)$params['id'], false);
-    }
-
-    private function saveIntro(ServerRequest $request, Response $response, int $id, bool $manual): ResponseInterface
-    {
-        $station = $request->getStation();
-        $media = $this->media->get($station, $id);
         $body = $this->body($request);
-        $this->reviews->initialize();
-        $data = $this->state->read($station->getRadioConfigDir());
-        try {
-            $this->reviews->save($media, $body, $manual, $data['intros'][$id] ?? []);
-        } catch (RuntimeException $exception) {
-            if ($exception->getCode() !== 409) {
-                throw $exception;
-            }
-
-            return $response->withStatus(409)->withJson(['message' => $exception->getMessage()]);
+        if (count($body) !== 1 || !array_key_exists('intro_end', $body)) {
+            throw new InvalidArgumentException('Supply only intro_end. Use null to clear it.');
         }
+        $media = $this->media->get($request->getStation(), (int)$params['id']);
+        $intro = $this->media->saveIntro($media, $body['intro_end']);
 
-        return $response->withJson(['success' => true]);
+        return $response->withJson(['success' => true, 'intro_end' => $intro]);
     }
 
     private function body(ServerRequest $request): array
     {
-        return json_decode((string)$request->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        $body = json_decode((string)$request->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        if (!is_array($body)) {
+            throw new InvalidArgumentException('Expected a JSON object.');
+        }
+
+        return $body;
     }
 }

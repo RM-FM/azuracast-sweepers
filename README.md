@@ -8,12 +8,12 @@ AzuraCast station before use on air. The reference source is AzuraCast
 
 The plugin provides:
 
-- A standalone sweeper settings page and waveform intro editor.
+- A sweeper configuration page with playlist selection.
 - An automatically created `intro_end` custom field.
 - Selection of the oldest actually played jingle that fits the intro.
 - AutoCue-aware start, handover, loudness and tail handling.
 - Sidechain ducking with 150 ms attack and 750 ms release.
-- An authenticated API for importing externally detected intro cues.
+- An authenticated endpoint that updates only `intro_end`.
 
 Intro detection is external. No detection models, inference code or GPU services
 are included.
@@ -55,8 +55,8 @@ Recreate the AzuraCast containers using the normal installation procedure.
 After reloading the dashboard, open **Media → Sweepers** in the station sidebar.
 The link appears alongside Music Files for users with station Media permission.
 Direct access at `/sweepers/1` (replace `1` with the station ID) remains available.
-The plugin creates or reuses `intro_end` and initializes its review table on
-the first page visit or station configuration generation. It does not overwrite an existing field or change other custom fields.
+The plugin creates or reuses `intro_end` on the first page visit or station
+configuration generation. It does not overwrite an existing field or change other custom fields.
 
 Create an **Advanced** playlist containing the sweeper jingles, select it in the
 plugin settings, enable sweepers and restart broadcasting through AzuraCast.
@@ -81,14 +81,11 @@ is not an official navigation hook; verify the link after AzuraCast upgrades.
 | `0` | No usable intro |
 | Positive number | Available intro boundary |
 
-The plugin editor also records vocal/musical/30s+ type, approval/veto state and
-whether a manual review is protected. A 30s+ bound stores numeric `30`, with its
-type recorded separately. Vetoes block sweepers. A changed media identity
-invalidates the plugin review. The editor supports auditioning, setting a cue at
-the playhead and dragging the Intro marker.
-
-The native media editor exposes `intro_end` under Custom Fields. It does not
-display this custom field as a marker in AzuraCast's native waveform editor.
+Edit this value in AzuraCast's Music Files editor under Custom Fields, or use the
+[one-field API](docs/API.md). Detection, review and approval happen outside this
+plugin. Only the resulting numeric cue is published to AzuraCast. A verified
+30-second opening can be published as `30`; the plugin needs no separate type.
+The native waveform editor does not display custom fields as cue markers.
 
 ## AutoCue and playback
 
@@ -116,17 +113,15 @@ Preparation failures leave the original song available. Late overlay activation
 is skipped. Live inputs bypass the overlay branch.
 
 Settings and rotation state live in the station config directory as `sweepers.json`
-and `sweepers.lock`. Intro reviews and `intro_end` are stored together in the
-AzuraCast database; shared media have one review across stations. On first access,
-legacy reviews are imported from station state when no database review exists.
-Back up the station config files and database when updating. Intro edits affect
-future plans; an already-prefetched track may retain its previous plan.
+and `sweepers.lock`. The intro cue uses AzuraCast's existing custom-field storage;
+the plugin creates no database tables. Intro edits affect future plans; an
+already-prefetched track may retain its previous plan.
 
-## External cue import
+## External cue updates
 
-See [docs/API.md](docs/API.md). The API accepts cue values, not audio analysis jobs.
-It uses AzuraCast authentication and station permissions. Protected manual reviews
-return HTTP 409 rather than being overwritten.
+See [docs/API.md](docs/API.md). The endpoint accepts only `intro_end`, uses
+AzuraCast authentication and station Media permission, and preserves every other
+custom field. No review status, detector metadata or import workflow is stored.
 
 ## Development
 
@@ -152,8 +147,11 @@ brief and limited to non-obvious behavior.
 ## Removal
 
 Disable sweepers and restart broadcasting before removing the plugin mount.
-Preserve `intro_end`, `azuracast_sweeper_review`, and `sweepers.json` if their data
-is still needed. Removal
+Preserve `intro_end` and `sweepers.json` if their data is still needed. Removal
 does not require deleting media, rebuilding the database or resetting AutoCue.
+
+Earlier development builds created `azuracast_sweeper_review` and stored review
+metadata in station state. These are no longer read or written. Updating the
+plugin leaves any existing data in place; no database cleanup is required.
 
 AGPL-3.0-or-later. Copyright 2026 RM-FM. This project is independent of AzuraCast.

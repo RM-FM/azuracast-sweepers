@@ -4,9 +4,9 @@ The plugin has not yet been validated on a running AzuraCast station.
 
 Locally completed:
 
-- Nine Node tests covering cues, sidebar insertion, station switches, delayed
+- Six Node tests covering sidebar insertion, station switches, delayed
   rendering, missing permissions and sidebar replacement.
-- 48 PHP behavior checks, 33 navigation checks and reservation checks.
+- 39 PHP behavior checks, 33 navigation checks and reservation checks.
 - Native Liquidsoap 2.4.5 renders using the pinned AzuraCast request factory:
   normal playback, skip, live takeover and unavailable planning. The rendered
   audio checks onset, ducking, tail, metadata and reservation events.
@@ -19,10 +19,10 @@ Locally completed:
 
 Not executed in the authoring environment:
 
-- MariaDB-backed review transaction test locally (the workflow runs it).
+- MariaDB-backed single-field update test locally (the workflow runs it).
 - Actual AzuraCast installation, permissions, playback or waveform auditioning.
 
-GitHub Actions checks the frontend, PHP, MariaDB review transaction and rendered
+GitHub Actions checks the frontend, PHP, MariaDB custom-field preservation and rendered
 native Liquidsoap playback on each push. A green workflow does not replace
 station audio testing.
 
@@ -39,10 +39,10 @@ Use a disposable station and verify:
 
 1. First visit/config generation creates exactly one `intro_end` field. Existing
    custom fields and their values remain unchanged.
-2. Users without station Media permission cannot access the panel or edit cues.
-   Settings require Broadcasting permission. Session edits require CSRF protection.
-3. A positive cue, zero, unknown, veto and changed recording remain distinct.
-   Protected manual reviews reject automatic imports.
+2. Users without station Media permission cannot access the panel or cue API.
+   Settings require Broadcasting permission and CSRF protection.
+3. Positive, zero and blank intro values remain distinct. Cue API updates preserve
+   all other custom fields and reject additional request fields.
 4. Jingles with blank native cue fields work using cached AutoCue annotations.
    Resolved cue-in, handover, cue-out and loudness take precedence.
 5. A nonzero song cue-in is subtracted once. Jingle handover and tail timing are
