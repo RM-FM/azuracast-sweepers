@@ -12,7 +12,8 @@ final readonly class Planner
 {
     public function __construct(
         private State $state,
-        private Media $media
+        private Media $media,
+        private Reviews $reviews
     ) {
     }
 
@@ -29,6 +30,7 @@ final readonly class Planner
         }
 
         $song = $this->media->get($station, $mediaId);
+        $this->reviews->initialize();
         $intro = $this->media->intro($song);
         $directory = $station->getRadioConfigDir();
         $result = self::emptyPlan($token);
@@ -47,26 +49,33 @@ final readonly class Planner
                 $data['plans'] ?? [],
                 static fn(array $plan): bool => $plan['expires_at'] > time()
             );
+            $review = $this->reviews->get($song, $data['intros'][$song->id] ?? []);
+            $blocked = $review !== [] && (
+                ($review['identity'] ?? '') !== Media::identity($song)
+                || in_array($review['status'] ?? '', ['veto', 'unknown'], true)
+            );
+            $fingerprint = hash('sha256', json_encode([
+                Media::identity($song), $intro, $review, $settings->toArray(), $measurements,
+            ], JSON_THROW_ON_ERROR));
+            if (!$settings->enabled || $intro === null || $intro <= $cueIn || $blocked) {
+                unset($data['plans'][$token]);
+
+                return $data;
+            }
             if (isset($data['plans'][$token])) {
                 $saved = $data['plans'][$token];
                 if (
                     $saved['song_id'] === $song->id
                     && (float)$saved['cue_in'] === $cueIn
                     && (float)$saved['cue_out'] === $cueOut
+                    && ($saved['fingerprint'] ?? '') === $fingerprint
                 ) {
                     $result = $saved['payload'];
+                    $data['plans'][$token]['expires_at'] = time() + 30;
+
+                    return $data;
                 }
-
-                return $data;
-            }
-
-            $review = $data['intros'][$song->id] ?? [];
-            $blocked = $review !== [] && (
-                ($review['identity'] ?? '') !== Media::identity($song)
-                || in_array($review['status'] ?? '', ['veto', 'unknown'], true)
-            );
-            if (!$settings->enabled || $intro === null || $intro <= $cueIn || $blocked) {
-                return $data;
+                unset($data['plans'][$token]);
             }
 
             $reserved = array_column(array_filter(
@@ -103,7 +112,8 @@ final readonly class Planner
                     'jingle_id' => $jingle->id,
                     'cue_in' => $cueIn,
                     'cue_out' => $cueOut,
-                    'expires_at' => time() + 3600,
+                    'expires_at' => time() + 30,
+                    'fingerprint' => $fingerprint,
                     'played' => false,
                     'payload' => $result,
                 ];
@@ -118,12 +128,40 @@ final readonly class Planner
 
     public function played(Station $station, string $token): void
     {
-        $this->state->update($station->getRadioConfigDir(), static function (array $data) use ($token): array {
-            $plan = $data['plans'][$token] ?? null;
-            if ($plan !== null && !($plan['played'] ?? false) && $plan['expires_at'] > time()) {
-                $data['history'][$plan['jingle_id']] = microtime(true);
-                $data['plans'][$token]['played'] = true;
+        $this->heartbeat($station, [], [['event' => 'played', 'token' => $token]]);
+    }
+
+    public function heartbeat(Station $station, array $tokens, array $events): void
+    {
+        if (count($tokens) > 16 || count($events) > 128) {
+            throw new InvalidArgumentException('Too many reservation events.');
+        }
+        $this->state->update($station->getRadioConfigDir(), static function (array $data) use (
+            $tokens,
+            $events
+        ): array {
+            foreach ($events as $event) {
+                $token = (string)($event['token'] ?? '');
+                $plan = $data['plans'][$token] ?? null;
+                if ($plan === null) {
+                    continue;
+                }
+                if (($event['event'] ?? '') === 'played' && !($plan['played'] ?? false)) {
+                    $data['history'][$plan['jingle_id']] = microtime(true);
+                    $data['plans'][$token]['played'] = true;
+                } elseif (($event['event'] ?? '') === 'release') {
+                    unset($data['plans'][$token]);
+                }
             }
+            foreach ($tokens as $token) {
+                if (isset($data['plans'][$token]) && $data['plans'][$token]['expires_at'] > time()) {
+                    $data['plans'][$token]['expires_at'] = time() + 30;
+                }
+            }
+            $data['plans'] = array_filter(
+                $data['plans'] ?? [],
+                static fn(array $plan): bool => $plan['expires_at'] > time()
+            );
 
             return $data;
         });

@@ -19,14 +19,18 @@
   "scripts": {
     "test": [
       "php tests/run.php",
-      "php tests/navigation.php"
+      "php tests/navigation.php",
+      "php tests/reservations.php"
     ]
   },
   "require-dev": {
     "guzzlehttp/psr7": "^2.7",
     "psr/http-server-middleware": "^1.0",
     "slevomat/coding-standard": "^8.24",
-    "squizlabs/php_codesniffer": "^4"
+    "squizlabs/php_codesniffer": "^4",
+    "doctrine/orm": "^3.5.3",
+    "symfony/cache": "^7.3",
+    "psr/event-dispatcher": "^1.0"
   },
   "config": {
     "allow-plugins": {

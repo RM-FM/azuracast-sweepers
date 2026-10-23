@@ -21,7 +21,7 @@
             <form @submit.prevent="saveSettings">
                 <label class="check"><input v-model="settings.enabled" type="checkbox"> Enable sweepers</label>
                 <label>
-                    Jingle playlist
+                    Sweeper playlist
                     <select v-model="settings.playlist_id">
                         <option :value="null">Choose an Advanced playlist</option>
                         <option v-for="playlist in playlists" :key="playlist.id" :value="playlist.id">
@@ -170,7 +170,7 @@ const saving = ref(false);
 const notice = ref("");
 const error = ref("");
 const draft = reactive({ intro_end: "", kind: "vocal", status: "unknown", lock_manual: true });
-const stationUrl = computed(() => `/station/${station.value.id ?? ""}`);
+const stationUrl = computed(() => `${props.base.replace(/\/sweepers\/[^/]+$/, "")}/station/${station.value.id ?? ""}`);
 const marker = computed(() => {
     try {
         return parseIntro(draft.intro_end, selected.value?.duration ?? 0);
@@ -186,7 +186,9 @@ async function api(path, data) {
         headers: { "Content-Type": "application/json", "X-CSRF-Token": props.csrf },
         body: data === undefined ? undefined : JSON.stringify(data),
     });
-    const result = await response.json();
+    const result = await response.json().catch(() => {
+        throw new Error("The session expired or the server could not complete the request. Reload the page.");
+    });
     if (!response.ok) {
         throw new Error(result.message || result.error?.message || "The request failed.");
     }
@@ -227,7 +229,14 @@ async function saveSettings() {
 async function saveIntro() {
     await save(async () => {
         const id = selected.value.id;
-        await api(`intro/${id}`, { ...draft, intro_end: parseIntro(draft.intro_end, selected.value.duration) });
+        await api(`intro/${id}`, {
+            ...draft,
+            identity: selected.value.identity,
+            unique_id: selected.value.unique_id,
+            mtime: selected.value.mtime,
+            size: selected.value.size,
+            intro_end: parseIntro(draft.intro_end, selected.value.duration),
+        });
         await loadMedia();
         const updated = rows.value.find((row) => row.id === id);
         if (updated) {

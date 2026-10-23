@@ -7,17 +7,19 @@ namespace Plugin\AzuracastSweepers\Controller;
 use App\Http\Response;
 use App\Http\ServerRequest;
 use Doctrine\ORM\EntityManagerInterface;
-use InvalidArgumentException;
 use Plugin\AzuracastSweepers\Service\Media;
+use Plugin\AzuracastSweepers\Service\Reviews;
 use Plugin\AzuracastSweepers\Service\State;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
 use Psr\Http\Message\ResponseInterface;
+use RuntimeException;
 
 final readonly class PanelController
 {
     public function __construct(
         private Media $media,
         private State $state,
+        private Reviews $reviews,
         private EntityManagerInterface $em
     ) {
     }
@@ -25,6 +27,7 @@ final readonly class PanelController
     public function indexAction(ServerRequest $request, Response $response, array $params): ResponseInterface
     {
         $this->media->ensureField();
+        $this->reviews->initialize();
         $base = rtrim($request->getUri()->getPath(), '/');
         $html = file_get_contents(dirname(__DIR__, 2) . '/frontend/index.html');
         $html = strtr($html, [
@@ -103,22 +106,25 @@ final readonly class PanelController
     {
         $station = $request->getStation();
         $data = $this->state->read($station->getRadioConfigDir());
+        $this->reviews->initialize();
         $search = substr((string)$request->getQueryParam('search', ''), 0, 200);
         $router = $request->getRouter();
         $rows = [];
 
         foreach ($this->media->list($station, $search) as $media) {
-            $review = $data['intros'][$media->id] ?? null;
+            $review = $this->reviews->get($media, $data['intros'][$media->id] ?? []) ?: null;
             $rows[] = [
                 'id' => $media->id,
                 'unique_id' => $media->unique_id,
+                'identity' => Media::identity($media),
+                'size' => $media->size,
                 'mtime' => $media->mtime,
                 'path' => $media->path,
                 'duration' => $media->length,
                 'intro_end' => $this->media->intro($media),
                 'review' => $review,
                 'stale' => $review !== null && $review['identity'] !== Media::identity($media),
-                'timing' => $this->media->timing($media),
+                'timing' => $this->media->timing($station, $media),
                 'audio_url' => $router->fromHere('api:stations:files:play', [
                     'station_id' => $station->id,
                     'id' => $media->id,
@@ -151,71 +157,19 @@ final readonly class PanelController
         $station = $request->getStation();
         $media = $this->media->get($station, $id);
         $body = $this->body($request);
-        $identity = Media::identity($media);
-        if (
-            !$manual && (
-                ($body['unique_id'] ?? null) !== $media->unique_id
-                || ($body['mtime'] ?? null) !== $media->mtime
-            )
-        ) {
-            return $response->withStatus(409)->withJson([
-                'message' => 'The recording changed. Read its identity again.',
-            ]);
-        }
-
-        $status = $body['status'] ?? 'confirmed';
-        $kind = $body['kind'] ?? 'vocal';
-        if (
-            !in_array($status, ['confirmed', 'unknown', 'no_intro', 'veto'], true)
-            || !in_array($kind, ['vocal', 'musical', '30s+'], true)
-        ) {
-            throw new InvalidArgumentException('Invalid intro status or type.');
-        }
-        $value = Media::parseIntro($body['intro_end'] ?? null, $media->length);
-        if ($status === 'confirmed' && ($value === null || ($kind === '30s+' && $value !== 30.0))) {
-            throw new InvalidArgumentException('A confirmed intro requires a valid boundary.');
-        }
-        $blocked = false;
-        $locked = $manual && ($body['lock_manual'] ?? true) === true;
-        $this->state->update($station->getRadioConfigDir(), function (array $data) use (
-            $manual,
-            $media,
-            $identity,
-            $status,
-            $kind,
-            $value,
-            $locked,
-            &$blocked
-        ): array {
-            $old = $data['intros'][$media->id] ?? [];
-            if (!$manual && ($old['manual'] ?? false) && ($old['identity'] ?? '') === $identity) {
-                $blocked = true;
-
-                return $data;
+        $this->reviews->initialize();
+        $data = $this->state->read($station->getRadioConfigDir());
+        try {
+            $this->reviews->save($media, $body, $manual, $data['intros'][$id] ?? []);
+        } catch (RuntimeException $exception) {
+            if ($exception->getCode() !== 409) {
+                throw $exception;
             }
 
-            $active = match ($status) {
-                'confirmed' => $value,
-                'no_intro' => 0.0,
-                default => null,
-            };
-            $this->media->saveIntro($media, $active);
-            $data['intros'][$media->id] = [
-                'identity' => $identity,
-                'mtime' => $media->mtime,
-                'status' => $status,
-                'kind' => $kind,
-                'manual' => $locked,
-                'candidate' => $value,
-                'updated_at' => time(),
-            ];
+            return $response->withStatus(409)->withJson(['message' => $exception->getMessage()]);
+        }
 
-            return $data;
-        });
-
-        return $blocked
-            ? $response->withStatus(409)->withJson(['message' => 'A manual intro review is locked for this recording.'])
-            : $response->withJson(['success' => true]);
+        return $response->withJson(['success' => true]);
     }
 
     private function body(ServerRequest $request): array
