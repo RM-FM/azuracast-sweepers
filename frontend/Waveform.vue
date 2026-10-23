@@ -22,6 +22,7 @@ const props = defineProps({
     waveformUrl: { type: String, required: true },
     intro: { type: Number, default: null },
 });
+const emit = defineEmits(["position", "intro"]);
 const container = ref(null);
 const position = ref(0);
 const zoom = ref(0);
@@ -40,7 +41,7 @@ function updateMarker() {
             start: props.intro,
             content: "Intro End",
             color: "#ef9b20",
-            drag: false,
+            drag: true,
             resize: false,
         });
     }
@@ -55,7 +56,15 @@ onMounted(async () => {
         cursorColor: "#222",
         plugins: [regions],
     });
-    player.on("timeupdate", (time) => { position.value = time; });
+    player.on("timeupdate", (time) => {
+        position.value = time;
+        emit("position", time);
+    });
+    player.on("interaction", (time) => {
+        position.value = time;
+        emit("position", time);
+    });
+    regions.on("region-updated", (region) => emit("intro", Math.round(region.start * 100) / 100));
     player.on("ready", () => {
         ready.value = true;
         updateMarker();
@@ -90,5 +99,5 @@ onBeforeUnmount(() => {
     player?.destroy();
 });
 
-defineExpose({ playAt });
+defineExpose({ playAt, ready });
 </script>
