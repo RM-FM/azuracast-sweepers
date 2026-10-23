@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Plugin\AzuracastSweepers\Service;
 
-use App\Cache\AutoCueCache;
 use App\Entity\CustomField;
 use App\Entity\Enums\PlaylistTypes;
 use App\Entity\Repository\CustomFieldRepository;
@@ -24,7 +23,6 @@ final readonly class Media
     public function __construct(
         private EntityManagerInterface $em,
         private CustomFieldRepository $customFields,
-        private AutoCueCache $autoCueCache,
         private EventDispatcherInterface $dispatcher
     ) {
     }
@@ -89,10 +87,10 @@ final readonly class Media
         return (float)$value;
     }
 
-    public function saveIntro(StationMedia $media, mixed $value): ?float
+    public function saveIntro(StationMedia $media, mixed $value, ?CustomField $field = null): ?float
     {
         $intro = self::parseIntro($value, $media->length);
-        $field = $this->ensureField();
+        $field ??= $this->ensureField();
         $entry = $this->em->getRepository(StationMediaCustomField::class)->findOneBy([
             'media' => $media,
             'field' => $field,
@@ -138,12 +136,30 @@ final readonly class Media
         return array_values($unique);
     }
 
-    public function timing(StationMedia $media): ?Timing
+    public function timing(Station $station, StationMedia $media): ?Timing
     {
-        $cached = $this->autoCueCache->getForCacheKey($this->autoCueCache->getCacheKey($media)) ?? [];
-        $manual = array_filter($media->extra_metadata->toArray() ?? [], static fn($value) => $value !== null);
+        $metadata = $this->annotations($station, $media);
 
-        return Timing::fromArray(array_replace($cached, $manual), $media->length);
+        return Timing::fromMetadata($metadata, $media->length);
+    }
+
+    public function annotations(Station $station, StationMedia $media): array
+    {
+        $event = AnnotateNextSong::fromStationMedia($station, $media);
+        $this->dispatcher->dispatch($event);
+        $uri = $event->buildAnnotations();
+        preg_match_all('/(?:^annotate:|,)([a-z_]+)="((?:\\\\.|[^"\\\\])*)"/', $uri, $matches, PREG_SET_ORDER);
+        $metadata = [];
+        foreach ($matches as $match) {
+            $metadata[$match[1]] = str_replace('\\"', '"', $match[2]);
+        }
+
+        return $metadata;
+    }
+
+    public function timingIdentity(Station $station, StationMedia $media): string
+    {
+        return self::identity($media) . ':' . hash('sha256', $this->uri($station, $media));
     }
 
     public function list(Station $station, string $search): array

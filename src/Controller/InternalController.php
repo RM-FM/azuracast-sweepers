@@ -49,7 +49,7 @@ final readonly class InternalController
             foreach ($this->media->jingles($station, $settings->playlistId) as $jingle) {
                 $jobs[] = [
                     'media_id' => $jingle->id,
-                    'identity' => Media::identity($jingle),
+                    'identity' => $this->media->timingIdentity($station, $jingle),
                     'uri' => $this->media->uri($station, $jingle),
                 ];
             }
@@ -77,7 +77,7 @@ final readonly class InternalController
         $measurements = [];
         foreach ($body['jingles'] ?? [] as $row) {
             $jingle = $allowed[$row['media_id'] ?? 0] ?? null;
-            if ($jingle !== null && ($row['identity'] ?? '') === Media::identity($jingle)) {
+            if ($jingle !== null && ($row['identity'] ?? '') === $this->media->timingIdentity($station, $jingle)) {
                 $timing = Timing::fromMetadata((array)($row['metadata'] ?? []), $jingle->length);
                 if ($timing !== null) {
                     $measurements[$jingle->id] = $timing;
@@ -93,6 +93,14 @@ final readonly class InternalController
             (float)$body['cue_out'],
             $measurements
         ));
+    }
+
+    public function heartbeatAction(ServerRequest $request, Response $response, array $params): ResponseInterface
+    {
+        $body = $this->payload($request);
+        $this->planner->heartbeat($request->getStation(), $body['tokens'] ?? [], $body['events'] ?? []);
+
+        return $response->withJson(['success' => true]);
     }
 
     public function playedAction(ServerRequest $request, Response $response, array $params): ResponseInterface

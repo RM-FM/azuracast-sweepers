@@ -1,11 +1,16 @@
 # Validation status
 
-This initial implementation has not been validated on a running station.
+The plugin has not yet been validated on a running AzuraCast station.
 
 Locally completed:
 
 - Nine Node tests covering cues, sidebar insertion, station switches, delayed
   rendering, missing permissions and sidebar replacement.
+- 48 PHP behavior checks, 33 navigation checks and reservation checks.
+- Native Liquidsoap 2.4.5 renders using the pinned AzuraCast request factory:
+  normal playback, skip, live takeover and unavailable planning. The rendered
+  audio checks onset, ducking, tail, metadata and reservation events.
+- PHP syntax/style checks with PHP 8.4 and Composer dependencies.
 - JavaScript syntax checks, including both Vue component script sections.
 - Vue production build.
 - Native Liquidsoap 2.4.5 type check against the pinned AzuraCast runtime.
@@ -14,13 +19,12 @@ Locally completed:
 
 Not executed in the authoring environment:
 
-- PHP lint/runtime checks: PHP is unavailable.
+- MariaDB-backed review transaction test locally (the workflow runs it).
 - Actual AzuraCast installation, permissions, playback or waveform auditioning.
 
-GitHub Actions has also passed PHP lint/style checks, 39 backend checks and 33
-navigation middleware checks. The workflow checks the frontend and native
-Liquidsoap source types on each push. A green workflow does not replace station
-audio testing.
+GitHub Actions checks the frontend, PHP, MariaDB review transaction and rendered
+native Liquidsoap playback on each push. A green workflow does not replace
+station audio testing.
 
 ## Station acceptance
 

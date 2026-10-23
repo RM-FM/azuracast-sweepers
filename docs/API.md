@@ -7,6 +7,7 @@ station. Use `X-API-Key` over HTTPS, following AzuraCast's normal API configurat
 Never embed a key in frontend assets or media metadata.
 
 Read `unique_id` and `mtime` from AzuraCast's media API before submitting a result.
+Include `size` when available; all values must describe the reviewed recording.
 
 ```json
 {
@@ -43,7 +44,8 @@ The Liquidsoap module uses `/api/internal/{station_id}/liquidsoap/sweepers/`:
 | --- | --- |
 | `catalog` | Get normally annotated jingle requests |
 | `plan` | Select/reserve a fitting jingle using resolved request metadata |
-| `played` | Acknowledge actual jingle playback idempotently |
+| `played` | Legacy playback acknowledgment |
+| `heartbeat` | Renew live reservations and acknowledge playback or release events |
 
 These endpoints require AzuraCast's internal connection and the station's adapter
 API key. They are not public control endpoints.

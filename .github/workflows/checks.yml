@@ -10,6 +10,17 @@ permissions:
 jobs:
   php:
     runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: 'yes'
+          MARIADB_DATABASE: sweepers_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s --health-timeout=5s --health-retries=10
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
@@ -23,6 +34,7 @@ jobs:
       - run: find src tests -name '*.php' -print0 | xargs -0 -n1 php -l
       - run: php -l events.php
       - run: composer test
+      - run: php tests/reviews.php
 
   frontend:
     runs-on: ubuntu-latest
@@ -47,9 +59,21 @@ jobs:
               "https://raw.githubusercontent.com/AzuraCast/AzuraCast/19d68c47b1e4d569885ca7cf4c40609cbabefda7/util/docker/stations/liquidsoap/$file.liq" \
               --output "/tmp/azuracast-runtime/$file.liq"
           done
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Check the native Liquidsoap source types
         run: |
           docker run --rm --entrypoint liquidsoap \
             -v "$PWD:/plugin:ro" \
             -v /tmp/azuracast-runtime:/azuracast:ro \
             savonet/liquidsoap:v2.4.5 --check /plugin/tests/liquidsoap.liq
+      - name: Render playback and cancellation with AzuraCast's AutoDJ factory
+        run: |
+          for scenario in normal skip live unavailable; do
+            python3 tests/playback.py --scenario "$scenario" \
+              --runtime /tmp/azuracast-runtime \
+              --liquidsoap "docker run --rm --network host --user $(id -u):$(id -g) \
+                --entrypoint liquidsoap -v $PWD:$PWD:ro -v /tmp:/tmp \
+                savonet/liquidsoap:v2.4.5"
+          done

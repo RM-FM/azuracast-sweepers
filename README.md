@@ -46,7 +46,7 @@ Merge this into `/var/azuracast/docker-compose.override.yml`:
 services:
   web:
     environment:
-      AZURACAST_PLUGIN_MODE: "true"
+      COMPOSER_PLUGIN_MODE: "true"
     volumes:
       - ./plugins/azuracast-sweepers:/var/azuracast/www/plugins/azuracast-sweepers:ro
 ```
@@ -55,8 +55,8 @@ Recreate the AzuraCast containers using the normal installation procedure.
 After reloading the dashboard, open **Media → Sweepers** in the station sidebar.
 The link appears alongside Music Files for users with station Media permission.
 Direct access at `/sweepers/1` (replace `1` with the station ID) remains available.
-The plugin creates or reuses `intro_end` on the first page visit or station configuration
-generation. It does not overwrite an existing field or change other custom fields.
+The plugin creates or reuses `intro_end` and initializes its review table on
+the first page visit or station configuration generation. It does not overwrite an existing field or change other custom fields.
 
 Create an **Advanced** playlist containing the sweeper jingles, select it in the
 plugin settings, enable sweepers and restart broadcasting through AzuraCast.
@@ -92,15 +92,18 @@ display this custom field as a marker in AzuraCast's native waveform editor.
 
 ## AutoCue and playback
 
-The AutoDJ still selects songs through AzuraCast. The plugin wraps its existing
-prefetch callback and adds the overlay after the standard crossfade, before the
+The AutoDJ still selects songs through AzuraCast. The plugin replaces the native
+AutoDJ factory call with its callback-aware factory and adds the overlay after the
+standard crossfade, before the
 station's final audio processing and live-DJ fallback.
 
 Jingles use `AnnotateNextSong` and normal request resolution. The planner receives
 the resolved `liq_*` and `autocue_*` metadata, including cached AutoCue values.
 Native cue fields may remain blank. The plugin does not populate those fields or
 reimplement AutoCue. Enable AzuraCast AutoCue, or provide valid manual jingle timing.
-AutoCue cache misses may add startup/prefetch latency.
+The sweeper catalogue resolves in the background; a cold start can leave the first
+track without an overlay until its jingle measurements are ready. Slow catalogue
+requests cannot delay music prefetch.
 
 Song cue-in is subtracted once. A jingle's handover, rather than its file end,
 determines its fit. Playback is delayed by at most the configured maximum wait;
@@ -113,7 +116,10 @@ Preparation failures leave the original song available. Late overlay activation
 is skipped. Live inputs bypass the overlay branch.
 
 Settings and rotation state live in the station config directory as `sweepers.json`
-and `sweepers.lock`. Keep these files when updating the plugin. Intro edits affect
+and `sweepers.lock`. Intro reviews and `intro_end` are stored together in the
+AzuraCast database; shared media have one review across stations. On first access,
+legacy reviews are imported from station state when no database review exists.
+Back up the station config files and database when updating. Intro edits affect
 future plans; an already-prefetched track may retain its previous plan.
 
 ## External cue import
@@ -146,7 +152,8 @@ brief and limited to non-obvious behavior.
 ## Removal
 
 Disable sweepers and restart broadcasting before removing the plugin mount.
-Preserve `intro_end` and `sweepers.json` if their data is still needed. Removal
+Preserve `intro_end`, `azuracast_sweeper_review`, and `sweepers.json` if their data
+is still needed. Removal
 does not require deleting media, rebuilding the database or resetting AutoCue.
 
 AGPL-3.0-or-later. Copyright 2026 RM-FM. This project is independent of AzuraCast.

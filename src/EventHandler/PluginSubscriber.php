@@ -12,6 +12,7 @@ use Plugin\AzuracastSweepers\Controller\InternalController;
 use Plugin\AzuracastSweepers\Controller\PanelController;
 use Plugin\AzuracastSweepers\Middleware\SidebarNavigation;
 use Plugin\AzuracastSweepers\Service\Media;
+use Plugin\AzuracastSweepers\Service\Reviews;
 use Plugin\AzuracastSweepers\Service\State;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
 use RuntimeException;
@@ -22,7 +23,8 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
 {
     public function __construct(
         private Media $media,
-        private State $state
+        private State $state,
+        private Reviews $reviews
     ) {
     }
 
@@ -63,10 +65,12 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
             static function (RouteCollectorProxy $group): void {
                 $group->post('/catalog', InternalController::class . ':catalogAction');
                 $group->post('/plan', InternalController::class . ':planAction');
+                $group->post('/heartbeat', InternalController::class . ':heartbeatAction');
                 $group->post('/played', InternalController::class . ':playedAction');
             }
         )
             ->add(Middleware\RequireInternalConnection::class)
+            ->add(Middleware\Module\Api::class)
             ->add(Middleware\RequireStation::class)
             ->add(Middleware\GetStation::class);
 
@@ -82,6 +86,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
     public function header(WriteLiquidsoapConfiguration $event): void
     {
         $this->media->ensureField();
+        $this->reviews->initialize();
         $settings = $this->settings($event);
         if (!$settings->enabled || $event->isForEditing()) {
             return;
@@ -105,6 +110,12 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
         if (count($matches) !== 1) {
             throw new RuntimeException('Unsupported Liquidsoap configuration: crossfade insertion point not found.');
         }
+
+        $factories = array_keys($lines, 'radio = azuracast.enable_autodj(radio)', true);
+        if (count($factories) !== 1) {
+            throw new RuntimeException('Unsupported Liquidsoap configuration: AutoDJ insertion point not found.');
+        }
+        $event->replaceLine($factories[0], 'radio = sweepers.enable_autodj(radio)');
 
         $index = $matches[0];
         $event->replaceLine($index, $lines[$index] . "\nradio = sweepers.mix(radio)");
