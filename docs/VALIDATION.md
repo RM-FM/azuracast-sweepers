@@ -36,6 +36,9 @@ Use a disposable station and verify:
 - Check the browser console and Content Security Policy on the deployment. The
   plugin loads an external same-origin module; it does not relax the site's policy.
 - Remove the plugin and reload: the link and injected script must disappear.
+- Select a track on the plugin page: its original waveform and saved `intro_end`
+  marker should appear. Check playback at the marker and three seconds earlier;
+  the marker should not allow dragging or editing.
 
 1. First visit/config generation creates exactly one `intro_end` field. Existing
    custom fields and their values remain unchanged.

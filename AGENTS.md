@@ -8,6 +8,6 @@
 - Do not replace AzuraCast scheduling, normalize twice or count prefetch as jingle playback.
 - The plugin uses only `intro_end`; its authenticated cue endpoint updates that field alone and preserves other custom fields.
 - Keep detection, reviews, vetoes, import workflows and their storage in the private detector.
-- The plugin page configures sweepers and playlist selection; do not add an intro editor or plugin-owned database tables.
+- The plugin page configures sweepers and displays the saved intro cue on a read-only waveform; do not add an intro editor or plugin-owned database tables.
 - Run PHP tests/lint, Node tests, the frontend build and native Liquidsoap checks.
 - State which checks actually ran. Keep the plugin disabled until station playback is validated.

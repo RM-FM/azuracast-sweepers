@@ -102,3 +102,59 @@ label {
         flex-direction: column;
     }
 }
+
+.layout {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) minmax(0, 2.3fr);
+    gap: 24px;
+    align-items: start;
+    margin-top: 24px;
+}
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 14px 0 24px;
+}
+.toolbar label {
+    display: flex;
+    gap: 8px;
+    margin: 0;
+}
+.toolbar input {
+    width: 110px;
+}
+.media-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 65vh;
+    overflow-y: auto;
+}
+.media-list button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    margin-bottom: 6px;
+}
+.media-list strong, .media-list span {
+    display: block;
+    overflow-wrap: anywhere;
+}
+.media-list span {
+    color: #546e7a;
+    font-size: 0.9em;
+}
+.selected {
+    border-color: #1976d2;
+    background: #e3f2fd;
+}
+.waveform {
+    border: 1px solid #dfe4e8;
+    min-height: 128px;
+}
+@media (max-width: 850px) {
+    .layout { grid-template-columns: 1fr; }
+    .media-list { max-height: 300px; }
+}
