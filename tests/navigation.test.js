@@ -5,9 +5,11 @@ import {mountNavigation, stationContext} from "../frontend/navigation.js";
 
 function fixture(path = "/station/1", base = "") {
     const {document, window} = parseHTML(`<!doctype html><html><body>
-        <div id="sidebar-submenu-media"><ul class="navdrawer-nav">
+        <ul class="navdrawer-nav" id="station-menu"><li class="nav-item" id="media-item">
+        <a class="nav-link" href="#sidebar-submenu-media">Media</a>
+        <div id="sidebar-submenu-media" class="collapse"><ul class="navdrawer-nav">
             <li><a href="${base}/station/1/files">Music Files</a></li>
-        </ul></div>
+        </ul></div></li><li class="nav-item" id="next-item">Next</li></ul>
     </body></html>`);
     let location = new URL(path, "https://radio.example");
     window.location = location;
@@ -45,10 +47,16 @@ test("station paths respect the installation prefix and reject unrelated pages",
     }
 });
 
-test("adds one normal Media link and does not loop on its own mutations", async () => {
+test("adds one top-level link after Media and does not loop on its own mutations", async () => {
     const f = fixture();
     assert.equal(f.item().querySelector("a").getAttribute("href"), "/sweepers/1");
     assert.equal(f.item().textContent, "Sweepers");
+    assert.equal(f.item().parentElement.id, "station-menu");
+    assert.equal(f.item().previousElementSibling.id, "media-item");
+    assert.equal(f.item().nextElementSibling.id, "next-item");
+    assert.equal(f.item().closest(".collapse"), null);
+    assert.equal(f.item().querySelector("a").className, "nav-link");
+    assert.equal(f.item().querySelector("svg").getAttribute("aria-hidden"), "true");
     await f.flush();
     await f.flush();
     assert.equal(f.document.querySelectorAll("#azuracast-sweepers-menu-item").length, 1);
@@ -61,7 +69,7 @@ test("station switching removes stale links until the new Media menu is ready", 
     f.navigate("/station/2/files");
     await f.flush();
     assert.equal(f.item(), null);
-    f.document.querySelector("a").setAttribute("href", "/station/2/files");
+    f.document.querySelector("#sidebar-submenu-media a").setAttribute("href", "/station/2/files");
     await f.flush();
     assert.equal(f.item().querySelector("a").getAttribute("href"), "/sweepers/2");
     f.navigate("/dashboard");
@@ -88,7 +96,7 @@ test("waits for a delayed sidebar and omits links without the native Media permi
     f.navigate("/radio/station/1/files");
     await f.flush();
     assert.equal(f.item().querySelector("a").getAttribute("href"), "/radio/sweepers/1");
-    f.document.querySelector(".navdrawer-nav > li").remove();
+    f.document.querySelector("#sidebar-submenu-media li").remove();
     await f.flush();
     assert.equal(f.item(), null);
     f.document.querySelector("#sidebar-submenu-media").remove();
@@ -99,7 +107,7 @@ test("waits for a delayed sidebar and omits links without the native Media permi
 
 test("entering a station from the dashboard handles lazy sidebar creation", async () => {
     const f = fixture("/dashboard");
-    const sidebar = f.document.querySelector("#sidebar-submenu-media");
+    const sidebar = f.document.querySelector("#station-menu");
     sidebar.remove();
     f.navigate("/station/1");
     await f.flush();
@@ -107,5 +115,25 @@ test("entering a station from the dashboard handles lazy sidebar creation", asyn
     f.document.body.append(sidebar);
     await f.flush();
     assert.equal(f.item().querySelector("a").getAttribute("href"), "/sweepers/1");
+    f.stop();
+});
+
+
+test("replacing only the Media submenu retains one top-level link", async () => {
+    const f = fixture();
+    const menu = f.document.querySelector("#sidebar-submenu-media > ul");
+    menu.replaceWith(menu.cloneNode(true));
+    await f.flush();
+    assert.equal(f.item().parentElement.id, "station-menu");
+    assert.equal(f.document.querySelectorAll("#azuracast-sweepers-menu-item").length, 1);
+    f.stop();
+});
+
+test("does not insert a link into an unexpected sidebar structure", async () => {
+    const f = fixture();
+    const menu = f.document.querySelector("#sidebar-submenu-media");
+    f.document.body.append(menu);
+    await f.flush();
+    assert.equal(f.item(), null);
     f.stop();
 });

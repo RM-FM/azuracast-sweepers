@@ -53,8 +53,9 @@ services:
 ```
 
 Recreate the AzuraCast containers using the normal installation procedure.
-After reloading the dashboard, open **Media → Sweepers** in the station sidebar.
-The link appears alongside Music Files for users with station Media permission.
+After reloading the dashboard, open **Sweepers** in the station sidebar.
+The link appears directly below Media at the top level, even when Media is collapsed,
+for users with station Media permission.
 Direct access at `/sweepers/1` (replace `1` with the station ID) remains available.
 The plugin creates or reuses `intro_end` on the first page visit or station
 configuration generation. It does not overwrite an existing field or change other custom fields.
@@ -75,7 +76,7 @@ is not an official navigation hook; verify the link after AzuraCast upgrades.
 
 ## Rotation and timing
 
-Configure these options on **Media → Sweepers**, then restart broadcasting:
+Configure these options on **Sweepers**, then restart broadcasting:
 
 - **Minimum songs** defaults to `0` (disabled). With `1`, a jingle is followed by
   one song without a sweeper; the next song may carry one. A song carrying a
