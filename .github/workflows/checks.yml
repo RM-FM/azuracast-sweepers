@@ -46,6 +46,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm test
       - run: npm run build
+      - run: node tests/bundle-smoke.js
 
   liquidsoap:
     runs-on: ubuntu-latest
