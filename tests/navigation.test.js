@@ -11,7 +11,7 @@ function fixture(path = "/station/1", base = "") {
             <li><a href="${base}/station/1/files">Music Files</a></li>
         </ul></div></li><li class="nav-item" id="next-item">Next</li></ul>
         <main id="main"><div id="content">Native station content</div></main>
-        <script id="azuracast-sweepers-navigation" data-csrf="test-token"></script>
+        <script id="azuracast-sweepers-navigation"></script>
     </body></html>`);
     let location = new URL(path, "https://radio.example");
     window.location = location;
@@ -148,7 +148,7 @@ test("station route embeds Sweepers beside the native sidebar and restores the p
     const f = fixture("/station/1?sweepers=1");
     const panel = f.document.getElementById("azuracast-sweepers-panel");
     assert.equal(panel.dataset.apiBase, "/sweepers/1");
-    assert.equal(panel.querySelector("#app").dataset.csrf, "test-token");
+    assert.equal(panel.querySelector("#app").dataset.csrf, "");
     assert.equal(f.document.getElementById("content").style.display, "none");
     assert.equal(f.document.getElementById("station-menu") !== null, true);
     f.navigate("/station/1/files");

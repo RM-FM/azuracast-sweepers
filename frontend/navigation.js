@@ -41,10 +41,6 @@ export function mountNavigation(document, window, basePath = "") {
             return;
         }
         removePanel();
-        const script = document.getElementById("azuracast-sweepers-navigation");
-        if (!script?.dataset.csrf) {
-            return;
-        }
         originalContent = content;
         originalDisplay = content.style.display;
         content.style.display = "none";
@@ -56,7 +52,7 @@ export function mountNavigation(document, window, basePath = "") {
         root.id = "app";
         root.className = "sweepers-page embedded";
         root.dataset.base = context.apiBase;
-        root.dataset.csrf = script.dataset.csrf;
+        root.dataset.csrf = "";
         root.textContent = "Loading Sweepers…";
         panel.append(root);
         content.after(panel);

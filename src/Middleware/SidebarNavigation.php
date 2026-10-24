@@ -42,11 +42,7 @@ final readonly class SidebarNavigation implements MiddlewareInterface
             return $response;
         }
         $source = htmlspecialchars($base . '/sweepers/assets/navigation.js', ENT_QUOTES);
-        $csrf = method_exists($request, 'getCsrf')
-            ? htmlspecialchars($request->getCsrf()->generate('sweepers'), ENT_QUOTES)
-            : '';
-        $script = '<script type="module" id="azuracast-sweepers-navigation" data-csrf="' . $csrf
-            . '" src="' . $source . '"></script>';
+        $script = '<script type="module" id="azuracast-sweepers-navigation" src="' . $source . '"></script>';
         $body = substr_replace($body, $script, $position, 0);
 
         return $response->withBody(Utils::streamFor($body))
