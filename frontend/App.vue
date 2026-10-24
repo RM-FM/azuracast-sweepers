@@ -12,7 +12,10 @@
             <div class="card-body">
             <p class="text-muted">Configure overlays for {{ station.name || 'your station' }}.</p>
             <form @submit.prevent="saveSettings">
-                <label class="form-check form-check-label mb-3"><input v-model="settings.enabled" class="form-check-input" type="checkbox"> Enable sweepers</label>
+                <div class="form-check form-switch mb-3">
+                    <input id="sweepers-enabled" v-model="settings.enabled" class="form-check-input" type="checkbox" role="switch">
+                    <label class="form-check-label" for="sweepers-enabled">Enable sweepers</label>
+                </div>
                 <label class="form-label d-block mb-3">
                     Sweeper playlist
                     <select v-model="settings.playlist_id" class="form-select">
@@ -27,7 +30,10 @@
                     <input v-model.number="settings.minimum_songs" class="form-control" type="number" min="0" max="1000" step="1" required>
                 </label>
                 <p class="form-text mb-3">0 disables spacing. With 1, one song plays without a sweeper between events. The song carrying the previous sweeper does not count.</p>
-                <label class="form-check form-check-label mb-3"><input v-model="settings.count_jingle_mode" class="form-check-input" type="checkbox"> Count Jingle Mode playlists</label>
+                <div class="form-check form-switch mb-3">
+                    <input id="sweepers-count-jingle-mode" v-model="settings.count_jingle_mode" class="form-check-input" type="checkbox" role="switch">
+                    <label class="form-check-label" for="sweepers-count-jingle-mode">Count Jingle Mode playlists</label>
+                </div>
                 <label class="form-label d-block mb-1">
                     Additional jingle playlists
                     <select v-model="settings.jingle_playlist_ids" class="form-select" multiple size="5">
@@ -37,14 +43,20 @@
                     </select>
                 </label>
                 <p class="form-text mb-3">Hold Ctrl/Cmd to select several. Tracks played from these playlists reset the spacing. The sweeper playlist always counts.</p>
-                <label class="form-check form-check-label mb-3"><input v-model="settings.longest_fit" class="form-check-input" type="checkbox"> Prefer the longest fitting sweepers</label>
+                <div class="form-check form-switch mb-3">
+                    <input id="sweepers-longest-fit" v-model="settings.longest_fit" class="form-check-input" type="checkbox" role="switch">
+                    <label class="form-check-label" for="sweepers-longest-fit">Prefer the longest fitting sweepers</label>
+                </div>
                 <label v-if="settings.longest_fit" class="form-label d-block mb-1">
                     Intro length tolerance (%)
                     <input v-model.number="settings.length_tolerance" class="form-control" type="number" min="0" max="100" step="1" required>
                 </label>
                 <p v-if="settings.longest_fit" class="form-text mb-3">20% selects bodies covering 80–100% of the available intro, then rotates by oldest playback. If none qualify, use the longest fitting body. A small selection may repeat often.</p>
                 <p v-else class="form-text mb-3">Rotate by oldest actual playback among all sweepers that fit.</p>
-                <label class="form-check form-check-label mb-1"><input v-model="limitDelay" class="form-check-input" type="checkbox"> Limit start delay</label>
+                <div class="form-check form-switch mb-1">
+                    <input id="sweepers-limitDelay" v-model="limitDelay" class="form-check-input" type="checkbox" role="switch">
+                    <label class="form-check-label" for="sweepers-limitDelay">Limit start delay</label>
+                </div>
                 <p class="form-text mb-3">Disabled: time the handover to the intro end. Enabled: if that would exceed the limit, start immediately. 0 always starts immediately.</p>
                 <div class="row g-3 mb-3">
                     <label v-if="limitDelay" class="form-label col-md-6 col-xl-3">

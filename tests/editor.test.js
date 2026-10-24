@@ -129,8 +129,11 @@ test("intro editor saves one field from numeric, marker and playhead input", asy
 test("settings save spacing, playlist selection, longest fit and nullable delay", async () => {
     const app = createApp(App, { base: "/sweepers/1", csrf: "session-token" });
     app.mount(document.querySelector("#app"));
-    const field = (label) => [...document.querySelectorAll("section.card label")]
-        .find((node) => node.textContent.includes(label)).querySelector("input,select");
+    const field = (label) => {
+        const node = [...document.querySelectorAll("section.card label")]
+            .find((node) => node.textContent.includes(label));
+        return node.querySelector("input,select") ?? document.getElementById(node.getAttribute("for"));
+    };
     const change = async (label, value, checkbox = false) => {
         const node = field(label);
         if (checkbox) node.checked = value;
