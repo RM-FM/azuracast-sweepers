@@ -38,7 +38,7 @@ playlist IDs, disabled Jingle Mode recognition and unknown sources.
 
 Use a disposable station and verify:
 
-- Reload the dashboard and open Media → Sweepers. Test station switching, browser
+- Reload the dashboard and open Sweepers. Test station switching, browser
   back/forward, mobile sidebar and a user without Media permission. The link must
   appear once for the current station and disappear outside station pages.
 - Check the browser console and Content Security Policy on the deployment. The

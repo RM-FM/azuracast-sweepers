@@ -23,16 +23,19 @@ export function mountNavigation(document, window, basePath = "") {
         }
         const context = stationContext(window.location.pathname, basePath);
         const menu = document.querySelector("#sidebar-submenu-media > .navdrawer-nav");
+        const mediaItem = menu?.parentElement.closest("li.nav-item");
+        const stationMenu = mediaItem?.parentElement;
         const existing = document.getElementById(itemId);
         const hasMediaAccess = context && menu && [...menu.querySelectorAll("a[href]")].some((link) => {
             const url = new URL(link.href, window.location.href);
             return url.origin === window.location.origin && url.pathname === `${context.stationPath}/files`;
         });
-        if (!hasMediaAccess) {
+        if (!hasMediaAccess || !stationMenu?.matches("ul.navdrawer-nav")) {
             existing?.remove();
             return;
         }
-        if (existing?.parentElement === menu && existing.querySelector("a").getAttribute("href") === context.href) {
+        if (existing?.parentElement === stationMenu && existing.previousElementSibling === mediaItem
+            && existing.querySelector("a").getAttribute("href") === context.href) {
             return;
         }
         existing?.remove();
@@ -40,11 +43,25 @@ export function mountNavigation(document, window, basePath = "") {
         item.id = itemId;
         item.className = "nav-item";
         const link = document.createElement("a");
-        link.className = "nav-link ps-4 py-2";
+        link.className = "nav-link";
         link.setAttribute("href", context.href);
-        link.textContent = "Sweepers";
+        const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        icon.setAttribute("class", "navdrawer-nav-icon");
+        icon.setAttribute("viewBox", "0 0 24 24");
+        icon.setAttribute("width", "1em");
+        icon.setAttribute("height", "1em");
+        icon.setAttribute("aria-hidden", "true");
+        icon.setAttribute("focusable", "false");
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("fill", "currentColor");
+        path.setAttribute("d", "M4 9h4v12H4zm6-6h4v18h-4zm6 10h4v8h-4z");
+        icon.append(path);
+        const label = document.createElement("span");
+        label.className = "might-overflow";
+        label.textContent = "Sweepers";
+        link.append(icon, label);
         item.append(link);
-        menu.append(item);
+        mediaItem.after(item);
     }
 
     function schedule() {
