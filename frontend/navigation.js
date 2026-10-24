@@ -35,7 +35,8 @@ export function mountNavigation(document, window, basePath = "") {
             return;
         }
         if (existing?.parentElement === stationMenu && existing.previousElementSibling === mediaItem
-            && existing.querySelector("a").getAttribute("href") === context.href) {
+            && existing.querySelector("a").getAttribute("href") === context.href
+            && existing.querySelector("a").getAttribute("target") === "_blank") {
             return;
         }
         existing?.remove();
@@ -45,6 +46,9 @@ export function mountNavigation(document, window, basePath = "") {
         const link = document.createElement("a");
         link.className = "nav-link";
         link.setAttribute("href", context.href);
+        link.setAttribute("target", "_blank");
+        link.setAttribute("rel", "noopener noreferrer");
+        link.setAttribute("title", "Open Sweepers in a new tab");
         const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         icon.setAttribute("class", "navdrawer-nav-icon");
         icon.setAttribute("viewBox", "0 0 24 24");
