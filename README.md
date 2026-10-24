@@ -125,6 +125,22 @@ If Git reports local changes or diverging history, resolve those before updating
 do not reset the checkout blindly. Plugin settings, media and `intro_end` values
 are stored by AzuraCast outside this checkout and are preserved by these commands.
 
+If AzuraCast fails to start immediately after enabling the plugin, inspect
+`docker compose logs --tail=120 web` from `/var/azuracast`. To temporarily
+disable the plugin without removing its settings or media, rename its entry point
+on the host and restart the web service:
+
+```bash
+mv /var/azuracast/plugins/azuracast-sweepers/events.php \
+  /var/azuracast/plugins/azuracast-sweepers/events.php.disabled
+cd /var/azuracast
+docker compose restart web
+```
+
+After updating to a fixed version, rename `events.php.disabled` back to
+`events.php` and restart `web` again. Do not discard an existing Compose override
+file to disable the plugin; it may contain unrelated configuration.
+
 ## Rotation and timing
 
 Configure these options on **Sweepers**, then restart broadcasting:
