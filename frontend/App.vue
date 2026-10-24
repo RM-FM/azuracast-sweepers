@@ -1,63 +1,57 @@
 <template>
-    <header class="topbar">
-        <a class="brand" :href="stationUrl"><span>azura<strong>cast</strong></span><span>Sweepers</span></a>
-        <div class="topbar-actions">
-            <span v-if="station.name" class="station-name">{{ station.name }}</span>
-            <a class="station-link" :href="stationUrl">← Station dashboard</a>
-        </div>
-    </header>
+    <main class="sweepers-content">
+        <p v-if="error" class="alert alert-danger" role="alert">{{ error }}</p>
+        <p v-if="notice" class="alert alert-info" role="status">{{ notice }}</p>
+        <p v-if="loading" class="text-muted">Loading…</p>
 
-    <main>
-        <div class="page-heading">
-            <h1>Sweepers</h1>
-            <p>Configure overlays and edit intro cues for {{ station.name || 'your station' }}.</p>
-        </div>
-        <p v-if="error" class="alert danger" role="alert">{{ error }}</p>
-        <p v-if="notice" class="alert" role="status">{{ notice }}</p>
-        <p v-if="loading">Loading…</p>
-
-        <section v-if="!loading" class="card">
-            <h2>Sweeper settings</h2>
+        <section v-if="!loading" class="card mb-3" role="region" aria-labelledby="sweepers-settings-heading">
+            <div class="card-header text-bg-primary d-flex justify-content-between align-items-center">
+                <h2 id="sweepers-settings-heading" class="card-title mb-0">Sweeper settings</h2>
+                <a class="btn btn-sm btn-outline-light" :href="stationUrl">Station dashboard</a>
+            </div>
+            <div class="card-body">
+            <p class="text-muted">Configure overlays for {{ station.name || 'your station' }}.</p>
             <form @submit.prevent="saveSettings">
-                <label class="check"><input v-model="settings.enabled" type="checkbox"> Enable sweepers</label>
-                <label>
+                <label class="form-check mb-3"><input v-model="settings.enabled" class="form-check-input" type="checkbox"> Enable sweepers</label>
+                <label class="d-block mb-3">
                     Sweeper playlist
-                    <select v-model="settings.playlist_id">
+                    <select v-model="settings.playlist_id" class="form-select">
                         <option :value="null">Choose an Advanced playlist</option>
                         <option v-for="playlist in playlists" :key="playlist.id" :value="playlist.id">
                             {{ playlist.name }}
                         </option>
                     </select>
                 </label>
-                <label>
+                <label class="d-block mb-1">
                     Minimum songs between jingles or sweepers
-                    <input v-model.number="settings.minimum_songs" type="number" min="0" max="1000" step="1" required>
+                    <input v-model.number="settings.minimum_songs" class="form-control" type="number" min="0" max="1000" step="1" required>
                 </label>
-                <p>0 disables spacing. With 1, one song plays without a sweeper between events. The song carrying the previous sweeper does not count.</p>
-                <label class="check"><input v-model="settings.count_jingle_mode" type="checkbox"> Count Jingle Mode playlists</label>
-                <label>
+                <p class="form-text mb-3">0 disables spacing. With 1, one song plays without a sweeper between events. The song carrying the previous sweeper does not count.</p>
+                <label class="form-check mb-3"><input v-model="settings.count_jingle_mode" class="form-check-input" type="checkbox"> Count Jingle Mode playlists</label>
+                <label class="d-block mb-1">
                     Additional jingle playlists
-                    <select v-model="settings.jingle_playlist_ids" multiple size="5">
+                    <select v-model="settings.jingle_playlist_ids" class="form-select" multiple size="5">
                         <option v-for="playlist in jinglePlaylists" :key="playlist.id" :value="playlist.id">
                             {{ playlist.name }}{{ playlist.is_jingle ? ' (Jingle Mode)' : '' }}
                         </option>
                     </select>
                 </label>
-                <p>Hold Ctrl/Cmd to select several. Tracks played from these playlists reset the spacing. The sweeper playlist always counts.</p>
-                <label class="check"><input v-model="settings.longest_fit" type="checkbox"> Prefer the longest fitting sweepers</label>
-                <label v-if="settings.longest_fit">
+                <p class="form-text mb-3">Hold Ctrl/Cmd to select several. Tracks played from these playlists reset the spacing. The sweeper playlist always counts.</p>
+                <label class="form-check mb-3"><input v-model="settings.longest_fit" class="form-check-input" type="checkbox"> Prefer the longest fitting sweepers</label>
+                <label v-if="settings.longest_fit" class="d-block mb-1">
                     Intro length tolerance (%)
-                    <input v-model.number="settings.length_tolerance" type="number" min="0" max="100" step="1" required>
+                    <input v-model.number="settings.length_tolerance" class="form-control" type="number" min="0" max="100" step="1" required>
                 </label>
-                <p v-if="settings.longest_fit">20% selects bodies covering 80–100% of the available intro, then rotates by oldest playback. If none qualify, use the longest fitting body. A small selection may repeat often.</p>
-                <p v-else>Rotate by oldest actual playback among all sweepers that fit.</p>
-                <label class="check"><input v-model="limitDelay" type="checkbox"> Limit start delay</label>
-                <p>Disabled: time the handover to the intro end. Enabled: if that would exceed the limit, start immediately. 0 always starts immediately.</p>
-                <div class="grid">
-                    <label v-if="limitDelay">
+                <p v-if="settings.longest_fit" class="form-text mb-3">20% selects bodies covering 80–100% of the available intro, then rotates by oldest playback. If none qualify, use the longest fitting body. A small selection may repeat often.</p>
+                <p v-else class="form-text mb-3">Rotate by oldest actual playback among all sweepers that fit.</p>
+                <label class="form-check mb-1"><input v-model="limitDelay" class="form-check-input" type="checkbox"> Limit start delay</label>
+                <p class="form-text mb-3">Disabled: time the handover to the intro end. Enabled: if that would exceed the limit, start immediately. 0 always starts immediately.</p>
+                <div class="row g-3 mb-3">
+                    <label v-if="limitDelay" class="col-md-6 col-xl-3">
                         Maximum start delay (s)
                         <input
                             v-model.number="settings.max_wait"
+                            class="form-control"
                             type="number"
                             min="0"
                             max="3600"
@@ -65,47 +59,65 @@
                             required
                         >
                     </label>
-                    <label>
+                    <label class="col-md-6 col-xl-3">
                         Handover margin (s)
-                        <input v-model.number="settings.margin" type="number" min="0" max="5" step="0.1" required>
+                        <input v-model.number="settings.margin" class="form-control" type="number" min="0" max="5" step="0.1" required>
                     </label>
-                    <label>
+                    <label class="col-md-6 col-xl-3">
                         Maximum ducking (dB)
-                        <input v-model.number="settings.duck_db" type="number" min="-20" max="0" step="0.5" required>
+                        <input v-model.number="settings.duck_db" class="form-control" type="number" min="-20" max="0" step="0.5" required>
                     </label>
-                    <label>
+                    <label class="col-md-6 col-xl-3">
                         Jingle gain
-                        <input v-model.number="settings.jingle_gain" type="number" min="0" max="2" step="0.05" required>
+                        <input v-model.number="settings.jingle_gain" class="form-control" type="number" min="0" max="2" step="0.05" required>
                     </label>
                 </div>
-                <p>Sidechain attack: 150 ms · release: 750 ms. AutoCue supplies jingle start, handover and tail.</p>
-                <button class="primary" :disabled="saving">Save settings</button>
-                <p>Edit Intro End in the waveform below, under Music Files → Custom Fields, or through the intro API.</p>
+                <p class="form-text">Sidechain attack: 150 ms · release: 750 ms. AutoCue supplies jingle start, handover and tail.</p>
+                <button class="btn btn-primary" :disabled="saving">Save settings</button>
+                <p class="form-text mb-0">Edit Intro End in the waveform below, under Music Files → Custom Fields, or through the intro API.</p>
             </form>
+            </div>
         </section>
-        <section v-if="!loading" class="layout">
-            <aside class="card">
-                <h2>Intro cues</h2>
-                <form class="search" @submit.prevent="loadMedia">
-                    <label for="search">Find audio</label>
-                    <input id="search" v-model="search" type="search" placeholder="Artist, title or filename">
-                    <button type="submit">Search</button>
-                </form>
-                <p>Up to 100 matches. Refine your search to find more.</p>
-                <ul class="media-list">
-                    <li v-for="row in rows" :key="row.id">
-                        <button type="button" :class="{ selected: selected?.id === row.id }" @click="select(row)">
-                            <strong>{{ row.path }}</strong>
-                            <span>{{ formatIntro(row.intro_end) }}</span>
-                        </button>
-                    </li>
-                </ul>
-                <p v-if="!rows.length">No matching files.</p>
+        <section v-if="!loading" class="row g-3">
+            <div class="col-lg-4">
+            <aside class="card h-100" role="region" aria-labelledby="sweepers-cues-heading">
+                <div class="card-header text-bg-primary">
+                    <h2 id="sweepers-cues-heading" class="card-title mb-0">Intro cues</h2>
+                </div>
+                <div class="card-body">
+                    <form class="search" @submit.prevent="loadMedia">
+                        <label class="form-label" for="search">Find audio</label>
+                        <div class="input-group">
+                            <input id="search" v-model="search" class="form-control" type="search" placeholder="Artist, title or filename">
+                            <button class="btn btn-secondary" type="submit">Search</button>
+                        </div>
+                    </form>
+                    <p class="form-text mb-0">Up to 100 matches. Refine your search to find more.</p>
+                </div>
+                <div class="table-responsive media-list">
+                    <table class="table align-middle table-striped table-hover mb-0">
+                        <thead><tr><th scope="col">File</th><th scope="col">Intro End</th></tr></thead>
+                        <tbody>
+                            <tr v-for="row in rows" :key="row.id" :class="{ 'table-active': selected?.id === row.id }">
+                                <td class="file-name">
+                                    <button type="button" class="btn btn-link text-start p-0" @click="select(row)">{{ row.path }}</button>
+                                </td>
+                                <td class="text-nowrap">{{ formatIntro(row.intro_end) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p v-if="!rows.length" class="card-body text-muted mb-0">No matching files.</p>
             </aside>
+            </div>
 
-            <article v-if="selected" class="card">
-                <h2>{{ selected.path }}</h2>
-                <p>Saved Intro End: {{ formatIntro(selected.intro_end) }} · Original file position</p>
+            <div class="col-lg-8">
+            <article v-if="selected" class="card h-100">
+                <div class="card-header text-bg-primary">
+                    <h2 class="card-title mb-0 text-break">{{ selected.path }}</h2>
+                </div>
+                <div class="card-body">
+                <p class="text-muted">Saved Intro End: {{ formatIntro(selected.intro_end) }} · Original file position</p>
                 <Waveform
                     :key="selected.id"
                     ref="waveform"
@@ -115,25 +127,27 @@
                     @position="position = $event"
                     @intro="draft = $event"
                 />
-                <div class="toolbar">
-                    <button type="button" :disabled="!waveform?.ready" @click="draft = Math.round(position * 100) / 100">Set at playhead</button>
-                    <button type="button" :disabled="marker === null || !waveform?.ready" @click="waveform?.playAt(marker)">Listen at Intro</button>
-                    <button type="button" :disabled="marker === null || !waveform?.ready" @click="waveform?.playAt(marker - 3)">Listen −3 s</button>
+                <div class="d-flex flex-wrap gap-2 my-3">
+                    <button class="btn btn-secondary" type="button" :disabled="!waveform?.ready" @click="draft = Math.round(position * 100) / 100">Set at playhead</button>
+                    <button class="btn btn-secondary" type="button" :disabled="marker === null || !waveform?.ready" @click="waveform?.playAt(marker)">Listen at Intro</button>
+                    <button class="btn btn-secondary" type="button" :disabled="marker === null || !waveform?.ready" @click="waveform?.playAt(marker - 3)">Listen −3 s</button>
                 </div>
                 <form @submit.prevent="saveIntro">
-                    <label>
+                    <label class="form-label">
                         Intro End (s)
-                        <input v-model="draft" type="number" min="0" :max="selected.duration" step="0.01">
+                        <input v-model="draft" class="form-control" type="number" min="0" :max="selected.duration" step="0.01">
                     </label>
-                    <p>Move the marker, or seek in the waveform and set the cue at the playhead. Blank means unknown; zero means no intro.</p>
-                    <div class="toolbar">
-                        <button type="button" @click="draft = 0">No intro (0 s)</button>
-                        <button type="button" @click="draft = ''">Clear cue</button>
-                        <button class="primary" :disabled="saving || !validDraft">Save Intro End</button>
+                    <p class="form-text">Move the marker, or seek in the waveform and set the cue at the playhead. Blank means unknown; zero means no intro.</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-secondary" type="button" @click="draft = 0">No intro (0 s)</button>
+                        <button class="btn btn-secondary" type="button" @click="draft = ''">Clear cue</button>
+                        <button class="btn btn-primary" :disabled="saving || !validDraft">Save Intro End</button>
                     </div>
                 </form>
+                </div>
             </article>
-            <article v-else class="card"><p>Select a file to view its intro cue.</p></article>
+            <article v-else class="card h-100"><div class="card-body text-muted">Select a file to view its intro cue.</div></article>
+            </div>
         </section>
     </main>
 </template>

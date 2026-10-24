@@ -35,6 +35,7 @@ const sandbox = vm.createContext({
 embedded.window.location = new URL("https://radio.example/station/1?sweepers=1");
 vm.runInContext(`${executable}\nglobalThis.mountSweepers = ${exported[1]};`, sandbox);
 assert.equal(embedded.document.body.textContent, "");
+assert.equal(embedded.document.documentElement.getAttribute("data-bs-theme"), null);
 const unmount = sandbox.mountSweepers(embedded.document.getElementById("app"));
 await new Promise((resolve) => setTimeout(resolve, 30));
 assert.match(embedded.document.body.textContent, /Sweeper settings/);
