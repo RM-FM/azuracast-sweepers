@@ -70,6 +70,7 @@ final readonly class PanelController
         $data = $this->state->read($station->getRadioConfigDir());
 
         return $response->withHeader('Cache-Control', 'no-store')->withJson([
+            'csrf' => $request->getCsrf()->generate('sweepers'),
             'station' => ['id' => $station->id, 'name' => $station->name, 'needs_restart' => $station->needs_restart],
             'settings' => Settings::fromArray($data['settings'] ?? [])->toArray(),
             'playlists' => array_map(static fn($playlist): array => [

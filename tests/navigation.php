@@ -43,6 +43,7 @@ foreach (['/dashboard', '/station/1', '/station/2/files', '/admin/settings', '/p
     $result = inject($path, $response);
     $body = (string)$result->getBody();
     verify(str_contains($body, 'src="/sweepers/assets/navigation.js"'), 'Inject in dashboard shell.');
+    verify(!str_contains($body, 'data-csrf='), 'The global middleware must not read the route session.');
     verify(strpos($body, '<script') < strpos($body, '</body>'), 'Load before closing body.');
     verify(!$result->hasHeader('Content-Length'), 'Remove stale body length.');
     verify(inject($path, $result) === $result, 'Do not inject twice.');

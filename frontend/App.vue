@@ -143,6 +143,7 @@ import { computed, onMounted, ref } from "vue";
 import Waveform from "./Waveform.vue";
 
 const props = defineProps({ base: { type: String, required: true }, csrf: { type: String, required: true } });
+const csrf = ref(props.csrf);
 const station = ref({});
 const settings = ref({});
 const playlists = ref([]);
@@ -180,7 +181,7 @@ async function api(path, data) {
     const response = await fetch(`${props.base}/${path}`, {
         method: data === undefined ? "GET" : "POST",
         credentials: "same-origin",
-        headers: { "Content-Type": "application/json", "X-CSRF-Token": props.csrf },
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf.value },
         body: data === undefined ? undefined : JSON.stringify(data),
     });
     const result = await response.json().catch(() => {
@@ -248,6 +249,7 @@ async function save(action) {
 onMounted(async () => {
     try {
         const state = await api("state");
+        csrf.value = state.csrf ?? csrf.value;
         station.value = state.station;
         settings.value = state.settings;
         playlists.value = state.playlists;

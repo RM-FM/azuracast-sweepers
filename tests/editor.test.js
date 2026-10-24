@@ -34,7 +34,7 @@ let releaseSave;
 globalThis.fetch = async (url, options) => {
     let data;
     if (url.endsWith("/state")) {
-        data = { station: { id: 1, name: "Test" }, settings: {
+        data = { csrf: "session-token", station: { id: 1, name: "Test" }, settings: {
             enabled: false, playlist_id: null, max_wait: null, margin: .8, duck_db: -7, jingle_gain: 1,
             minimum_songs: 0, count_jingle_mode: true, jingle_playlist_ids: [], longest_fit: false, length_tolerance: 20,
         }, playlists: [{ id: 10, name: "Sweepers" }], jingle_playlists: [
@@ -75,7 +75,7 @@ const save = async () => {
 };
 
 test("intro editor saves one field from numeric, marker and playhead input", async () => {
-    const app = createApp(App, { base: "/sweepers/1", csrf: "session-token" });
+    const app = createApp(App, { base: "/sweepers/1", csrf: "" });
     app.mount(document.querySelector("#app"));
     try {
         await settle();
