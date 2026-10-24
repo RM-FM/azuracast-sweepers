@@ -1,13 +1,17 @@
 <template>
-    <header>
-        <div>
-            <a :href="stationUrl">← AzuraCast</a>
-            <h1>Sweepers</h1>
-            <p>{{ station.name }}</p>
+    <header class="topbar">
+        <a class="brand" :href="stationUrl"><span>azura<strong>cast</strong></span><span>Sweepers</span></a>
+        <div class="topbar-actions">
+            <span v-if="station.name" class="station-name">{{ station.name }}</span>
+            <a class="station-link" :href="stationUrl">← Station dashboard</a>
         </div>
     </header>
 
     <main>
+        <div class="page-heading">
+            <h1>Sweepers</h1>
+            <p>Configure overlays and edit intro cues for {{ station.name || 'your station' }}.</p>
+        </div>
         <p v-if="error" class="alert danger" role="alert">{{ error }}</p>
         <p v-if="notice" class="alert" role="status">{{ notice }}</p>
         <p v-if="loading">Loading…</p>

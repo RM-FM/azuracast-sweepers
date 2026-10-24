@@ -56,6 +56,8 @@ test("adds one top-level link after Media and does not loop on its own mutations
     assert.equal(f.item().nextElementSibling.id, "next-item");
     assert.equal(f.item().closest(".collapse"), null);
     assert.equal(f.item().querySelector("a").className, "nav-link");
+    assert.equal(f.item().querySelector("a").getAttribute("target"), "_blank");
+    assert.equal(f.item().querySelector("a").getAttribute("rel"), "noopener noreferrer");
     assert.equal(f.item().querySelector("svg").getAttribute("aria-hidden"), "true");
     await f.flush();
     await f.flush();
@@ -72,6 +74,7 @@ test("station switching removes stale links until the new Media menu is ready", 
     f.document.querySelector("#sidebar-submenu-media a").setAttribute("href", "/station/2/files");
     await f.flush();
     assert.equal(f.item().querySelector("a").getAttribute("href"), "/sweepers/2");
+    assert.equal(f.item().querySelector("a").getAttribute("target"), "_blank");
     f.navigate("/dashboard");
     await f.flush();
     assert.equal(f.item(), null);

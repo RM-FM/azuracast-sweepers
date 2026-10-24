@@ -73,7 +73,8 @@ docker compose up -d
 ```
 
 This may recreate the web container and briefly interrupt broadcasting.
-After reloading the dashboard, open **Sweepers** in the station sidebar.
+After reloading the dashboard, open **Sweepers** in the station sidebar. It opens
+in a separate tab, leaving AzuraCast and its navigation available in the original tab.
 The link appears directly below Media at the top level, even when Media is collapsed,
 for users with station Media permission.
 Direct access at `/sweepers/1` (replace `1` with the station ID) remains available.
@@ -83,7 +84,8 @@ configuration generation. It does not overwrite an existing field or change othe
 Create an **Advanced** playlist containing the sweeper jingles, select it in the
 plugin settings, enable sweepers and restart broadcasting through AzuraCast.
 Advanced playlists prevent the jingles from also entering the normal song rotation.
-The page requires station Media permission; changing settings also requires
+The page runs separately with AzuraCast-inspired light and dark styles. It
+requires station Media permission; changing settings also requires
 Broadcasting permission. The page includes an audio waveform with a movable
 intro marker, a time input, and playback at the cue or three seconds earlier.
 It is a separate page, not a modification of the native visual cue editor.
