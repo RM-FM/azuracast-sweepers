@@ -1,14 +1,14 @@
 <template>
     <div ref="container" class="waveform" aria-label="Original audio waveform" />
-    <p v-if="error" role="alert">{{ error }}</p>
-    <div class="toolbar">
-        <button type="button" :disabled="!ready" @click="player?.playPause()">Play / Pause</button>
-        <button type="button" :disabled="!ready" @click="player?.pause()">Stop</button>
-        <label>
+    <p v-if="error" class="alert alert-danger" role="alert">{{ error }}</p>
+    <div class="d-flex flex-wrap align-items-center gap-2 my-3">
+        <button class="btn btn-secondary" type="button" :disabled="!ready" @click="player?.playPause()">Play / Pause</button>
+        <button class="btn btn-secondary" type="button" :disabled="!ready" @click="player?.pause()">Stop</button>
+        <label class="d-flex align-items-center gap-2 mb-0">
             Zoom
-            <input v-model.number="zoom" type="range" min="0" max="150" :disabled="!ready">
+            <input v-model.number="zoom" class="form-range mb-0" type="range" min="0" max="150" :disabled="!ready">
         </label>
-        <span>{{ position.toFixed(2) }} s</span>
+        <span class="text-muted">{{ position.toFixed(2) }} s</span>
     </div>
 </template>
 
@@ -40,7 +40,7 @@ function updateMarker() {
             id: "intro_end",
             start: props.intro,
             content: "Intro End",
-            color: "#ef9b20",
+            color: getComputedStyle(container.value).getPropertyValue("--bs-warning").trim() || "#ef9b20",
             drag: true,
             resize: false,
         });
@@ -49,11 +49,12 @@ function updateMarker() {
 
 onMounted(async () => {
     regions = RegionsPlugin.create();
+    const styles = getComputedStyle(container.value);
     player = WaveSurfer.create({
         container: container.value,
-        waveColor: "#2196f3",
-        progressColor: "#4081cf",
-        cursorColor: "#222",
+        waveColor: styles.getPropertyValue("--bs-primary").trim() || "#2196f3",
+        progressColor: styles.getPropertyValue("--bs-info").trim() || "#4081cf",
+        cursorColor: styles.getPropertyValue("--bs-body-color").trim() || "#222",
         plugins: [regions],
     });
     player.on("timeupdate", (time) => {

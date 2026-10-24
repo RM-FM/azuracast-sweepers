@@ -79,6 +79,10 @@ test("intro editor saves one field from numeric, marker and playhead input", asy
     app.mount(document.querySelector("#app"));
     try {
         await settle();
+        assert.ok(document.querySelector("section.card .card-header.text-bg-primary"));
+        assert.ok(document.querySelector("section.card .form-select"));
+        assert.ok(document.querySelector(".media-list table.table-striped.table-hover"));
+        assert.ok(document.querySelector("section.card button.btn-primary"));
         document.querySelector(".media-list button").click();
         await settle();
         await setInput("12.5");
