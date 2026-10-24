@@ -83,8 +83,9 @@ test("intro editor saves one field from numeric, marker and playhead input", asy
         assert.ok(document.querySelector("section.card .form-select"));
         assert.ok(document.querySelector(".media-list table.table-striped.table-hover"));
         assert.ok(document.querySelector("section.card button.btn-primary"));
-        document.querySelector(".media-list button").click();
+        document.querySelector(".media-track button").click();
         await settle();
+        assert.equal(document.querySelector("article").closest("tr").previousElementSibling, document.querySelector(".media-track"));
         await setInput("12.5");
         assert.equal(document.querySelector("#marker").textContent, "12.5");
         await save();
@@ -114,7 +115,7 @@ test("intro editor saves one field from numeric, marker and playhead input", asy
         await setInput("14");
         releaseSave = true;
         await save();
-        document.querySelectorAll(".media-list button")[1].click();
+        document.querySelectorAll(".media-track button")[1].click();
         await settle();
         releaseSave();
         releaseSave = null;
