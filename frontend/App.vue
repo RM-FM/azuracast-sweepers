@@ -1,5 +1,5 @@
 <template>
-    <main class="sweepers-content">
+    <div class="sweepers-content">
         <p v-if="error" class="alert alert-danger" role="alert">{{ error }}</p>
         <p v-if="notice" class="alert alert-info" role="status">{{ notice }}</p>
         <p v-if="loading" class="text-muted">Loading…</p>
@@ -12,8 +12,8 @@
             <div class="card-body">
             <p class="text-muted">Configure overlays for {{ station.name || 'your station' }}.</p>
             <form @submit.prevent="saveSettings">
-                <label class="form-check mb-3"><input v-model="settings.enabled" class="form-check-input" type="checkbox"> Enable sweepers</label>
-                <label class="d-block mb-3">
+                <label class="form-check form-check-label mb-3"><input v-model="settings.enabled" class="form-check-input" type="checkbox"> Enable sweepers</label>
+                <label class="form-label d-block mb-3">
                     Sweeper playlist
                     <select v-model="settings.playlist_id" class="form-select">
                         <option :value="null">Choose an Advanced playlist</option>
@@ -22,13 +22,13 @@
                         </option>
                     </select>
                 </label>
-                <label class="d-block mb-1">
+                <label class="form-label d-block mb-1">
                     Minimum songs between jingles or sweepers
                     <input v-model.number="settings.minimum_songs" class="form-control" type="number" min="0" max="1000" step="1" required>
                 </label>
                 <p class="form-text mb-3">0 disables spacing. With 1, one song plays without a sweeper between events. The song carrying the previous sweeper does not count.</p>
-                <label class="form-check mb-3"><input v-model="settings.count_jingle_mode" class="form-check-input" type="checkbox"> Count Jingle Mode playlists</label>
-                <label class="d-block mb-1">
+                <label class="form-check form-check-label mb-3"><input v-model="settings.count_jingle_mode" class="form-check-input" type="checkbox"> Count Jingle Mode playlists</label>
+                <label class="form-label d-block mb-1">
                     Additional jingle playlists
                     <select v-model="settings.jingle_playlist_ids" class="form-select" multiple size="5">
                         <option v-for="playlist in jinglePlaylists" :key="playlist.id" :value="playlist.id">
@@ -37,17 +37,17 @@
                     </select>
                 </label>
                 <p class="form-text mb-3">Hold Ctrl/Cmd to select several. Tracks played from these playlists reset the spacing. The sweeper playlist always counts.</p>
-                <label class="form-check mb-3"><input v-model="settings.longest_fit" class="form-check-input" type="checkbox"> Prefer the longest fitting sweepers</label>
-                <label v-if="settings.longest_fit" class="d-block mb-1">
+                <label class="form-check form-check-label mb-3"><input v-model="settings.longest_fit" class="form-check-input" type="checkbox"> Prefer the longest fitting sweepers</label>
+                <label v-if="settings.longest_fit" class="form-label d-block mb-1">
                     Intro length tolerance (%)
                     <input v-model.number="settings.length_tolerance" class="form-control" type="number" min="0" max="100" step="1" required>
                 </label>
                 <p v-if="settings.longest_fit" class="form-text mb-3">20% selects bodies covering 80–100% of the available intro, then rotates by oldest playback. If none qualify, use the longest fitting body. A small selection may repeat often.</p>
                 <p v-else class="form-text mb-3">Rotate by oldest actual playback among all sweepers that fit.</p>
-                <label class="form-check mb-1"><input v-model="limitDelay" class="form-check-input" type="checkbox"> Limit start delay</label>
+                <label class="form-check form-check-label mb-1"><input v-model="limitDelay" class="form-check-input" type="checkbox"> Limit start delay</label>
                 <p class="form-text mb-3">Disabled: time the handover to the intro end. Enabled: if that would exceed the limit, start immediately. 0 always starts immediately.</p>
                 <div class="row g-3 mb-3">
-                    <label v-if="limitDelay" class="col-md-6 col-xl-3">
+                    <label v-if="limitDelay" class="form-label col-md-6 col-xl-3">
                         Maximum start delay (s)
                         <input
                             v-model.number="settings.max_wait"
@@ -59,15 +59,15 @@
                             required
                         >
                     </label>
-                    <label class="col-md-6 col-xl-3">
+                    <label class="form-label col-md-6 col-xl-3">
                         Handover margin (s)
                         <input v-model.number="settings.margin" class="form-control" type="number" min="0" max="5" step="0.1" required>
                     </label>
-                    <label class="col-md-6 col-xl-3">
+                    <label class="form-label col-md-6 col-xl-3">
                         Maximum ducking (dB)
                         <input v-model.number="settings.duck_db" class="form-control" type="number" min="-20" max="0" step="0.5" required>
                     </label>
-                    <label class="col-md-6 col-xl-3">
+                    <label class="form-label col-md-6 col-xl-3">
                         Jingle gain
                         <input v-model.number="settings.jingle_gain" class="form-control" type="number" min="0" max="2" step="0.05" required>
                     </label>
@@ -79,7 +79,7 @@
             </div>
         </section>
         <section v-if="!loading" class="row g-3">
-            <div class="col-lg-4">
+            <div class="col-12">
             <aside class="card h-100" role="region" aria-labelledby="sweepers-cues-heading">
                 <div class="card-header text-bg-primary">
                     <h2 id="sweepers-cues-heading" class="card-title mb-0">Intro cues</h2>
@@ -96,22 +96,42 @@
                 </div>
                 <div class="table-responsive media-list">
                     <table class="table align-middle table-striped table-hover mb-0">
-                        <thead><tr><th scope="col">File</th><th scope="col">Intro End</th></tr></thead>
+                        <thead>
+                            <tr>
+                                <th scope="col">File</th>
+                                <th scope="col">Duration</th>
+                                <th scope="col">Intro End</th>
+                                <th scope="col"><span class="visually-hidden">Actions</span></th>
+                            </tr>
+                        </thead>
                         <tbody>
-                            <tr v-for="row in rows" :key="row.id" :class="{ 'table-active': selected?.id === row.id }">
+                            <tr v-for="row in visibleRows" :key="row.id" :class="{ 'table-active': selected?.id === row.id }">
                                 <td class="file-name">
-                                    <button type="button" class="btn btn-link text-start p-0" @click="select(row)">{{ row.path }}</button>
+                                    <span>{{ row.path }}</span>
                                 </td>
+                                <td class="text-nowrap">{{ formatDuration(row.duration) }}</td>
                                 <td class="text-nowrap">{{ formatIntro(row.intro_end) }}</td>
+                                <td class="text-end text-nowrap">
+                                    <button type="button" class="btn btn-sm btn-primary" :aria-label="'Edit intro: ' + row.path" :aria-pressed="selected?.id === row.id" @click="select(row)">Edit intro</button>
+                                </td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
-                <p v-if="!rows.length" class="card-body text-muted mb-0">No matching files.</p>
+                <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
+                    <span class="text-muted" role="status">{{ rows.length ? rows.length + ' matching files (maximum 100)' : 'No matching files.' }}</span>
+                    <nav aria-label="Intro cue pages">
+                        <ul class="pagination mb-0">
+                            <li class="page-item" :class="{ disabled: page === 1 }"><button class="page-link" type="button" :disabled="page === 1" @click="page--">Previous</button></li>
+                            <li class="page-item disabled"><span class="page-link">{{ page }} / {{ pageCount }}</span></li>
+                            <li class="page-item" :class="{ disabled: page === pageCount }"><button class="page-link" type="button" :disabled="page === pageCount" @click="page++">Next</button></li>
+                        </ul>
+                    </nav>
+                </div>
             </aside>
             </div>
 
-            <div class="col-lg-8">
+            <div class="col-12">
             <article v-if="selected" class="card h-100">
                 <div class="card-header text-bg-primary">
                     <h2 class="card-title mb-0 text-break">{{ selected.path }}</h2>
@@ -149,7 +169,7 @@
             <article v-else class="card h-100"><div class="card-body text-muted">Select a file to view its intro cue.</div></article>
             </div>
         </section>
-    </main>
+    </div>
 </template>
 
 <script setup>
@@ -163,6 +183,10 @@ const settings = ref({});
 const playlists = ref([]);
 const jinglePlaylists = ref([]);
 const rows = ref([]);
+const page = ref(1);
+const pageSize = 25;
+const pageCount = computed(() => Math.max(1, Math.ceil(rows.value.length / pageSize)));
+const visibleRows = computed(() => rows.value.slice((page.value - 1) * pageSize, page.value * pageSize));
 const search = ref("");
 const selected = ref(null);
 const waveform = ref(null);
@@ -184,6 +208,11 @@ const limitDelay = computed({
     set: (enabled) => { settings.value.max_wait = enabled ? 0 : null; },
 });
 const marker = computed(() => validDraft.value && draft.value !== "" ? Number(draft.value) : null);
+
+function formatDuration(value) {
+    const seconds = Math.max(0, Math.floor(Number(value) || 0));
+    return Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
+}
 
 function formatIntro(value) {
     if (value === null) return "Not measured";
@@ -211,6 +240,7 @@ async function api(path, data) {
 async function loadMedia() {
     try {
         rows.value = (await api(`media?search=${encodeURIComponent(search.value)}`)).rows;
+        page.value = 1;
         const updated = rows.value.find((row) => row.id === selected.value?.id);
         if (updated) select(updated);
         else selected.value = null;
