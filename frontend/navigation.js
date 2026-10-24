@@ -8,13 +8,71 @@ export function stationContext(pathname, basePath) {
     const match = pathname.slice(prefix.length).match(/^([1-9]\d*)(?:\/|$)/);
     return match ? {
         stationPath: `${prefix}${match[1]}`,
-        href: `${basePath}/sweepers/${match[1]}`,
+        href: `${prefix}${match[1]}?sweepers=1`,
+        apiBase: `${basePath}/sweepers/${match[1]}`,
     } : null;
 }
 
 export function mountNavigation(document, window, basePath = "") {
     let stopped = false;
     let frame = null;
+    let panel = null;
+    let unmount = null;
+    let originalContent = null;
+    let originalDisplay = "";
+
+    function removePanel() {
+        unmount?.();
+        unmount = null;
+        panel?.remove();
+        panel = null;
+        if (originalContent?.isConnected) {
+            originalContent.style.display = originalDisplay;
+        }
+        originalContent = null;
+    }
+
+    function showPanel(context) {
+        const content = document.getElementById("content");
+        if (!content?.parentElement) {
+            return;
+        }
+        if (panel?.isConnected && originalContent === content && panel.dataset.apiBase === context.apiBase) {
+            return;
+        }
+        removePanel();
+        const script = document.getElementById("azuracast-sweepers-navigation");
+        if (!script?.dataset.csrf) {
+            return;
+        }
+        originalContent = content;
+        originalDisplay = content.style.display;
+        content.style.display = "none";
+        panel = document.createElement("div");
+        panel.id = "azuracast-sweepers-panel";
+        panel.className = "container";
+        panel.dataset.apiBase = context.apiBase;
+        const root = document.createElement("div");
+        root.id = "app";
+        root.className = "sweepers-page embedded";
+        root.dataset.base = context.apiBase;
+        root.dataset.csrf = script.dataset.csrf;
+        root.textContent = "Loading Sweepers…";
+        panel.append(root);
+        content.after(panel);
+        const css = document.createElement("link");
+        css.rel = "stylesheet";
+        css.href = `${context.apiBase}/assets/app.css`;
+        panel.prepend(css);
+        import(`${context.apiBase}/assets/app.js`).then(({mountSweepers}) => {
+            if (panel?.contains(root)) {
+                unmount = mountSweepers(root);
+            }
+        }).catch(() => {
+            root.textContent = "Unable to load Sweepers. Reload the page or check the plugin frontend build.";
+            if (originalContent === content) content.style.display = originalDisplay;
+        });
+    }
 
     function refresh() {
         frame = null;
@@ -22,6 +80,7 @@ export function mountNavigation(document, window, basePath = "") {
             return;
         }
         const context = stationContext(window.location.pathname, basePath);
+        const embedded = new URL(window.location.href).searchParams.get("sweepers") === "1";
         const menu = document.querySelector("#sidebar-submenu-media > .navdrawer-nav");
         const mediaItem = menu?.parentElement.closest("li.nav-item");
         const stationMenu = mediaItem?.parentElement;
@@ -32,11 +91,16 @@ export function mountNavigation(document, window, basePath = "") {
         });
         if (!hasMediaAccess || !stationMenu?.matches("ul.navdrawer-nav")) {
             existing?.remove();
+            removePanel();
             return;
         }
+        if (embedded) {
+            showPanel(context);
+        } else {
+            removePanel();
+        }
         if (existing?.parentElement === stationMenu && existing.previousElementSibling === mediaItem
-            && existing.querySelector("a").getAttribute("href") === context.href
-            && existing.querySelector("a").getAttribute("target") === "_blank") {
+            && existing.querySelector("a").getAttribute("href") === context.href) {
             return;
         }
         existing?.remove();
@@ -46,9 +110,6 @@ export function mountNavigation(document, window, basePath = "") {
         const link = document.createElement("a");
         link.className = "nav-link";
         link.setAttribute("href", context.href);
-        link.setAttribute("target", "_blank");
-        link.setAttribute("rel", "noopener noreferrer");
-        link.setAttribute("title", "Open Sweepers in a new tab");
         const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         icon.setAttribute("class", "navdrawer-nav-icon");
         icon.setAttribute("viewBox", "0 0 24 24");
@@ -94,6 +155,7 @@ export function mountNavigation(document, window, basePath = "") {
             window.cancelAnimationFrame(frame);
         }
         document.getElementById(itemId)?.remove();
+        removePanel();
     };
 }
 
