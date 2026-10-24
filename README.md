@@ -21,8 +21,21 @@ are included.
 
 ## Installation
 
-Clone this repository into `/var/azuracast/plugins/azuracast-sweepers`. Keep this
-directory name: AzuraCast derives the PHP namespace from it.
+Run these commands on the AzuraCast Docker host with Git and Docker Compose
+installed. The examples assume AzuraCast is installed in `/var/azuracast`;
+adjust that base path if needed. Use an account that can write there and run Docker.
+
+Clone the public repository from GitHub (no GitHub login or token required):
+
+```bash
+mkdir -p /var/azuracast/plugins
+git clone --branch main https://github.com/RM-FM/azuracast-sweepers.git \
+  /var/azuracast/plugins/azuracast-sweepers
+cd /var/azuracast/plugins/azuracast-sweepers
+```
+
+Keep the directory name `azuracast-sweepers`: AzuraCast derives the PHP namespace
+from it. If the repository is already installed, use the update instructions below.
 
 Build the frontend with Node 24:
 
@@ -52,7 +65,14 @@ services:
       - ./plugins/azuracast-sweepers:/var/azuracast/www/plugins/azuracast-sweepers:ro
 ```
 
-Recreate the AzuraCast containers using the normal installation procedure.
+Apply the override from the AzuraCast installation directory:
+
+```bash
+cd /var/azuracast
+docker compose up -d
+```
+
+This may recreate the web container and briefly interrupt broadcasting.
 After reloading the dashboard, open **Sweepers** in the station sidebar.
 The link appears directly below Media at the top level, even when Media is collapsed,
 for users with station Media permission.
@@ -73,6 +93,37 @@ responses from the authenticated dashboard. It follows station switches and Vue
 sidebar redraws without modifying core files or Vue internals. If the expected
 Media menu is absent, the script leaves the sidebar unchanged. This DOM integration
 is not an official navigation hook; verify the link after AzuraCast upgrades.
+
+## Updating from GitHub
+
+Update the existing checkout and rebuild the frontend. This example uses Docker,
+so Node does not need to be installed on the host:
+
+```bash
+(
+  set -e
+  cd /var/azuracast/plugins/azuracast-sweepers
+  git pull --ff-only origin main
+  docker run --rm --user "$(id -u):$(id -g)" \
+    -e npm_config_cache=/tmp/npm-cache \
+    -v "$PWD:/plugin" -w /plugin node:24-alpine \
+    sh -c 'npm ci --ignore-scripts && npm run build'
+
+  cd /var/azuracast
+  docker compose restart web
+)
+```
+
+The web restart loads updated PHP code and briefly interrupts broadcasting.
+Reload the dashboard afterward. If the update changes Liquidsoap integration,
+restart broadcasting for each affected station through AzuraCast to regenerate
+its configuration. The initial Compose override only needs to be added once.
+
+With Node 24 installed locally, replace the `docker run` build command with
+`npm ci --ignore-scripts` followed by `npm run build` in the plugin directory.
+If Git reports local changes or diverging history, resolve those before updating;
+do not reset the checkout blindly. Plugin settings, media and `intro_end` values
+are stored by AzuraCast outside this checkout and are preserved by these commands.
 
 ## Rotation and timing
 
