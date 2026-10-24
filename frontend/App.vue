@@ -105,7 +105,8 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="row in visibleRows" :key="row.id" :class="{ 'table-active': selected?.id === row.id }">
+                            <template v-for="row in visibleRows" :key="row.id">
+                            <tr class="media-track" :class="{ 'table-active': selected?.id === row.id }">
                                 <td class="file-name">
                                     <span>{{ row.path }}</span>
                                 </td>
@@ -115,32 +116,18 @@
                                     <button type="button" class="btn btn-sm btn-primary" :aria-label="'Edit intro: ' + row.path" :aria-pressed="selected?.id === row.id" @click="select(row)">Edit intro</button>
                                 </td>
                             </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
-                    <span class="text-muted" role="status">{{ rows.length ? rows.length + ' matching files (maximum 100)' : 'No matching files.' }}</span>
-                    <nav aria-label="Intro cue pages">
-                        <ul class="pagination mb-0">
-                            <li class="page-item" :class="{ disabled: page === 1 }"><button class="page-link" type="button" :disabled="page === 1" @click="page--">Previous</button></li>
-                            <li class="page-item disabled"><span class="page-link">{{ page }} / {{ pageCount }}</span></li>
-                            <li class="page-item" :class="{ disabled: page === pageCount }"><button class="page-link" type="button" :disabled="page === pageCount" @click="page++">Next</button></li>
-                        </ul>
-                    </nav>
-                </div>
-            </aside>
-            </div>
-
-            <div class="col-12">
-            <article v-if="selected" class="card h-100">
-                <div class="card-header text-bg-primary">
+                            <tr v-if="selected?.id === row.id" class="intro-editor-row">
+                                <td colspan="4" class="p-0">
+            <article class="card border-0 shadow-none">
+                <div class="card-header text-bg-primary d-flex justify-content-between align-items-center gap-2">
                     <h2 class="card-title mb-0 text-break">{{ selected.path }}</h2>
+                    <button class="btn btn-sm btn-outline-light" type="button" @click="selected = null">Close editor</button>
                 </div>
                 <div class="card-body">
                 <p class="text-muted">Saved Intro End: {{ formatIntro(selected.intro_end) }} · Original file position</p>
                 <Waveform
                     :key="selected.id"
-                    ref="waveform"
+                    :ref="el => { if (selected?.id === row.id) waveform = el; }"
                     :audio-url="selected.audio_url"
                     :waveform-url="selected.waveform_url"
                     :intro="marker"
@@ -166,14 +153,31 @@
                 </form>
                 </div>
             </article>
-            <article v-else class="card h-100"><div class="card-body text-muted">Select a file to view its intro cue.</div></article>
+                                </td>
+                            </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
+                    <span class="text-muted" role="status">{{ rows.length ? rows.length + ' matching files (maximum 100)' : 'No matching files.' }}</span>
+                    <nav aria-label="Intro cue pages">
+                        <ul class="pagination mb-0">
+                            <li class="page-item" :class="{ disabled: page === 1 }"><button class="page-link" type="button" :disabled="page === 1" @click="page--">Previous</button></li>
+                            <li class="page-item disabled"><span class="page-link">{{ page }} / {{ pageCount }}</span></li>
+                            <li class="page-item" :class="{ disabled: page === pageCount }"><button class="page-link" type="button" :disabled="page === pageCount" @click="page++">Next</button></li>
+                        </ul>
+                    </nav>
+                </div>
+            </aside>
             </div>
+
         </section>
     </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import Waveform from "./Waveform.vue";
 
 const props = defineProps({ base: { type: String, required: true }, csrf: { type: String, required: true } });
@@ -190,6 +194,7 @@ const visibleRows = computed(() => rows.value.slice((page.value - 1) * pageSize,
 const search = ref("");
 const selected = ref(null);
 const waveform = ref(null);
+watch(page, () => { selected.value = null; });
 const draft = ref("");
 const position = ref(0);
 const loading = ref(true);
