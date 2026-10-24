@@ -1,6 +1,5 @@
 .sweepers-page .media-list {
-    max-height: 65vh;
-    overflow-y: auto;
+    overflow-x: auto;
 }
 
 .sweepers-page .media-list .file-name {
@@ -11,11 +10,6 @@
     min-height: 128px;
 }
 
-@media (max-width: 991px) {
-    .sweepers-page .media-list {
-        max-height: 300px;
-    }
-}
 
 .sweepers-page:not(.embedded) {
     min-height: 100vh;
@@ -58,12 +52,8 @@
     gap: 1rem;
 }
 
-.sweepers-page:not(.embedded) .col-lg-4 {
-    flex: 1 1 280px;
-}
-
-.sweepers-page:not(.embedded) .col-lg-8 {
-    flex: 2 1 480px;
+.sweepers-page:not(.embedded) .col-12 {
+    flex: 1 1 100%;
 }
 
 .sweepers-page:not(.embedded) .form-control,
