@@ -14,9 +14,16 @@ if (theme !== "dark" && theme !== "light") {
 }
 document.documentElement.setAttribute("data-bs-theme", theme);
 
-const root = document.getElementById("app");
+export function mountSweepers(root) {
+    const app = createApp(App, {
+        base: root.dataset.base,
+        csrf: root.dataset.csrf,
+    });
+    app.mount(root);
+    return () => app.unmount();
+}
 
-createApp(App, {
-    base: root.dataset.base,
-    csrf: root.dataset.csrf,
-}).mount(root);
+const root = document.getElementById("app");
+if (root && !root.classList.contains("embedded")) {
+    mountSweepers(root);
+}

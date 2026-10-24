@@ -73,28 +73,30 @@ docker compose up -d
 ```
 
 This may recreate the web container and briefly interrupt broadcasting.
-After reloading the dashboard, open **Sweepers** in the station sidebar. It opens
-in a separate tab, leaving AzuraCast and its navigation available in the original tab.
+After reloading the dashboard, open **Sweepers** in the station sidebar. It opens inside the station dashboard while AzuraCast keeps its navigation and styling.
 The link appears directly below Media at the top level, even when Media is collapsed,
 for users with station Media permission.
-Direct access at `/sweepers/1` (replace `1` with the station ID) remains available.
+Direct standalone access at `/sweepers/1` (replace `1` with the station ID) remains available.
 The plugin creates or reuses `intro_end` on the first page visit or station
 configuration generation. It does not overwrite an existing field or change other custom fields.
 
 Create an **Advanced** playlist containing the sweeper jingles, select it in the
 plugin settings, enable sweepers and restart broadcasting through AzuraCast.
 Advanced playlists prevent the jingles from also entering the normal song rotation.
-The page runs separately with AzuraCast-inspired light and dark styles. It
-requires station Media permission; changing settings also requires
+The page requires station Media permission; changing settings also requires
 Broadcasting permission. The page includes an audio waveform with a movable
 intro marker, a time input, and playback at the cue or three seconds earlier.
-It is a separate page, not a modification of the native visual cue editor.
+The cue editor belongs to the plugin; it does not modify AzuraCast's native cue editor.
 
 The sidebar link uses a small plugin-owned script injected into successful HTML
 responses from the authenticated dashboard. It follows station switches and Vue
-sidebar redraws without modifying core files or Vue internals. If the expected
-Media menu is absent, the script leaves the sidebar unchanged. This DOM integration
-is not an official navigation hook; verify the link after AzuraCast upgrades.
+sidebar redraws without modifying core files or Vue internals. The menu link
+loads the native station route with `?sweepers=1`. The script adds the plugin
+panel beside AzuraCast's own content container and restores the original content
+when leaving the route. Plugin styles are scoped to that panel; the surrounding
+header, sidebar and theme remain AzuraCast's. If the expected Media menu is absent,
+the script leaves the sidebar unchanged. This DOM integration is not an official
+navigation hook; verify it after AzuraCast upgrades.
 
 ## Updating from GitHub
 

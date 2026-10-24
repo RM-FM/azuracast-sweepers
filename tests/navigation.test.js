@@ -10,6 +10,8 @@ function fixture(path = "/station/1", base = "") {
         <div id="sidebar-submenu-media" class="collapse"><ul class="navdrawer-nav">
             <li><a href="${base}/station/1/files">Music Files</a></li>
         </ul></div></li><li class="nav-item" id="next-item">Next</li></ul>
+        <main id="main"><div id="content">Native station content</div></main>
+        <script id="azuracast-sweepers-navigation" data-csrf="test-token"></script>
     </body></html>`);
     let location = new URL(path, "https://radio.example");
     window.location = location;
@@ -40,7 +42,8 @@ function fixture(path = "/station/1", base = "") {
 
 test("station paths respect the installation prefix and reject unrelated pages", () => {
     assert.deepEqual(stationContext("/radio/station/12/files", "/radio"), {
-        stationPath: "/radio/station/12", href: "/radio/sweepers/12",
+        stationPath: "/radio/station/12", href: "/radio/station/12?sweepers=1",
+        apiBase: "/radio/sweepers/12",
     });
     for (const path of ["/public/1", "/admin", "/station/0", "/station/1x", "/station/1"]) {
         assert.equal(stationContext(path, "/radio"), null);
@@ -49,15 +52,14 @@ test("station paths respect the installation prefix and reject unrelated pages",
 
 test("adds one top-level link after Media and does not loop on its own mutations", async () => {
     const f = fixture();
-    assert.equal(f.item().querySelector("a").getAttribute("href"), "/sweepers/1");
+    assert.equal(f.item().querySelector("a").getAttribute("href"), "/station/1?sweepers=1");
     assert.equal(f.item().textContent, "Sweepers");
     assert.equal(f.item().parentElement.id, "station-menu");
     assert.equal(f.item().previousElementSibling.id, "media-item");
     assert.equal(f.item().nextElementSibling.id, "next-item");
     assert.equal(f.item().closest(".collapse"), null);
     assert.equal(f.item().querySelector("a").className, "nav-link");
-    assert.equal(f.item().querySelector("a").getAttribute("target"), "_blank");
-    assert.equal(f.item().querySelector("a").getAttribute("rel"), "noopener noreferrer");
+    assert.equal(f.item().querySelector("a").getAttribute("target"), null);
     assert.equal(f.item().querySelector("svg").getAttribute("aria-hidden"), "true");
     await f.flush();
     await f.flush();
@@ -73,8 +75,8 @@ test("station switching removes stale links until the new Media menu is ready", 
     assert.equal(f.item(), null);
     f.document.querySelector("#sidebar-submenu-media a").setAttribute("href", "/station/2/files");
     await f.flush();
-    assert.equal(f.item().querySelector("a").getAttribute("href"), "/sweepers/2");
-    assert.equal(f.item().querySelector("a").getAttribute("target"), "_blank");
+    assert.equal(f.item().querySelector("a").getAttribute("href"), "/station/2?sweepers=1");
+    assert.equal(f.item().querySelector("a").getAttribute("target"), null);
     f.navigate("/dashboard");
     await f.flush();
     assert.equal(f.item(), null);
@@ -98,7 +100,7 @@ test("waits for a delayed sidebar and omits links without the native Media permi
     assert.equal(f.item(), null);
     f.navigate("/radio/station/1/files");
     await f.flush();
-    assert.equal(f.item().querySelector("a").getAttribute("href"), "/radio/sweepers/1");
+    assert.equal(f.item().querySelector("a").getAttribute("href"), "/radio/station/1?sweepers=1");
     f.document.querySelector("#sidebar-submenu-media li").remove();
     await f.flush();
     assert.equal(f.item(), null);
@@ -117,7 +119,7 @@ test("entering a station from the dashboard handles lazy sidebar creation", asyn
     assert.equal(f.item(), null);
     f.document.body.append(sidebar);
     await f.flush();
-    assert.equal(f.item().querySelector("a").getAttribute("href"), "/sweepers/1");
+    assert.equal(f.item().querySelector("a").getAttribute("href"), "/station/1?sweepers=1");
     f.stop();
 });
 
@@ -138,5 +140,20 @@ test("does not insert a link into an unexpected sidebar structure", async () => 
     f.document.body.append(menu);
     await f.flush();
     assert.equal(f.item(), null);
+    f.stop();
+});
+
+
+test("station route embeds Sweepers beside the native sidebar and restores the page on exit", async () => {
+    const f = fixture("/station/1?sweepers=1");
+    const panel = f.document.getElementById("azuracast-sweepers-panel");
+    assert.equal(panel.dataset.apiBase, "/sweepers/1");
+    assert.equal(panel.querySelector("#app").dataset.csrf, "test-token");
+    assert.equal(f.document.getElementById("content").style.display, "none");
+    assert.equal(f.document.getElementById("station-menu") !== null, true);
+    f.navigate("/station/1/files");
+    await f.flush();
+    assert.equal(f.document.getElementById("azuracast-sweepers-panel"), null);
+    assert.equal(f.document.getElementById("content").style.display ?? "", "");
     f.stop();
 });
