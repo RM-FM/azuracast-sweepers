@@ -42,7 +42,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
         $app = $event->getApp();
         $app->add(new SidebarNavigation($app->getBasePath()));
         $app->get('/sweepers/assets/navigation.js', PanelController::class . ':navigationAction');
-        $app->group('/sweepers/{station_id}', static function (RouteCollectorProxy $group): void {
+        $app->group('/sweepers/{station_id}', function (RouteCollectorProxy $group): void {
             $group->get('', PanelController::class . ':indexAction');
             $group->get('/assets/{name:app\\.(?:js|css)}', PanelController::class . ':assetAction');
             $group->get('/state', PanelController::class . ':stateAction');
@@ -60,7 +60,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
 
         $app->group(
             '/api/internal/{station_id}/liquidsoap/sweepers',
-            static function (RouteCollectorProxy $group): void {
+            function (RouteCollectorProxy $group): void {
                 $group->post('/catalog', InternalController::class . ':catalogAction');
                 $group->post('/plan', InternalController::class . ':planAction');
                 $group->post('/heartbeat', InternalController::class . ':heartbeatAction');
