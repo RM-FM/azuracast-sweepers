@@ -6,6 +6,8 @@ export function mountSweepers(root) {
     const app = createApp(App, {
         base: root.dataset.base,
         csrf: root.dataset.csrf,
+        view: root.dataset.view || "settings",
+        standalone: !root.classList.contains("embedded"),
     });
     app.mount(root);
     return () => app.unmount();

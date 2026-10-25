@@ -11,6 +11,8 @@ use Plugin\AzuracastSweepers\ValueObject\Settings;
 
 final readonly class Planner
 {
+    public const int LOG_LIMIT = 200;
+
     public function __construct(
         private State $state,
         private Media $media,
@@ -172,8 +174,16 @@ final readonly class Planner
                     continue;
                 }
                 if (($event['event'] ?? '') === 'played' && !($plan['played'] ?? false)) {
-                    $data['history'][$plan['jingle_id']] = microtime(true);
+                    $now = microtime(true);
+                    $data['history'][$plan['jingle_id']] = $now;
                     $data['plans'][$token]['played'] = true;
+                    // Newest first; only sweepers that actually started playing.
+                    $data['log'] = array_slice([[
+                        'at' => $now,
+                        'song_id' => $plan['song_id'] ?? null,
+                        'jingle_id' => $plan['jingle_id'],
+                        'offset' => $plan['payload']['offset'] ?? null,
+                    ], ...($data['log'] ?? [])], 0, self::LOG_LIMIT);
                 } elseif (($event['event'] ?? '') === 'release') {
                     unset($data['plans'][$token]);
                 }

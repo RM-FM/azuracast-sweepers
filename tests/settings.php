@@ -126,6 +126,16 @@ namespace Plugin\AzuracastSweepers\Service {
                 throw new \InvalidArgumentException('Foreign playlist.');
             }
         }
+
+        public function describe(\App\Entity\Station $station, array $ids): array
+        {
+            $files = [
+                7 => ['title' => 'Voulez-Vous', 'artist' => 'ABBA', 'path' => 'abba.mp3'],
+                42 => ['title' => 'Dropin 03', 'artist' => 'RadioMonster.FM', 'path' => 'dropin.mp3'],
+            ];
+
+            return array_intersect_key($files, array_flip(array_map('intval', $ids)));
+        }
     }
 }
 
@@ -371,6 +381,20 @@ namespace {
             } catch (InvalidArgumentException) {
             }
         }
+
+        $state->update($directory, static fn(array $data) => ['log' => [
+            ['at' => 200.5, 'song_id' => 7, 'jingle_id' => 42, 'offset' => 9.66],
+            ['at' => 100.0, 'song_id' => 99, 'jingle_id' => 42, 'offset' => null],
+        ]] + $data);
+        $history = json_decode((string)$controller->historyAction(
+            new ServerRequest($station, []),
+            new Response(),
+            []
+        )->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        expect($history['limit'] === 200 && count($history['rows']) === 2, 'History endpoint returns the log.');
+        expect($history['rows'][0]['song']['artist'] === 'ABBA' && $history['rows'][0]['offset'] === 9.66, 'Song and offset.');
+        expect($history['rows'][0]['sweeper']['title'] === 'Dropin 03', 'Sweeper name.');
+        expect($history['rows'][1]['song'] === null && $history['rows'][1]['offset'] === null, 'Deleted files stay listed.');
 
         $now = 1_000_000;
         $heartbeat = static fn(int $at, string $version): array => ['heartbeat' => ['at' => $at, 'version' => $version]];

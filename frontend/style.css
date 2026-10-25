@@ -42,6 +42,36 @@
     flex: 1 1 260px;
 }
 
+.sweepers-page:not(.embedded) .nav-tabs {
+    display: flex;
+    gap: .25rem;
+    margin: 0 0 1rem;
+    padding: 0;
+    list-style: none;
+    border-bottom: 1px solid #d7dde5;
+}
+
+.sweepers-page:not(.embedded) .nav-tabs .nav-link {
+    margin-bottom: -1px;
+    padding: .5rem 1rem;
+    border: 1px solid transparent;
+    border-radius: .25rem .25rem 0 0;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+}
+
+.sweepers-page:not(.embedded) .nav-tabs .nav-link.active {
+    border-color: #d7dde5 #d7dde5 #f7f8fa;
+    background: #f7f8fa;
+    font-weight: 600;
+}
+
+:root[data-bs-theme="dark"] .sweepers-page:not(.embedded) .nav-tabs .nav-link.active {
+    border-color: #596273 #596273 #22252f;
+    background: #22252f;
+}
+
 .sweepers-page:not(.embedded) kbd {
     padding: .1rem .3rem;
     border-radius: .2rem;

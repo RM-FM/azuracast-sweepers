@@ -1,10 +1,16 @@
 <template>
     <div class="sweepers-content">
+        <ul v-if="standalone" class="nav nav-tabs mb-3" role="tablist">
+            <li v-for="[key, label] in views" :key="key" class="nav-item" role="presentation">
+                <button class="nav-link" :class="{ active: current === key }" type="button" role="tab" :aria-selected="current === key" @click="show(key)">{{ label }}</button>
+            </li>
+        </ul>
         <p v-if="error" class="alert alert-danger" role="alert">{{ error }}</p>
         <p v-if="notice" class="alert alert-info" role="status">{{ notice }}</p>
         <p v-if="loading" class="text-muted">Loading…</p>
+        <p v-if="!loading && moduleStatus.state && moduleStatus.state !== 'active'" class="alert alert-warning" role="status" :data-module-status="moduleStatus.state">{{ moduleStatus.message }}</p>
 
-        <section v-if="!loading" class="card mb-3" role="region" aria-labelledby="sweepers-settings-heading">
+        <section v-if="!loading && current === 'settings'" class="card mb-3" role="region" aria-labelledby="sweepers-settings-heading">
             <div class="card-header text-bg-primary d-flex justify-content-between align-items-center">
                 <h2 id="sweepers-settings-heading" class="card-title mb-0">Sweeper settings</h2>
                 <a class="btn btn-sm btn-outline-light" :href="stationUrl">Station dashboard</a>
@@ -12,7 +18,6 @@
             <div class="card-body">
             <p class="text-muted mb-2">Sweepers are short station drop-ins played over the instrumental intro of a song, while the music is ducked underneath. Configure them for {{ station.name || 'your station' }} below.</p>
             <p v-if="moduleStatus.state === 'active'" class="text-success small mb-3" data-module-status="active">{{ moduleStatus.message }}</p>
-            <p v-else-if="moduleStatus.state" class="alert alert-warning" role="status" :data-module-status="moduleStatus.state">{{ moduleStatus.message }}</p>
             <form class="sweepers-settings" @submit.prevent="saveSettings">
                 <fieldset>
                     <legend>General</legend>
@@ -20,7 +25,7 @@
                         <input id="sweepers-enabled" v-model="settings.enabled" class="form-check-input" type="checkbox" role="switch">
                         <label class="form-check-label" for="sweepers-enabled">Enable sweepers</label>
                     </div>
-                    <div class="form-text mb-3">Switches sweepers on or off for this station. Takes effect within about 5 seconds, without restarting.</div>
+                    <div class="form-text mb-3">Switches sweepers on or off for this station.</div>
                     <label class="form-label d-block mb-0">
                         Sweeper playlist
                         <select v-model="settings.playlist_id" class="form-select">
@@ -56,7 +61,7 @@
                                 Songs without sweeper before a jingle
                                 <input v-model.number="settings.songs_before_jingle" class="form-control" type="number" min="0" :max="queueLength" step="1" required>
                             </label>
-                            <div class="form-text">No sweeper if a jingle is queued within this many following tracks. Example: <strong>1</strong>. Maximum: the AutoDJ queue length ({{ queueLength }}), because AzuraCast plans no further ahead. Checked again until the sweeper starts; jingles that interrupt or are not queued cannot be foreseen.</div>
+                            <div class="form-text">No sweeper if a jingle is queued within this many following tracks. Example: <strong>1</strong>. Maximum: the AutoDJ queue length ({{ queueLength }}).</div>
                         </div>
                     </div>
                 </fieldset>
@@ -158,21 +163,18 @@
                 </fieldset>
 
                 <button class="btn btn-primary" :disabled="saving">Save settings</button>
-                <div class="form-text mt-3">
-                    <strong>How changes apply:</strong> within about 5 seconds, without restarting. A sweeper that is already playing finishes; sweepers prepared for upcoming songs are discarded and planned again with the new settings.
-                    The plugin runs on every station whether sweepers are enabled or not. Restart broadcasting only once after installing or updating the plugin; the status above shows when that is needed.
-                </div>
-                <div class="form-text mt-2">Set the intro end of each song in the list below, under <em>Music Files → Custom Fields</em>, or through the intro API.</div>
+                <div class="form-text mt-3">Note: changes apply immediately, no restart needed.</div>
             </form>
             </div>
         </section>
-        <section v-if="!loading" class="row g-3">
+        <section v-if="!loading && current === 'intros'" class="row g-3">
             <div class="col-12">
             <aside class="card h-100" role="region" aria-labelledby="sweepers-cues-heading">
                 <div class="card-header text-bg-primary">
                     <h2 id="sweepers-cues-heading" class="card-title mb-0">Intro cues</h2>
                 </div>
                 <div class="card-body">
+                    <p class="text-muted">The intro end is where the singing starts. <strong>0</strong> = no usable intro, empty = not known yet. Songs without an intro end get no sweeper.</p>
                     <form class="search" @submit.prevent="loadMedia">
                         <label class="form-label" for="search">Find audio</label>
                         <div class="input-group">
@@ -261,6 +263,37 @@
             </div>
 
         </section>
+
+        <section v-if="!loading && current === 'history'" class="card mb-3" role="region" aria-labelledby="sweepers-history-heading">
+            <div class="card-header text-bg-primary d-flex justify-content-between align-items-center">
+                <h2 id="sweepers-history-heading" class="card-title mb-0">Sweeper history</h2>
+                <button class="btn btn-sm btn-outline-light" type="button" @click="loadHistory">Refresh</button>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-0">Songs that played with a sweeper, newest first (last {{ historyLimit }}).</p>
+            </div>
+            <div class="table-responsive">
+                <table class="table align-middle table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th scope="col">Time</th>
+                            <th scope="col">Song</th>
+                            <th scope="col">Sweeper</th>
+                            <th scope="col" class="text-end">Started after</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="entry in history" :key="entry.at">
+                            <td class="text-nowrap">{{ formatTime(entry.at) }}</td>
+                            <td class="file-name">{{ describe(entry.song) }}</td>
+                            <td class="file-name">{{ describe(entry.sweeper) }}</td>
+                            <td class="text-nowrap text-end">{{ entry.offset === null ? '–' : entry.offset.toFixed(1) + ' s' }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div v-if="!history.length" class="card-body text-muted">No sweeper has played yet.</div>
+        </section>
     </div>
 </template>
 
@@ -268,7 +301,17 @@
 import { computed, onMounted, ref, watch } from "vue";
 import Waveform from "./Waveform.vue";
 
-const props = defineProps({ base: { type: String, required: true }, csrf: { type: String, required: true } });
+const props = defineProps({
+    base: { type: String, required: true },
+    csrf: { type: String, required: true },
+    view: { type: String, default: "settings" },
+    standalone: { type: Boolean, default: false },
+});
+const views = [["settings", "Settings"], ["intros", "Intros"], ["history", "History"]];
+const current = ref(views.some(([key]) => key === props.view) ? props.view : "settings");
+const history = ref([]);
+const historyLimit = ref(200);
+const mediaLoaded = ref(false);
 const csrf = ref(props.csrf);
 const station = ref({});
 const queueLength = ref(2);
@@ -315,6 +358,33 @@ function formatIntro(value) {
     return `${value.toFixed(2)} s`;
 }
 
+function formatTime(seconds) {
+    return new Date(seconds * 1000).toLocaleString(undefined, { dateStyle: "short", timeStyle: "medium" });
+}
+
+function describe(file) {
+    if (!file) return "Deleted file";
+    const name = [file.artist, file.title].filter(Boolean).join(" – ");
+    return name || file.path;
+}
+
+async function loadHistory() {
+    try {
+        const result = await api("history");
+        history.value = result.rows;
+        historyLimit.value = result.limit ?? historyLimit.value;
+    } catch (exception) {
+        error.value = exception.message;
+    }
+}
+
+async function show(view) {
+    current.value = view;
+    notice.value = "";
+    if (view === "intros" && !mediaLoaded.value) await loadMedia();
+    if (view === "history") await loadHistory();
+}
+
 async function api(path, data) {
     const response = await fetch(`${props.base}/${path}`, {
         method: data === undefined ? "GET" : "POST",
@@ -335,6 +405,7 @@ async function api(path, data) {
 async function loadMedia() {
     try {
         rows.value = (await api(`media?search=${encodeURIComponent(search.value)}`)).rows;
+        mediaLoaded.value = true;
         page.value = 1;
         const updated = rows.value.find((row) => row.id === selected.value?.id);
         if (updated) select(updated);
@@ -361,7 +432,7 @@ async function saveIntro() {
             selected.value = { ...selected.value, intro_end: result.intro_end };
             if (marker.value === value) draft.value = result.intro_end ?? "";
         }
-        notice.value = "Intro end saved. A song that is already lined up to play next may still use the previous value.";
+        notice.value = "Intro end saved.";
     });
 }
 
@@ -370,8 +441,8 @@ async function saveSettings() {
         const result = await api("settings", settings.value);
         moduleStatus.value = result.module ?? moduleStatus.value;
         notice.value = (moduleStatus.value.state === "active"
-            ? "Settings saved. They apply within about 5 seconds; a sweeper that is already playing finishes first."
-            : "Settings saved. They apply as soon as the sweeper module runs on this station (see the status above).")
+            ? "Settings saved."
+            : "Settings saved. They apply once the sweeper module runs on this station (see the status above).")
             + (result.needs_restart ? " AzuraCast also reports other changes that need a broadcasting restart." : "");
     });
 }
@@ -399,7 +470,8 @@ onMounted(async () => {
         settings.value = state.settings;
         playlists.value = state.playlists;
         jinglePlaylists.value = state.jingle_playlists ?? [];
-        await loadMedia();
+        if (current.value === "intros") await loadMedia();
+        if (current.value === "history") await loadHistory();
     } catch (exception) {
         error.value = exception.message;
     } finally {

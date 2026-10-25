@@ -156,6 +156,32 @@ final readonly class Media
         return self::identity($media) . ':' . hash('sha256', $this->uri($station, $media));
     }
 
+    /**
+     * @return array<int, array{title: ?string, artist: ?string, path: string}> Station files by ID.
+     */
+    public function describe(Station $station, array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        if ($ids === []) {
+            return [];
+        }
+        $rows = $this->em->createQueryBuilder()
+            ->select('m.id, m.title, m.artist, m.path')
+            ->from(StationMedia::class, 'm')
+            ->where('m.storage_location = :storage')
+            ->andWhere('m.id IN (:ids)')
+            ->setParameter('storage', $station->media_storage_location)
+            ->setParameter('ids', $ids)
+            ->getQuery()
+            ->getArrayResult();
+        $result = [];
+        foreach ($rows as $row) {
+            $result[(int)$row['id']] = ['title' => $row['title'], 'artist' => $row['artist'], 'path' => $row['path']];
+        }
+
+        return $result;
+    }
+
     public function list(Station $station, string $search): array
     {
         $query = $this->em->createQueryBuilder()

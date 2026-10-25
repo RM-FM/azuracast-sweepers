@@ -1,4 +1,6 @@
 const itemId = "azuracast-sweepers-menu-item";
+const submenuId = "sidebar-submenu-sweepers";
+const views = [["settings", "Settings"], ["intros", "Intros"], ["history", "History"]];
 
 export function stationContext(pathname, basePath) {
     const prefix = `${basePath}/station/`;
@@ -6,11 +8,27 @@ export function stationContext(pathname, basePath) {
         return null;
     }
     const match = pathname.slice(prefix.length).match(/^([1-9]\d*)(?:\/|$)/);
-    return match ? {
-        stationPath: `${prefix}${match[1]}`,
-        href: `${prefix}${match[1]}?sweepers=1`,
+    if (!match) {
+        return null;
+    }
+    const stationPath = `${prefix}${match[1]}`;
+
+    return {
+        stationPath,
+        href: `${stationPath}?sweepers=settings`,
+        links: Object.fromEntries(views.map(([view]) => [view, `${stationPath}?sweepers=${view}`])),
         apiBase: `${basePath}/sweepers/${match[1]}`,
-    } : null;
+    };
+}
+
+// "1" is the former single-page link and opens the settings.
+export function currentView(search) {
+    const value = new URLSearchParams(search).get("sweepers");
+    if (value === "1") {
+        return "settings";
+    }
+
+    return views.some(([view]) => view === value) ? value : null;
 }
 
 export function mountNavigation(document, window, basePath = "") {
@@ -32,12 +50,13 @@ export function mountNavigation(document, window, basePath = "") {
         originalContent = null;
     }
 
-    function showPanel(context) {
+    function showPanel(context, view) {
         const content = document.getElementById("content");
         if (!content?.parentElement) {
             return;
         }
-        if (panel?.isConnected && originalContent === content && panel.dataset.apiBase === context.apiBase) {
+        if (panel?.isConnected && originalContent === content && panel.dataset.apiBase === context.apiBase
+            && panel.dataset.view === view) {
             return;
         }
         removePanel();
@@ -48,11 +67,13 @@ export function mountNavigation(document, window, basePath = "") {
         panel.id = "azuracast-sweepers-panel";
         panel.className = "container";
         panel.dataset.apiBase = context.apiBase;
+        panel.dataset.view = view;
         const root = document.createElement("div");
         root.id = "app";
         root.className = "sweepers-page embedded";
         root.dataset.base = context.apiBase;
         root.dataset.csrf = "";
+        root.dataset.view = view;
         root.textContent = "Loading Sweepers…";
         panel.append(root);
         content.after(panel);
@@ -76,7 +97,7 @@ export function mountNavigation(document, window, basePath = "") {
             return;
         }
         const context = stationContext(window.location.pathname, basePath);
-        const embedded = new URL(window.location.href).searchParams.get("sweepers") === "1";
+        const view = currentView(new URL(window.location.href).search);
         const menu = document.querySelector("#sidebar-submenu-media > .navdrawer-nav");
         const mediaItem = menu?.parentElement.closest("li.nav-item");
         const stationMenu = mediaItem?.parentElement;
@@ -90,22 +111,29 @@ export function mountNavigation(document, window, basePath = "") {
             removePanel();
             return;
         }
-        if (embedded) {
-            showPanel(context);
+        if (view) {
+            showPanel(context, view);
         } else {
             removePanel();
         }
+        // Rebuild only when station or page changes, so a user's own open/close of the group is kept.
+        const signature = `${context.stationPath}|${view ?? ""}`;
         if (existing?.parentElement === stationMenu && existing.previousElementSibling === mediaItem
-            && existing.querySelector("a").getAttribute("href") === context.href) {
+            && existing.dataset.signature === signature) {
             return;
         }
         existing?.remove();
         const item = document.createElement("li");
         item.id = itemId;
         item.className = "nav-item";
+        item.dataset.signature = signature;
         const link = document.createElement("a");
-        link.className = "nav-link";
-        link.setAttribute("href", context.href);
+        link.className = view ? "nav-link active" : "nav-link";
+        link.setAttribute("href", `#${submenuId}`);
+        link.setAttribute("data-bs-toggle", "collapse");
+        link.setAttribute("role", "button");
+        link.setAttribute("aria-controls", submenuId);
+        link.setAttribute("aria-expanded", view ? "true" : "false");
         const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         icon.setAttribute("class", "navdrawer-nav-icon");
         icon.setAttribute("viewBox", "0 0 24 24");
@@ -121,7 +149,29 @@ export function mountNavigation(document, window, basePath = "") {
         label.className = "might-overflow";
         label.textContent = "Sweepers";
         link.append(icon, label);
-        item.append(link);
+        const submenu = document.createElement("div");
+        submenu.id = submenuId;
+        submenu.className = view ? "collapse pb-2 show" : "collapse pb-2";
+        const list = document.createElement("ul");
+        list.className = "navdrawer-nav";
+        for (const [key, text] of views) {
+            const entry = document.createElement("li");
+            entry.className = "nav-item";
+            const anchor = document.createElement("a");
+            anchor.className = key === view ? "nav-link ps-4 py-2 active" : "nav-link ps-4 py-2";
+            anchor.setAttribute("href", context.links[key]);
+            if (key === view) {
+                anchor.setAttribute("aria-current", "page");
+            }
+            const caption = document.createElement("span");
+            caption.className = "might-overflow";
+            caption.textContent = text;
+            anchor.append(caption);
+            entry.append(anchor);
+            list.append(entry);
+        }
+        submenu.append(list);
+        item.append(link, submenu);
         mediaItem.after(item);
     }
 

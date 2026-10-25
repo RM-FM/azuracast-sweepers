@@ -51,6 +51,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
             $group->get('/assets/{name:app\\.(?:js|css)}', PanelController::class . ':assetAction');
             $group->get('/state', PanelController::class . ':stateAction');
             $group->get('/media', PanelController::class . ':mediaAction');
+            $group->get('/history', PanelController::class . ':historyAction');
             $group->post('/intro/{id:[0-9]+}', PanelController::class . ':introAction');
             $group->post('/settings', PanelController::class . ':settingsAction')
                 ->add(new Middleware\Permissions(StationPermissions::Broadcasting, true));

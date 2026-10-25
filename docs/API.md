@@ -32,6 +32,12 @@ The visual editor uses `POST /sweepers/{station_id}/intro/{media_id}` with the s
 single-field body. This route requires a signed-in session, station Media permission
 and the `sweepers` CSRF token in `X-CSRF-Token`. It calls the same save operation.
 
+The History page reads `GET /sweepers/{station_id}/history` (signed-in session,
+station Media permission). It returns `limit` (200) and `rows`, newest first, each
+with `at` (Unix time when the sweeper started), `song` and `sweeper` (`title`,
+`artist`, `path`, or `null` for a deleted file) and `offset` (seconds after the
+song's cue-in, or `null`). Only sweepers that actually started playing are recorded.
+
 ## Using the native media API
 
 AzuraCast also supports `GET` and `PUT /api/station/{station_id}/file/{media_id}`.

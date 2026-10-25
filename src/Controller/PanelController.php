@@ -9,6 +9,7 @@ use App\Http\ServerRequest;
 use InvalidArgumentException;
 use Plugin\AzuracastSweepers\Service\Media;
 use Plugin\AzuracastSweepers\Service\Module;
+use Plugin\AzuracastSweepers\Service\Planner;
 use Plugin\AzuracastSweepers\Service\Queue;
 use Plugin\AzuracastSweepers\Service\State;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
@@ -117,6 +118,25 @@ final readonly class PanelController
             'needs_restart' => $station->needs_restart,
             'module' => Module::status($data),
         ]);
+    }
+
+    public function historyAction(ServerRequest $request, Response $response, array $params): ResponseInterface
+    {
+        $station = $request->getStation();
+        $log = $this->state->read($station->getRadioConfigDir())['log'] ?? [];
+        $files = $this->media->describe(
+            $station,
+            [...array_column($log, 'song_id'), ...array_column($log, 'jingle_id')]
+        );
+        $rows = array_map(static fn(array $entry): array => [
+            'at' => (float)$entry['at'],
+            'song' => $files[(int)($entry['song_id'] ?? 0)] ?? null,
+            'sweeper' => $files[(int)($entry['jingle_id'] ?? 0)] ?? null,
+            'offset' => isset($entry['offset']) ? (float)$entry['offset'] : null,
+        ], $log);
+
+        return $response->withHeader('Cache-Control', 'no-store')
+            ->withJson(['rows' => $rows, 'limit' => Planner::LOG_LIMIT]);
     }
 
     public function mediaAction(ServerRequest $request, Response $response, array $params): ResponseInterface

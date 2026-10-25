@@ -67,10 +67,19 @@ docker compose up -d
 ```
 
 This may recreate the web container and briefly interrupt broadcasting.
-After reloading the dashboard, open **Sweepers** in the station sidebar. It opens inside the station dashboard while AzuraCast keeps its navigation and styling.
-The link appears directly below Media at the top level, even when Media is collapsed,
-for users with station Media permission.
-Direct standalone access at `/sweepers/1` (replace `1` with the station ID) remains available.
+After reloading the dashboard, open **Sweepers** in the station sidebar. It is a
+fold-out group directly below Media, like AzuraCast's own menu groups, with three
+pages that open inside the station dashboard:
+
+| Page | Contents |
+| --- | --- |
+| **Settings** | All sweeper settings, the module status and per-setting help |
+| **Intros** | Search songs and set their intro end on a waveform |
+| **History** | The last 200 songs that played with a sweeper: time, song, sweeper and start offset |
+
+The group appears for users with station Media permission, even when Media is collapsed.
+Direct standalone access at `/sweepers/1` (replace `1` with the station ID) remains
+available and offers the same three pages as tabs.
 The plugin creates or reuses `intro_end` on the first page visit or station
 configuration generation. It does not overwrite an existing field or change other custom fields.
 
@@ -87,15 +96,23 @@ Broadcasting permission. The page includes an audio waveform with a movable
 intro marker, a time input, and playback at the cue or three seconds earlier.
 The cue editor belongs to the plugin; it does not modify AzuraCast's native cue editor.
 
-The sidebar link uses a small plugin-owned script injected into successful HTML
+The sidebar group uses a small plugin-owned script injected into successful HTML
 responses from the authenticated dashboard. It follows station switches and Vue
-sidebar redraws without modifying core files or Vue internals. The menu link
-loads the native station route with `?sweepers=1`. The script adds the plugin
-panel beside AzuraCast's own content container and restores the original content
-when leaving the route. Plugin styles are scoped to that panel; the surrounding
-header, sidebar and theme remain AzuraCast's. If the expected Media menu is absent,
-the script leaves the sidebar unchanged. This DOM integration is not an official
-navigation hook; verify it after AzuraCast upgrades.
+sidebar redraws without modifying core files or Vue internals. It uses the same
+markup as AzuraCast's own groups, so AzuraCast's Bootstrap handles opening and
+closing it. The pages load the native station route with `?sweepers=settings`,
+`?sweepers=intros` or `?sweepers=history` (older `?sweepers=1` links open
+Settings). The script adds the plugin panel beside AzuraCast's own content
+container and restores the original content when leaving the route. Plugin styles
+are scoped to that panel; the surrounding header, sidebar and theme remain
+AzuraCast's. If the expected Media menu is absent, the script leaves the sidebar
+unchanged. This DOM integration is not an official navigation hook; verify it
+after AzuraCast upgrades.
+
+The History page records a sweeper only when it actually started playing, not
+when it was planned or cancelled. The newest 200 entries per station are kept in
+the plugin's station state file (`sweepers.json`); deleted files remain listed as
+"Deleted file".
 
 ## Updating from GitHub
 

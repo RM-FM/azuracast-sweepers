@@ -27,7 +27,7 @@ namespace {
     $queue = (new ReflectionClass(\Plugin\AzuracastSweepers\Service\Queue::class))->newInstanceWithoutConstructor();
     $planner = new \Plugin\AzuracastSweepers\Service\Planner($state, $media, $queue);
     $seed = static fn(int $expires): array => ['plans' => ['123' => [
-        'jingle_id' => 42, 'expires_at' => $expires, 'played' => false,
+        'song_id' => 7, 'jingle_id' => 42, 'expires_at' => $expires, 'played' => false, 'payload' => ['offset' => 3.5],
     ]]];
     try {
         $state->update($directory, static fn() => $seed(time() + 1));
@@ -36,8 +36,14 @@ namespace {
         check(empty($state->read($directory)['history']), 'Prefetch does not count as playback.');
         $planner->heartbeat($station, [], [['event' => 'played', 'token' => '123']]);
         $history = $state->read($directory)['history'];
+        $log = $state->read($directory)['log'];
+        check(
+            count($log) === 1 && $log[0]['song_id'] === 7 && $log[0]['jingle_id'] === 42 && $log[0]['offset'] === 3.5,
+            'An actually played sweeper is recorded with its song, sweeper and start offset.'
+        );
         $planner->heartbeat($station, [], [['event' => 'played', 'token' => '123']]);
         check($state->read($directory)['history'] === $history, 'Playback retries are idempotent.');
+        check(count($state->read($directory)['log']) === 1, 'A repeated playback event is recorded once.');
         $planner->heartbeat($station, [], [['event' => 'release', 'token' => '123']]);
         check($state->read($directory)['plans'] === [], 'Release frees a reserved sweeper.');
         $state->update($directory, static fn() => $seed(time() - 1));
@@ -46,6 +52,12 @@ namespace {
         $state->update($directory, static fn() => $seed(time() + 20));
         $planner->heartbeat($station, [], [['event' => 'release', 'token' => '123']]);
         check(empty($state->read($directory)['history']), 'A skipped sweeper does not advance rotation.');
+        check(!isset($state->read($directory)['log']), 'A released (never heard) sweeper is not recorded.');
+        $state->update($directory, static fn(array $data) => ['log' => array_fill(0, 200, ['at' => 1.0])] + $data);
+        $state->update($directory, static fn(array $data) => $seed(time() + 20) + $data);
+        $planner->heartbeat($station, [], [['event' => 'played', 'token' => '123']]);
+        $log = $state->read($directory)['log'];
+        check(count($log) === 200 && $log[0]['song_id'] === 7, 'History keeps the newest 200 entries.');
         $liveSettings = new \Plugin\AzuracastSweepers\ValueObject\Settings(
             enabled: true,
             playlistId: 7,

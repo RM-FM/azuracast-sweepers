@@ -48,6 +48,12 @@ globalThis.fetch = async (url, options) => {
             { id: 1, path: "First song", duration: 180, intro_end: 10, audio_url: "/first", waveform_url: "/wave/first" },
             { id: 2, path: "Second song", duration: 180, intro_end: 6, audio_url: "/second", waveform_url: "/wave/second" },
         ] };
+    } else if (url.endsWith("/history")) {
+        data = { limit: 200, rows: [
+            { at: 1792948000, offset: 9.66, song: { artist: "ABBA", title: "Voulez-Vous", path: "abba.mp3" },
+                sweeper: { artist: "RadioMonster.FM", title: "Dropin 03 (no ads)", path: "dropin-03.mp3" } },
+            { at: 1792947000, offset: 2, song: { artist: null, title: null, path: "untagged.mp3" }, sweeper: null },
+        ] };
     } else {
         writes.push({ url, options, body: JSON.parse(options.body) });
         if (releaseSave) await new Promise((resolve) => { releaseSave = resolve; });
@@ -78,14 +84,14 @@ const save = async () => {
 };
 
 test("intro editor saves one field from numeric, marker and playhead input", async () => {
-    const app = createApp(App, { base: "/sweepers/1", csrf: "" });
+    const app = createApp(App, { base: "/sweepers/1", csrf: "", view: "intros" });
     app.mount(document.querySelector("#app"));
     try {
         await settle();
-        assert.ok(document.querySelector("section.card .card-header.text-bg-primary"));
-        assert.ok(document.querySelector("section.card .form-select"));
+        assert.equal(document.querySelector("form.sweepers-settings"), null, "The Intros page shows no settings");
+        assert.ok(document.querySelector("aside.card .card-header.text-bg-primary"));
         assert.ok(document.querySelector(".media-list table.table-striped.table-hover"));
-        assert.ok(document.querySelector("section.card button.btn-primary"));
+        assert.ok(document.querySelector(".media-track button.btn-primary"));
         document.querySelector(".media-track button").click();
         await settle();
         assert.equal(document.querySelector("article").closest("tr").previousElementSibling, document.querySelector(".media-track"));
@@ -153,7 +159,7 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         await settle();
         assert.equal(field("Limit start delay").checked, false);
         assert.equal((await submit()).max_wait, null);
-        assert.match(document.querySelector('[role="status"]').textContent, /apply within about 5 seconds/);
+        assert.equal(document.querySelector('[role="status"]').textContent, "Settings saved.");
         assert.doesNotMatch(document.querySelector('[role="status"]').textContent, /restart/i);
         needsRestart = true;
         await submit();
@@ -209,9 +215,48 @@ test("module status tells when a one-time restart is still required", async () =
         assert.match(status.textContent, /Restart broadcasting once/);
         document.querySelector("section.card form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
         await settle();
-        assert.match(document.querySelector('p.alert-info[role="status"]').textContent, /apply as soon as the sweeper module runs/);
+        assert.match(document.querySelector('p.alert-info[role="status"]').textContent, /apply once the sweeper module runs/);
     } finally {
         app.unmount();
         moduleState = { state: "active", message: "The sweeper module is running on this station." };
+    }
+});
+
+test("history page lists played sweepers with song, sweeper and start time", async () => {
+    const app = createApp(App, { base: "/sweepers/1", csrf: "session-token", view: "history" });
+    app.mount(document.querySelector("#app"));
+    try {
+        await settle();
+        await settle();
+        assert.equal(document.querySelector("form.sweepers-settings"), null);
+        const cells = [...document.querySelectorAll("#app tbody tr")].map((row) => [...row.querySelectorAll("td")].map((cell) => cell.textContent.trim()));
+        assert.equal(cells.length, 2);
+        assert.deepEqual(cells[0].slice(1), ["ABBA – Voulez-Vous", "RadioMonster.FM – Dropin 03 (no ads)", "9.7 s"]);
+        assert.deepEqual(cells[1].slice(1), ["untagged.mp3", "Deleted file", "2.0 s"]);
+        assert.match(document.querySelector("#app").textContent, /last 200/);
+    } finally {
+        app.unmount();
+    }
+});
+
+test("standalone page switches between Settings, Intros and History with tabs", async () => {
+    const app = createApp(App, { base: "/sweepers/1", csrf: "session-token", standalone: true });
+    app.mount(document.querySelector("#app"));
+    const tab = (label) => [...document.querySelectorAll(".nav-tabs button")].find((node) => node.textContent === label);
+    try {
+        await settle();
+        assert.ok(document.querySelector("form.sweepers-settings"));
+        assert.equal(tab("Settings").getAttribute("aria-selected"), "true");
+        tab("History").dispatchEvent(new Event("click", { bubbles: true }));
+        await settle();
+        await settle();
+        assert.equal(document.querySelector("form.sweepers-settings"), null);
+        assert.match(document.querySelector("#app").textContent, /Voulez-Vous/);
+        tab("Intros").dispatchEvent(new Event("click", { bubbles: true }));
+        await settle();
+        await settle();
+        assert.ok(document.querySelector(".media-track"));
+    } finally {
+        app.unmount();
     }
 });
