@@ -177,12 +177,15 @@ final readonly class Planner
                     $now = microtime(true);
                     $data['history'][$plan['jingle_id']] = $now;
                     $data['plans'][$token]['played'] = true;
+                    $moved = $data['moved'][$token] ?? null;
+                    unset($data['moved'][$token]);
                     // Newest first; only sweepers that actually started playing.
                     $data['log'] = array_slice([[
                         'at' => $now,
                         'song_id' => $plan['song_id'] ?? null,
                         'jingle_id' => $plan['jingle_id'],
                         'offset' => $plan['payload']['offset'] ?? null,
+                        ...($moved === null ? [] : ['moved_before' => $moved['before'] ?? null]),
                     ], ...($data['log'] ?? [])], 0, self::LOG_LIMIT);
                 } elseif (($event['event'] ?? '') === 'release') {
                     unset($data['plans'][$token]);

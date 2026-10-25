@@ -124,15 +124,18 @@ final readonly class PanelController
     {
         $station = $request->getStation();
         $log = $this->state->read($station->getRadioConfigDir())['log'] ?? [];
-        $files = $this->media->describe(
-            $station,
-            [...array_column($log, 'song_id'), ...array_column($log, 'jingle_id')]
-        );
+        $files = $this->media->describe($station, [
+            ...array_column($log, 'song_id'),
+            ...array_column($log, 'jingle_id'),
+            ...array_column($log, 'moved_before'),
+        ]);
         $rows = array_map(static fn(array $entry): array => [
             'at' => (float)$entry['at'],
             'song' => $files[(int)($entry['song_id'] ?? 0)] ?? null,
             'sweeper' => $files[(int)($entry['jingle_id'] ?? 0)] ?? null,
             'offset' => isset($entry['offset']) ? (float)$entry['offset'] : null,
+            'moved' => array_key_exists('moved_before', $entry),
+            'moved_before' => $files[(int)($entry['moved_before'] ?? 0)] ?? null,
         ], $log);
 
         return $response->withHeader('Cache-Control', 'no-store')

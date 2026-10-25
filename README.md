@@ -75,7 +75,7 @@ pages that open inside the station dashboard:
 | --- | --- |
 | **Settings** | All sweeper settings, the module status and per-setting help |
 | **Intros** | Search songs and set their intro end on a waveform |
-| **History** | The last 200 songs that played with a sweeper: time, song, sweeper and start offset |
+| **Playback Timeline** | Songs that played with a sweeper: date/time, song, sweeper, start offset, and whether the song was moved forward |
 
 The group appears for users with station Media permission, even when Media is collapsed.
 Direct standalone access at `/sweepers/1` (replace `1` with the station ID) remains
@@ -109,8 +109,10 @@ AzuraCast's. If the expected Media menu is absent, the script leaves the sidebar
 unchanged. This DOM integration is not an official navigation hook; verify it
 after AzuraCast upgrades.
 
-The History page records a sweeper only when it actually started playing, not
-when it was planned or cancelled. The newest 200 entries per station are kept in
+The Playback Timeline records a sweeper only when it actually started playing, not
+when it was planned or cancelled. A song that **Move a song with an intro forward**
+brought ahead is marked "Moved forward", with the song it overtook. The newest
+200 entries per station are kept in
 the plugin's station state file (`sweepers.json`); deleted files remain listed as
 "Deleted file".
 
@@ -180,6 +182,7 @@ their values:
 | Songs without sweeper after a jingle / after a sweeper / before a jingle | 1 / 1 / 0 |
 | Count Jingle Mode playlists | On |
 | Prefer the longest fitting sweepers | Off (tolerance 20%) |
+| Move a song with an intro forward | Off |
 | Handover margin | 0.5 s |
 | Limit start delay | Off (maximum start delay 10 s, early start 2 s) |
 | Maximum ducking | −7 dB |
@@ -226,6 +229,20 @@ their values:
   in range, choose the longest body that still fits (oldest-played for ties).
   `0%` prefers an exact fit or the longest fitting body; `100%` restores the full
   fitting pool. Small pools can repeat often.
+- **Move a song with an intro forward** is off by default. When the spacing rules
+  allow a sweeper but the next queued song has no intro that fits one, that song
+  changes places with the first later queued song that has a fitting intro. The
+  check runs right before Liquidsoap fetches the next song, so a song that was
+  already sent to Liquidsoap never moves. Only ordinary songs from standard
+  playlists with random or shuffled order move; listener requests, jingles and
+  songs from sequential, "once per x" and other timed playlists keep their place.
+  The exchanged song must still respect **Songs without sweeper before a jingle**.
+  If nothing fits, the order stays unchanged. Intro fit uses AzuraCast's cue
+  values for the file (the file start when AutoCue is off) and the same sweeper
+  measurements as planning. AzuraCast's upcoming-songs list and expected play
+  times follow the new order. Moved songs are logged by Liquidsoap
+  ("Song with intro moved forward"). The station needs the updated module once
+  (one broadcasting restart after updating the plugin).
 
 Available intro time subtracts song AutoCue cue-in and the configured handover
 margin. Sweeper length means AutoCue cue-in to handover; its reverb tail may

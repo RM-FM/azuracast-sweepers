@@ -32,11 +32,13 @@ The visual editor uses `POST /sweepers/{station_id}/intro/{media_id}` with the s
 single-field body. This route requires a signed-in session, station Media permission
 and the `sweepers` CSRF token in `X-CSRF-Token`. It calls the same save operation.
 
-The History page reads `GET /sweepers/{station_id}/history` (signed-in session,
+The Playback Timeline page reads `GET /sweepers/{station_id}/history` (signed-in session,
 station Media permission). It returns `limit` (200) and `rows`, newest first, each
 with `at` (Unix time when the sweeper started), `song` and `sweeper` (`title`,
-`artist`, `path`, or `null` for a deleted file) and `offset` (seconds after the
-song's cue-in, or `null`). Only sweepers that actually started playing are recorded.
+`artist`, `path`, or `null` for a deleted file), `offset` (seconds after the
+song's cue-in, or `null`), `moved` (the song was moved forward for this sweeper)
+and `moved_before` (the overtaken song, or `null`). Only sweepers that actually
+started playing are recorded.
 
 ## Using the native media API
 
@@ -60,6 +62,13 @@ The Liquidsoap module uses `/api/internal/{station_id}/liquidsoap/sweepers/`:
 | `plan` | Select/reserve a fitting sweeper using resolved request metadata |
 | `played` | Legacy playback acknowledgment |
 | `heartbeat` | Renew reservations, acknowledge events and return current live settings |
+| `arrange` | Before each AutoDJ fetch: move a queued song with a fitting intro forward when enabled |
+
+The `arrange` request carries the module's spacing state (`counted` queue ID of the
+last counted track, `songs_since_jingle`, `songs_since_sweeper`, `previous_song`,
+`previous_clear`) and the sweeper measurements (`jingles`, as for `plan`). The
+response is `{"moved": "<queue id>", "before": "<queue id>"}`, both empty when the
+order is unchanged or `swap_for_intro` is off.
 
 These endpoints require AzuraCast's internal connection and the station's adapter
 API key. They are not public control endpoints.
@@ -98,6 +107,7 @@ Broadcasting permission. It accepts the existing settings plus:
 | `jingle_gain` | `1` | Sweeper volume factor, 0–2 (shown as 0–200% in the panel) |
 | `longest_fit` | `false` | Prefer bodies closest to the available intro length |
 | `length_tolerance` | `20` | Eligible range below the intro length, percent 0–100 |
+| `swap_for_intro` | `false` | Move a later queued song with a fitting intro forward when a sweeper is due |
 
 Saved settings from earlier versions remain valid: a `max_wait` of `null` reads as
 `limit_delay: false` with `max_wait: 10`, a numeric `max_wait` as `limit_delay: true`.

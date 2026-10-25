@@ -184,3 +184,19 @@
     background: #303540;
     border-color: #596273;
 }
+
+.sweepers-timeline .timeline-title {
+    font-weight: 600;
+}
+
+.sweepers-timeline .timeline-artist {
+    display: block;
+}
+
+.sweepers-timeline .timeline-moved {
+    margin-top: .25rem;
+}
+
+.sweepers-timeline .timeline-moved .badge {
+    margin-right: .25rem;
+}

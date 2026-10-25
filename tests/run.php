@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use Plugin\AzuracastSweepers\Service\Arranger;
 use Plugin\AzuracastSweepers\Service\Media;
 use Plugin\AzuracastSweepers\Service\Queue;
 use Plugin\AzuracastSweepers\Service\State;
+use Plugin\AzuracastSweepers\ValueObject\Arrangement;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
 use Plugin\AzuracastSweepers\ValueObject\Selection;
 use Plugin\AzuracastSweepers\ValueObject\Timing;
@@ -131,6 +133,7 @@ foreach ([
     'songs_before_jingle' => 1, 'count_jingle_mode' => false,
     'jingle_playlist_ids' => [4, 5], 'max_wait' => 0, 'limit_delay' => true, 'margin' => 1.2, 'duck_db' => -10,
     'jingle_gain' => 0.5, 'longest_fit' => true, 'length_tolerance' => 50, 'early_start' => 4,
+    'swap_for_intro' => true,
 ] as $key => $value) {
     check(
         Settings::fromArray([$key => $value] + $settings->toArray())->revision() !== $settings->revision(),
@@ -242,6 +245,81 @@ check(Media::parseIntro('11.5', 300) === 11.5, 'Decimal cue.');
 foreach ([-1, 301, NAN, 'vocals', true, '30s+'] as $invalid) {
     rejects(static fn() => Media::parseIntro($invalid, 300));
 }
+
+// Moving a song with an intro forward.
+$song = static fn(int $id, bool $sent = false, int $media = 0, array $extra = []): array => [
+    'id' => $id, 'sent' => $sent, 'media_id' => $media ?: $id, 'request_id' => null, 'playlist_id' => 1,
+    'is_jingle' => false, 'playlist_type' => 'default', 'playlist_order' => 'shuffle', 'planned' => false,
+    ...$extra,
+];
+$due = ['songs_since_jingle' => 5, 'songs_since_sweeper' => 5, 'previous_song' => true, 'previous_clear' => true];
+$gapSettings = new Settings(playlistId: 9, songsAfterJingle: 1, songsAfterSweeper: 1);
+$intros = static fn(int ...$ids): Closure => static fn(int $media): bool => in_array($media, $ids, true);
+check(
+    Arrangement::choose([$song(21), $song(22), $song(23)], $due, $gapSettings, 3, $intros(23)) === [21, 23],
+    'A due sweeper on a song without intro moves the first later song with one forward.'
+);
+check(
+    Arrangement::choose([$song(21), $song(22)], $due, $gapSettings, 3, $intros(21, 22)) === null,
+    'Nothing moves when the next song has a usable intro.'
+);
+check(
+    Arrangement::choose([$song(21), $song(22)], $due, $gapSettings, 3, $intros()) === null,
+    'Nothing moves when no queued song has an intro.'
+);
+$fresh = ['songs_since_jingle' => 0, 'songs_since_sweeper' => 5, 'previous_song' => false, 'previous_clear' => true];
+check(
+    Arrangement::choose([$song(21), $song(22)], $fresh, $gapSettings, 3, $intros(22)) === null,
+    'Nothing moves while the spacing rules do not allow a sweeper yet.'
+);
+check(
+    Arrangement::choose([$song(20, true, extra: ['planned' => true]), $song(21), $song(22)], $due, $gapSettings, 3, $intros(22))
+        === null,
+    'A sweeper planned on the song already sent resets the gap for the next song.'
+);
+check(
+    Arrangement::choose([$song(20, true), $song(21), $song(22)], $due, $gapSettings, 3, $intros(22)) === [21, 22],
+    'A sent song without sweeper keeps the sweeper due.'
+);
+check(
+    Arrangement::choose(
+        [$song(21), $song(22, extra: ['request_id' => 4]), $song(23, extra: ['playlist_order' => 'sequential']),
+            $song(24, extra: ['playlist_type' => 'once_per_x_songs']), $song(25, extra: ['is_jingle' => true]), $song(26)],
+        $due,
+        $gapSettings,
+        6,
+        $intros(22, 23, 24, 25, 26)
+    ) === [21, 26],
+    'Requests, sequential and interval playlists and jingles never move.'
+);
+check(
+    Arrangement::choose([$song(21, extra: ['request_id' => 3]), $song(22)], $due, $gapSettings, 3, $intros(22)) === null,
+    'A requested song keeps its place.'
+);
+check(
+    Arrangement::choose(
+        [$song(21), $song(22), $song(23, extra: ['is_jingle' => true]), $song(24)],
+        $due,
+        new Settings(playlistId: 9, songsAfterJingle: 1, songsAfterSweeper: 1, songsBeforeJingle: 2),
+        4,
+        $intros(22, 24)
+    ) === null,
+    'A moved song must still respect the songs-before-a-jingle rule.'
+);
+check(
+    Arrangement::choose([$song(21), $song(22)], $due, $gapSettings, 3, $intros(22)) === [21, 22]
+        && Arrangement::choose([$song(21, true), $song(22, true)], $due, $gapSettings, 3, $intros(22)) === null,
+    'Rows already sent to Liquidsoap never move.'
+);
+check(
+    Arranger::window('annotate:autocue_cue_in="1.5",autocue_cue_out="200",autocue_start_next="190":/m.mp3', 210)
+        === [1.5, 190.0],
+    'Planning window uses AzuraCast cue values like the module.'
+);
+check(Arranger::window('/media/song.mp3', 210) === [0.0, 210.0], 'Without cue values the whole file is used.');
+check(!Settings::fromArray([])->swapForIntro, 'Moving songs forward is off by default.');
+check(Settings::fromArray(['swap_for_intro' => true])->swapForIntro, 'Moving songs forward can be switched on.');
+rejects(static fn() => Settings::fromArray(['swap_for_intro' => 'yes']));
 
 $directory = sys_get_temp_dir() . '/sweepers-test-' . bin2hex(random_bytes(6));
 mkdir($directory);

@@ -58,6 +58,15 @@ namespace {
         $planner->heartbeat($station, [], [['event' => 'played', 'token' => '123']]);
         $log = $state->read($directory)['log'];
         check(count($log) === 200 && $log[0]['song_id'] === 7, 'History keeps the newest 200 entries.');
+        check(!array_key_exists('moved_before', $log[0]), 'A song in its planned order is not marked as moved.');
+        $state->update($directory, static fn(array $data) => ['moved' => ['123' => ['at' => time(), 'before' => 9]]]
+            + $seed(time() + 20) + $data);
+        $planner->heartbeat($station, [], [['event' => 'played', 'token' => '123']]);
+        $data = $state->read($directory);
+        check(
+            $data['log'][0]['moved_before'] === 9 && !isset($data['moved']['123']),
+            'A moved song that played with a sweeper records the song it moved ahead of.'
+        );
         $liveSettings = new \Plugin\AzuracastSweepers\ValueObject\Settings(
             enabled: true,
             playlistId: 7,

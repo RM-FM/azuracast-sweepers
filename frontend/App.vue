@@ -12,7 +12,7 @@
 
         <section v-if="!loading && current === 'settings'" class="card mb-3" role="region" aria-labelledby="sweepers-settings-heading">
             <div class="card-header text-bg-primary d-flex justify-content-between align-items-center">
-                <h2 id="sweepers-settings-heading" class="card-title mb-0">Sweeper settings</h2>
+                <h2 id="sweepers-settings-heading" class="card-title mb-0">Sweeper Settings</h2>
                 <a class="btn btn-sm btn-outline-light" :href="stationUrl">Station dashboard</a>
             </div>
             <div class="card-body">
@@ -102,6 +102,15 @@
                         </label>
                         <div class="form-text">How much shorter than the intro a sweeper may be, in percent of the intro. If none is long enough, the longest fitting sweeper plays. With few sweepers, the same one may repeat often.</div>
                     </template>
+                    <div class="form-check form-switch mt-3">
+                        <input id="sweepers-swap-for-intro" v-model="settings.swap_for_intro" class="form-check-input" type="checkbox" role="switch">
+                        <label class="form-check-label" for="sweepers-swap-for-intro">Move a song with an intro forward</label>
+                    </div>
+                    <div class="form-text">
+                        When a sweeper is due but the next song has no usable intro, it changes places with a later queued song that has one.
+                        Only ordinary songs move; requests, jingles and songs from sequential or timed playlists keep their place.
+                        This changes the order AzuraCast planned.
+                    </div>
                 </fieldset>
 
                 <fieldset>
@@ -171,7 +180,7 @@
             <div class="col-12">
             <aside class="card h-100" role="region" aria-labelledby="sweepers-cues-heading">
                 <div class="card-header text-bg-primary">
-                    <h2 id="sweepers-cues-heading" class="card-title mb-0">Intro cues</h2>
+                    <h2 id="sweepers-cues-heading" class="card-title mb-0">Intro Cues</h2>
                 </div>
                 <div class="card-body">
                     <p class="text-muted">The intro end is where the singing starts. <strong>0</strong> = no usable intro, empty = not known yet. Songs without an intro end get no sweeper.</p>
@@ -266,17 +275,17 @@
 
         <section v-if="!loading && current === 'history'" class="card mb-3" role="region" aria-labelledby="sweepers-history-heading">
             <div class="card-header text-bg-primary d-flex justify-content-between align-items-center">
-                <h2 id="sweepers-history-heading" class="card-title mb-0">Sweeper history</h2>
+                <h2 id="sweepers-history-heading" class="card-title mb-0">Sweeper Playback Timeline</h2>
                 <button class="btn btn-sm btn-outline-light" type="button" @click="loadHistory">Refresh</button>
             </div>
             <div class="card-body">
-                <p class="text-muted mb-0">Songs that played with a sweeper, newest first (last {{ historyLimit }}).</p>
+                <p class="text-muted mb-0">Songs that played with a sweeper.</p>
             </div>
             <div class="table-responsive">
-                <table class="table align-middle table-striped mb-0">
+                <table class="table align-middle table-striped table-hover mb-0 sweepers-timeline">
                     <thead>
                         <tr>
-                            <th scope="col">Time</th>
+                            <th scope="col">Date/Time</th>
                             <th scope="col">Song</th>
                             <th scope="col">Sweeper</th>
                             <th scope="col" class="text-end">Started after</th>
@@ -284,9 +293,22 @@
                     </thead>
                     <tbody>
                         <tr v-for="entry in history" :key="entry.at">
-                            <td class="text-nowrap">{{ formatTime(entry.at) }}</td>
-                            <td class="file-name">{{ describe(entry.song) }}</td>
-                            <td class="file-name">{{ describe(entry.sweeper) }}</td>
+                            <td class="text-nowrap">
+                                <div>{{ formatDate(entry.at) }}</div>
+                                <small class="text-muted">{{ formatClock(entry.at) }}</small>
+                            </td>
+                            <td class="file-name">
+                                <div class="timeline-title">{{ fileTitle(entry.song) }}</div>
+                                <small v-if="fileArtist(entry.song)" class="text-muted timeline-artist">{{ fileArtist(entry.song) }}</small>
+                                <div v-if="entry.moved" class="timeline-moved">
+                                    <span class="badge text-bg-info">Moved forward</span>
+                                    <small class="text-muted">{{ entry.moved_before ? 'ahead of ' + describe(entry.moved_before) : 'ahead of a song without intro' }}</small>
+                                </div>
+                            </td>
+                            <td class="file-name">
+                                <div class="timeline-title">{{ fileTitle(entry.sweeper) }}</div>
+                                <small v-if="fileArtist(entry.sweeper)" class="text-muted timeline-artist">{{ fileArtist(entry.sweeper) }}</small>
+                            </td>
                             <td class="text-nowrap text-end">{{ entry.offset === null ? '–' : entry.offset.toFixed(1) + ' s' }}</td>
                         </tr>
                     </tbody>
@@ -307,10 +329,9 @@ const props = defineProps({
     view: { type: String, default: "settings" },
     standalone: { type: Boolean, default: false },
 });
-const views = [["settings", "Settings"], ["intros", "Intros"], ["history", "History"]];
+const views = [["settings", "Settings"], ["intros", "Intros"], ["history", "Playback Timeline"]];
 const current = ref(views.some(([key]) => key === props.view) ? props.view : "settings");
 const history = ref([]);
-const historyLimit = ref(200);
 const mediaLoaded = ref(false);
 const csrf = ref(props.csrf);
 const station = ref({});
@@ -359,8 +380,12 @@ function formatIntro(value) {
     return `${value.toFixed(2)} s`;
 }
 
-function formatTime(seconds) {
-    return new Date(seconds * 1000).toLocaleString(undefined, { dateStyle: "short", timeStyle: "medium" });
+function formatDate(seconds) {
+    return new Date(seconds * 1000).toLocaleDateString(undefined, { dateStyle: "medium" });
+}
+
+function formatClock(seconds) {
+    return new Date(seconds * 1000).toLocaleTimeString(undefined, { timeStyle: "medium" });
 }
 
 function describe(file) {
@@ -369,11 +394,20 @@ function describe(file) {
     return name || file.path;
 }
 
+// Like AzuraCast's playback timeline: title first, artist below; untagged files show their path.
+function fileTitle(file) {
+    if (!file) return "Deleted file";
+    return file.title || file.path;
+}
+
+function fileArtist(file) {
+    return file?.title ? file.artist || "" : "";
+}
+
 async function loadHistory() {
     try {
         const result = await api("history");
         history.value = result.rows;
-        historyLimit.value = result.limit ?? historyLimit.value;
     } catch (exception) {
         error.value = exception.message;
     }

@@ -23,7 +23,8 @@ final readonly class Settings
         public int $songsAfterSweeper = 1,
         public int $songsBeforeJingle = 0,
         public float $earlyStart = 2.0,
-        public bool $limitDelay = false
+        public bool $limitDelay = false,
+        public bool $swapForIntro = false
     ) {
         foreach ([$maxWait, $margin, $duckDb, $jingleGain, $lengthTolerance, $earlyStart] as $value) {
             if (!is_finite($value)) {
@@ -52,7 +53,8 @@ final readonly class Settings
     public static function fromArray(array $data): self
     {
         $booleans = [];
-        foreach (['enabled' => true, 'count_jingle_mode' => true, 'longest_fit' => false] as $key => $default) {
+        $flags = ['enabled' => true, 'count_jingle_mode' => true, 'longest_fit' => false, 'swap_for_intro' => false];
+        foreach ($flags as $key => $default) {
             $value = $data[$key] ?? $default;
             if (!is_bool($value)) {
                 throw new InvalidArgumentException('Invalid boolean for ' . $key . '.');
@@ -116,7 +118,8 @@ final readonly class Settings
             songsAfterSweeper: $gaps['songs_after_sweeper'],
             songsBeforeJingle: $gaps['songs_before_jingle'],
             earlyStart: $values['early_start'],
-            limitDelay: $limitDelay
+            limitDelay: $limitDelay,
+            swapForIntro: $booleans['swap_for_intro']
         );
     }
 
@@ -158,6 +161,7 @@ final readonly class Settings
             'longest_fit' => $this->longestFit,
             'length_tolerance' => $this->lengthTolerance,
             'early_start' => $this->earlyStart,
+            'swap_for_intro' => $this->swapForIntro,
         ];
     }
 }

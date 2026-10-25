@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Plugin\AzuracastSweepers\Service;
 
 use App\Entity\Station;
+use App\Entity\StationPlaylist;
+use BackedEnum;
 use Doctrine\ORM\EntityManagerInterface;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
+use Throwable;
 
 final readonly class Queue
 {
@@ -98,5 +101,121 @@ final readonly class Queue
         }
 
         return $blocked;
+    }
+
+    /**
+     * Queue rows after the module's last counted track, in AzuraCast's play order.
+     *
+     * @return list<array<string, mixed>>|null Null when the counted track is unknown.
+     */
+    public function upcoming(Station $station, string $counted): ?array
+    {
+        if (!preg_match('/^\d{1,20}$/D', $counted)) {
+            return null;
+        }
+        $current = $this->em->createQuery(
+            <<<'DQL'
+                SELECT sq.timestamp_cued FROM App\Entity\StationQueue sq
+                WHERE sq.station = :station AND sq.id = :id
+            DQL
+        )->setParameter('station', $station)
+            ->setParameter('id', (int)$counted)
+            ->getArrayResult();
+        if ($current === []) {
+            return null;
+        }
+
+        $rows = $this->em->createQuery(
+            <<<'DQL'
+                SELECT sq.id, sq.sent_to_autodj, sq.timestamp_cued,
+                    IDENTITY(sq.playlist) AS playlist_id, IDENTITY(sq.media) AS media_id,
+                    IDENTITY(sq.request) AS request_id
+                FROM App\Entity\StationQueue sq
+                WHERE sq.station = :station AND sq.id != :id
+                AND (sq.is_played = 0 OR (sq.sent_to_autodj = 1 AND sq.timestamp_cued > :cued))
+                ORDER BY sq.sent_to_autodj DESC, sq.timestamp_cued ASC, sq.id ASC
+            DQL
+        )->setParameter('station', $station)
+            ->setParameter('id', (int)$counted)
+            ->setParameter('cued', $current[0]['timestamp_cued'])
+            ->getArrayResult();
+
+        $playlists = [];
+        $result = [];
+        foreach ($rows as $row) {
+            $playlistId = $row['playlist_id'] === null ? null : (int)$row['playlist_id'];
+            if ($playlistId !== null && !array_key_exists($playlistId, $playlists)) {
+                $playlists[$playlistId] = $this->em->find(StationPlaylist::class, $playlistId);
+            }
+            $playlist = $playlistId === null ? null : $playlists[$playlistId];
+            $result[] = [
+                'id' => (int)$row['id'],
+                'sent' => (bool)$row['sent_to_autodj'],
+                'media_id' => $row['media_id'] === null ? null : (int)$row['media_id'],
+                'request_id' => $row['request_id'] === null ? null : (int)$row['request_id'],
+                'playlist_id' => $playlistId,
+                'is_jingle' => (bool)($playlist?->is_jingle ?? false),
+                'playlist_type' => self::value($playlist?->type),
+                'playlist_order' => self::value($playlist?->order),
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Exchanges the play order of two rows not yet sent to Liquidsoap. AzuraCast orders by cue time
+     * and recalculates the following times on its next queue build.
+     */
+    public function exchange(Station $station, int $first, int $second): bool
+    {
+        // A plain connection transaction: a lost race must not close the shared entity manager.
+        $connection = $this->em->getConnection();
+        $connection->beginTransaction();
+        try {
+            $rows = $this->em->createQuery(
+                <<<'DQL'
+                    SELECT sq.id, sq.timestamp_cued, sq.timestamp_played FROM App\Entity\StationQueue sq
+                    WHERE sq.station = :station AND sq.id IN (:ids)
+                    AND sq.sent_to_autodj = 0 AND sq.is_played = 0
+                DQL
+            )->setParameter('station', $station)
+                ->setParameter('ids', [$first, $second])
+                ->getArrayResult();
+            $times = array_column($rows, null, 'id');
+            $updated = 0;
+            if (count($times) === 2) {
+                foreach ([[$first, $second], [$second, $first]] as [$id, $from]) {
+                    $updated += $this->em->createQuery(
+                        <<<'DQL'
+                            UPDATE App\Entity\StationQueue sq
+                            SET sq.timestamp_cued = :cued, sq.timestamp_played = :played
+                            WHERE sq.station = :station AND sq.id = :id
+                            AND sq.sent_to_autodj = 0 AND sq.is_played = 0
+                        DQL
+                    )->setParameter('cued', $times[$from]['timestamp_cued'])
+                        ->setParameter('played', $times[$from]['timestamp_played'])
+                        ->setParameter('station', $station)
+                        ->setParameter('id', $id)
+                        ->execute();
+                }
+            }
+            if ($updated !== 2) {
+                $connection->rollBack();
+
+                return false;
+            }
+            $connection->commit();
+
+            return true;
+        } catch (Throwable $error) {
+            $connection->rollBack();
+            throw $error;
+        }
+    }
+
+    private static function value(mixed $value): ?string
+    {
+        return $value instanceof BackedEnum ? (string)$value->value : ($value === null ? null : (string)$value);
     }
 }

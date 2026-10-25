@@ -1,6 +1,6 @@
 const itemId = "azuracast-sweepers-menu-item";
 const submenuId = "sidebar-submenu-sweepers";
-const views = [["settings", "Settings"], ["intros", "Intros"], ["history", "History"]];
+const views = [["settings", "Settings"], ["intros", "Intros"], ["history", "Playback Timeline"]];
 
 export function stationContext(pathname, basePath) {
     const prefix = `${basePath}/station/`;

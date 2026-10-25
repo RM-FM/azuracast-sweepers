@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Plugin\AzuracastSweepers\Controller;
 
+use App\Entity\Station;
 use App\Http\Response;
 use App\Http\ServerRequest;
 use InvalidArgumentException;
+use Plugin\AzuracastSweepers\Service\Arranger;
 use Plugin\AzuracastSweepers\Service\Media;
 use Plugin\AzuracastSweepers\Service\Planner;
 use Plugin\AzuracastSweepers\Service\State;
@@ -19,7 +21,8 @@ final readonly class InternalController
     public function __construct(
         private Media $media,
         private Planner $planner,
-        private State $state
+        private State $state,
+        private Arranger $arranger
     ) {
     }
 
@@ -70,12 +73,58 @@ final readonly class InternalController
         $station = $request->getStation();
         $data = $this->state->read($station->getRadioConfigDir());
         $settings = Settings::fromArray($data['settings'] ?? []);
+
+        return $response->withJson($this->planner->plan(
+            $request->getStation(),
+            (int)$body['media_id'],
+            (string)($body['token'] ?? ''),
+            (float)$body['cue_in'],
+            (float)$body['cue_out'],
+            $this->measurements($station, $settings, $body['jingles'] ?? [])
+        ));
+    }
+
+    public function arrangeAction(ServerRequest $request, Response $response, array $params): ResponseInterface
+    {
+        $body = $this->payload($request);
+        $gap = [];
+        foreach (['songs_since_jingle', 'songs_since_sweeper'] as $key) {
+            if (!is_int($body[$key] ?? null) || $body[$key] < 0) {
+                throw new InvalidArgumentException('Invalid ' . $key . '.');
+            }
+            $gap[$key] = $body[$key];
+        }
+        foreach (['previous_song', 'previous_clear'] as $key) {
+            if (!is_bool($body[$key] ?? null)) {
+                throw new InvalidArgumentException('Invalid ' . $key . '.');
+            }
+            $gap[$key] = $body[$key];
+        }
+        $station = $request->getStation();
+        $settings = Settings::fromArray($this->state->read($station->getRadioConfigDir())['settings'] ?? []);
+        if (!$settings->enabled || !$settings->swapForIntro) {
+            return $response->withJson(['moved' => '', 'before' => '']);
+        }
+
+        return $response->withJson($this->arranger->arrange(
+            $station,
+            $gap,
+            (string)($body['counted'] ?? ''),
+            $this->measurements($station, $settings, $body['jingles'] ?? [])
+        ));
+    }
+
+    /**
+     * @return array<int, Timing> Sweeper timings measured by the module, by media ID.
+     */
+    private function measurements(Station $station, Settings $settings, mixed $rows): array
+    {
         $allowed = [];
         foreach ($this->media->jingles($station, $settings->playlistId) as $jingle) {
             $allowed[$jingle->id] = $jingle;
         }
         $measurements = [];
-        foreach ($body['jingles'] ?? [] as $row) {
+        foreach (is_array($rows) ? $rows : [] as $row) {
             $jingle = $allowed[$row['media_id'] ?? 0] ?? null;
             if ($jingle !== null && ($row['identity'] ?? '') === $this->media->timingIdentity($station, $jingle)) {
                 $timing = Timing::fromMetadata((array)($row['metadata'] ?? []), $jingle->length);
@@ -85,14 +134,7 @@ final readonly class InternalController
             }
         }
 
-        return $response->withJson($this->planner->plan(
-            $request->getStation(),
-            (int)$body['media_id'],
-            (string)($body['token'] ?? ''),
-            (float)$body['cue_in'],
-            (float)$body['cue_out'],
-            $measurements
-        ));
+        return $measurements;
     }
 
     public function heartbeatAction(ServerRequest $request, Response $response, array $params): ResponseInterface

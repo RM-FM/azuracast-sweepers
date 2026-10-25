@@ -70,6 +70,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
                 $group->post('/plan', InternalController::class . ':planAction');
                 $group->post('/heartbeat', InternalController::class . ':heartbeatAction');
                 $group->post('/played', InternalController::class . ':playedAction');
+                $group->post('/arrange', InternalController::class . ':arrangeAction');
             }
         )
             ->add(Middleware\RequireInternalConnection::class)

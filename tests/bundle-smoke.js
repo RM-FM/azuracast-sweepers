@@ -22,7 +22,7 @@ vm.runInNewContext(executable, {
     Node: window.Node, fetch, setTimeout, clearTimeout,
 });
 await new Promise((resolve) => setTimeout(resolve, 30));
-assert.match(document.body.textContent, /Sweeper settings/);
+assert.match(document.body.textContent, /Sweeper Settings/);
 assert.match(document.body.textContent, /Test/);
 assert.equal(document.documentElement.getAttribute("data-bs-theme"), "dark");
 
@@ -38,6 +38,6 @@ assert.equal(embedded.document.body.textContent, "");
 assert.equal(embedded.document.documentElement.getAttribute("data-bs-theme"), null);
 const unmount = sandbox.mountSweepers(embedded.document.getElementById("app"));
 await new Promise((resolve) => setTimeout(resolve, 30));
-assert.match(embedded.document.body.textContent, /Sweeper settings/);
+assert.match(embedded.document.body.textContent, /Sweeper Settings/);
 unmount();
 console.log("Standalone and station panel bundles mounted without Node globals.");

@@ -39,7 +39,7 @@ globalThis.fetch = async (url, options) => {
         data = { csrf: "session-token", station: { id: 1, name: "Test" }, queue_length: 3, module: moduleState, settings: {
             enabled: true, playlist_id: null, limit_delay: false, max_wait: 10, margin: .5, duck_db: -7, jingle_gain: 1,
             songs_after_jingle: 1, songs_after_sweeper: 1, songs_before_jingle: 0, early_start: 2,
-            count_jingle_mode: true, jingle_playlist_ids: [], longest_fit: false, length_tolerance: 20,
+            count_jingle_mode: true, jingle_playlist_ids: [], longest_fit: false, length_tolerance: 20, swap_for_intro: false,
         }, playlists: [{ id: 10, name: "Sweepers" }], jingle_playlists: [
             { id: 20, name: "Station IDs", is_jingle: true }, { id: 21, name: "Promos", is_jingle: false },
         ] };
@@ -51,8 +51,10 @@ globalThis.fetch = async (url, options) => {
     } else if (url.endsWith("/history")) {
         data = { limit: 200, rows: [
             { at: 1792948000, offset: 9.66, song: { artist: "ABBA", title: "Voulez-Vous", path: "abba.mp3" },
-                sweeper: { artist: "RadioMonster.FM", title: "Dropin 03 (no ads)", path: "dropin-03.mp3" } },
-            { at: 1792947000, offset: 2, song: { artist: null, title: null, path: "untagged.mp3" }, sweeper: null },
+                sweeper: { artist: "RadioMonster.FM", title: "Dropin 03 (no ads)", path: "dropin-03.mp3" },
+                moved: true, moved_before: { artist: "Queen", title: "Bohemian Rhapsody", path: "queen.mp3" } },
+            { at: 1792947000, offset: 2, song: { artist: null, title: null, path: "untagged.mp3" }, sweeper: null,
+                moved: false, moved_before: null },
         ] };
     } else {
         writes.push({ url, options, body: JSON.parse(options.body) });
@@ -164,6 +166,8 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(first.limit_delay, false);
         assert.equal(first.max_wait, 10, "The maximum start delay keeps its value while the limit is off");
         assert.equal(first.jingle_gain, 1);
+        assert.equal(field("Move a song with an intro forward").checked, false, "Moving songs forward is off by default");
+        assert.equal(first.swap_for_intro, false);
         assert.equal(document.querySelector('[role="status"]').textContent, "Settings saved.");
         assert.doesNotMatch(document.querySelector('[role="status"]').textContent, /restart/i);
         needsRestart = true;
@@ -189,7 +193,9 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(field("Early start").value, "2", "Early start shows its 2-second default");
         await change("Early start", "3.5");
         await change("Jingle gain", "70");
+        await change("Move a song with an intro forward", true, true);
         const settings = await submit();
+        assert.equal(settings.swap_for_intro, true);
         assert.equal(settings.limit_delay, true);
         assert.equal(settings.max_wait, 10);
         assert.equal(settings.jingle_gain, 0.7, "70% is stored as the factor 0.7");
@@ -233,32 +239,43 @@ test("module status tells when a one-time restart is still required", async () =
     }
 });
 
-test("history page lists played sweepers with song, sweeper and start time", async () => {
+test("playback timeline lists played sweepers with song, sweeper, start time and moved songs", async () => {
     const app = createApp(App, { base: "/sweepers/1", csrf: "session-token", view: "history" });
     app.mount(document.querySelector("#app"));
     try {
         await settle();
         await settle();
         assert.equal(document.querySelector("form.sweepers-settings"), null);
-        const cells = [...document.querySelectorAll("#app tbody tr")].map((row) => [...row.querySelectorAll("td")].map((cell) => cell.textContent.trim()));
-        assert.equal(cells.length, 2);
-        assert.deepEqual(cells[0].slice(1), ["ABBA – Voulez-Vous", "RadioMonster.FM – Dropin 03 (no ads)", "9.7 s"]);
-        assert.deepEqual(cells[1].slice(1), ["untagged.mp3", "Deleted file", "2.0 s"]);
-        assert.match(document.querySelector("#app").textContent, /last 200/);
+        assert.equal(document.querySelector("#sweepers-history-heading").textContent, "Sweeper Playback Timeline");
+        const rows = [...document.querySelectorAll("#app tbody tr")];
+        const parts = (row, column) => [...row.querySelectorAll("td")[column].querySelectorAll(".timeline-title, .timeline-artist, .badge, .timeline-moved small")]
+            .map((node) => node.textContent.trim());
+        assert.equal(rows.length, 2);
+        assert.deepEqual(parts(rows[0], 1), ["Voulez-Vous", "ABBA", "Moved forward", "ahead of Queen – Bohemian Rhapsody"]);
+        assert.deepEqual(parts(rows[0], 2), ["Dropin 03 (no ads)", "RadioMonster.FM"]);
+        assert.equal(rows[0].querySelectorAll("td")[3].textContent.trim(), "9.7 s");
+        assert.deepEqual(parts(rows[1], 1), ["untagged.mp3"]);
+        assert.deepEqual(parts(rows[1], 2), ["Deleted file"]);
+        assert.equal(rows[1].querySelectorAll("td")[3].textContent.trim(), "2.0 s");
+        assert.equal(rows[1].querySelector(".timeline-moved"), null, "Songs in their planned order are not marked");
+        const text = document.querySelector("#app").textContent;
+        assert.match(text, /Songs that played with a sweeper\./);
+        assert.doesNotMatch(text, /newest first|last 200/);
     } finally {
         app.unmount();
     }
 });
 
-test("standalone page switches between Settings, Intros and History with tabs", async () => {
+test("standalone page switches between Settings, Intros and Playback Timeline with tabs", async () => {
     const app = createApp(App, { base: "/sweepers/1", csrf: "session-token", standalone: true });
     app.mount(document.querySelector("#app"));
     const tab = (label) => [...document.querySelectorAll(".nav-tabs button")].find((node) => node.textContent === label);
     try {
         await settle();
         assert.ok(document.querySelector("form.sweepers-settings"));
+        assert.equal(document.querySelector("#sweepers-settings-heading").textContent, "Sweeper Settings");
         assert.equal(tab("Settings").getAttribute("aria-selected"), "true");
-        tab("History").dispatchEvent(new Event("click", { bubbles: true }));
+        tab("Playback Timeline").dispatchEvent(new Event("click", { bubbles: true }));
         await settle();
         await settle();
         assert.equal(document.querySelector("form.sweepers-settings"), null);

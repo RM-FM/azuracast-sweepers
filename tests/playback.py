@@ -18,14 +18,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--liquidsoap', default='liquidsoap')
 parser.add_argument('--scenario', choices=['normal', 'skip', 'live', 'unavailable', 'spacing', 'playlist-spacing',
                                           'hot-enable', 'hot-disable', 'hot-pending', 'hot-change', 'hot-error',
-                                          'before-jingle', 'computed-autocue', 'provided-autocue'], default='normal')
+                                          'before-jingle', 'computed-autocue', 'provided-autocue', 'arrange'], default='normal')
 parser.add_argument('--runtime', type=Path, required=True)
 args = parser.parse_args()
 plugin = Path(__file__).resolve().parents[1]
 rate = 44100
 spacing = args.scenario in ('spacing', 'playlist-spacing')
 autocue = args.scenario in ('computed-autocue', 'provided-autocue')
-short_tracks = spacing or autocue or args.scenario == 'hot-enable'
+short_tracks = spacing or autocue or args.scenario in ('hot-enable', 'arrange')
 
 
 def tone(path, hz, duration, silence_before=0., silence_after=0.):
@@ -85,6 +85,9 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
                              uri=f'annotate:liq_cue_in="0",liq_cue_out="{0.5 if short_tracks else 2}":{root}/sweeper.wav' if short_tracks or json.loads(body)['token'] == '123' else '',
                              offset=.1 if short_tracks else (3. if args.scenario in ('skip', 'hot-pending', 'hot-change', 'before-jingle') else 1.),
                              duck_duration=.3 if short_tracks else 1., gain=1., duck_gain=.4467)
+            elif self.path == '/sweepers/arrange':
+                moved = args.scenario == 'arrange' and not any(path == '/sweepers/arrange' for path, _, _ in calls[:-1])
+                value = {'moved': '130', 'before': '125'} if moved else {'moved': '', 'before': ''}
             elif self.path == '/sweepers/heartbeat':
                 heartbeat_requests += 1
                 if heartbeat_requests >= 2 and args.scenario in ('hot-enable', 'hot-disable', 'hot-pending', 'hot-change'):
@@ -156,6 +159,7 @@ thread.run(delay=7., {{shutdown()}})
               for event in body.get('events', [])]
     assert all(body.get('version') == 'test' for path, body, _ in calls if path == '/sweepers/heartbeat'), \
         'Heartbeats must report the loaded module version'
+    assert 'Queue arrangement skipped' not in result.stdout, ('Arrangement call failed', result.stdout[-2000:])
     if spacing:
         played = {e['token'] for e in events if e['event'] == 'played'}
         assert '124' not in played and '125' not in played, ('Jingle or immediately following song overlaid', played)
@@ -195,6 +199,22 @@ thread.run(delay=7., {{shutdown()}})
             assert jingle['source'] == 'azuracast', jingle
             assert (timing['autocue_cue_in'], timing['autocue_cue_out'], timing['liq_amplify']) == ('0.25', '2.75', '-3.00 dB'), timing
             assert 'AutoCue computed' not in result.stdout, 'AzuraCast values must not be recomputed'
+    elif args.scenario == 'arrange':
+        fetches = [(path, body) for path, body, _ in calls if path in ('/sweepers/arrange', '/nextsong')]
+        arranged = [body for path, body in fetches if path == '/sweepers/arrange']
+        assert arranged, ('The module never asked to arrange the queue', result.stdout[-2000:])
+        for index, (path, _) in enumerate(fetches):
+            if path == '/sweepers/arrange':
+                assert index + 1 < len(fetches) and fetches[index + 1][0] == '/nextsong', \
+                    'Arrangement must run right before AzuraCast sends the next song'
+        for body in arranged:
+            assert int(body['counted']) in metadata, ('Counted token was never played', body)
+            assert all(isinstance(body[key], int) and not isinstance(body[key], bool)
+                       for key in ('songs_since_jingle', 'songs_since_sweeper')), body
+            assert all(isinstance(body[key], bool) for key in ('previous_song', 'previous_clear')), body
+            assert isinstance(body['jingles'], list), body
+        assert 'Song with intro moved forward: queue 130 now plays before 125' in result.stdout, \
+            'Reordering was not logged'
     else:
         ducked = amplitude(samples, 440, onset + 1.4)
         assert .40 < ducked / normal < .65, (normal, ducked)

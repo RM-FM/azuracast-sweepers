@@ -24,6 +24,7 @@ let sweepers.songs_since_jingle = ref(0)
 let sweepers.songs_since_sweeper = ref(0)
 let sweepers.previous_song = ref(false)
 let sweepers.previous_clear = ref(false)
+let sweepers.counted = ref("")
 
 def sweepers.configure(s) =
     if s.revision == "" or s.songs_after_jingle < 0 or s.songs_after_jingle > 1000 or
@@ -72,6 +73,7 @@ end
 
 def sweepers.track_allowed(m) =
     token = m["sq_id"]
+    sweepers.counted := token
     is_jingle = sweepers.is_jingle(m)
     is_song = token != "" and m["media_id"] != "" and not is_jingle
     if is_jingle then
@@ -256,7 +258,35 @@ end
 
 let sweepers.original_next_song = azuracast.autodj_next_song
 
+# Runs right before AzuraCast sends its next queued song, so no other sender can race the reordering.
+# The plugin decides from the saved settings whether a song with an intro moves forward.
+def sweepers.arrange() =
+    if sweepers.settings().enabled and sweepers.counted() != "" and not azuracast.live_enabled() then
+        try
+            response = azuracast.api_call(timeout=1., "sweepers/arrange", json.stringify({
+                counted=sweepers.counted(),
+                songs_since_jingle=sweepers.songs_since_jingle(),
+                songs_since_sweeper=sweepers.songs_since_sweeper(),
+                previous_song=sweepers.previous_song(),
+                previous_clear=sweepers.previous_clear(),
+                jingles=sweepers.measurements()
+            }))
+            if null.defined(response) then
+                let json.parse (r : {moved?: string, before?: string}) = null.get(response)
+                moved = null.get(default="", r?.moved)
+                before = null.get(default="", r?.before)
+                if moved != "" then
+                    log(label="sweepers", "Song with intro moved forward: queue #{moved} now plays before #{before}")
+                end
+            end
+        catch err do
+            log(label="sweepers", "Queue arrangement skipped: #{error.message(err)}")
+        end
+    end
+end
+
 def sweepers.next_song() =
+    sweepers.arrange()
     next = sweepers.original_next_song()
     if null.defined(next) then
         r = null.get(next)
