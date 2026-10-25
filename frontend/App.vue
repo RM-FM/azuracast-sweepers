@@ -108,7 +108,7 @@
                     </div>
                     <div class="form-text">
                         When a sweeper is due but the next song has no usable intro, it changes places with a later queued song that has one.
-                        Only ordinary songs move; requests, jingles and songs from sequential or timed playlists keep their place.
+                        Listener requests and songs from random or shuffled playlists can move; jingles and songs from sequential or timed playlists keep their place.
                         This changes the order AzuraCast planned.
                     </div>
                 </fieldset>

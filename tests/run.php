@@ -283,18 +283,25 @@ check(
 );
 check(
     Arrangement::choose(
-        [$song(21), $song(22, extra: ['request_id' => 4]), $song(23, extra: ['playlist_order' => 'sequential']),
-            $song(24, extra: ['playlist_type' => 'once_per_x_songs']), $song(25, extra: ['is_jingle' => true]), $song(26)],
+        [$song(21), $song(23, extra: ['playlist_order' => 'sequential']),
+            $song(24, extra: ['playlist_type' => 'once_per_x_songs']), $song(25, extra: ['is_jingle' => true]),
+            $song(22, extra: ['request_id' => 4, 'playlist_id' => null, 'playlist_type' => null])],
         $due,
         $gapSettings,
         6,
-        $intros(22, 23, 24, 25, 26)
-    ) === [21, 26],
-    'Requests, sequential and interval playlists and jingles never move.'
+        $intros(22, 23, 24, 25)
+    ) === [21, 22],
+    'Sequential and interval playlists and jingles never move; a listener request with an intro may.'
 );
 check(
-    Arrangement::choose([$song(21, extra: ['request_id' => 3]), $song(22)], $due, $gapSettings, 3, $intros(22)) === null,
-    'A requested song keeps its place.'
+    Arrangement::choose(
+        [$song(21, extra: ['request_id' => 3, 'playlist_id' => null, 'playlist_type' => null]), $song(22)],
+        $due,
+        $gapSettings,
+        3,
+        $intros(22)
+    ) === [21, 22],
+    'A requested song without intro may change places with a later song.'
 );
 check(
     Arrangement::choose(

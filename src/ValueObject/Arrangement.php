@@ -93,11 +93,19 @@ final class Arrangement
     }
 
     /**
-     * Only ordinary rotation songs move: no requests, jingles, sequential or interval playlists.
+     * Listener requests and songs from standard random/shuffle playlists move; jingles, sequential
+     * and interval playlists keep their place.
      */
     private static function movable(array $row, bool $song): bool
     {
-        return $song && $row['request_id'] === null && $row['playlist_id'] !== null
+        if (!$song) {
+            return false;
+        }
+        if ($row['request_id'] !== null) {
+            return true;
+        }
+
+        return $row['playlist_id'] !== null
             && $row['playlist_type'] === 'default' && $row['playlist_order'] !== 'sequential';
     }
 }

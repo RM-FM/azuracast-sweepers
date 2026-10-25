@@ -233,9 +233,10 @@ their values:
   allow a sweeper but the next queued song has no intro that fits one, that song
   changes places with the first later queued song that has a fitting intro. The
   check runs right before Liquidsoap fetches the next song, so a song that was
-  already sent to Liquidsoap never moves. Only ordinary songs from standard
-  playlists with random or shuffled order move; listener requests, jingles and
-  songs from sequential, "once per x" and other timed playlists keep their place.
+  already sent to Liquidsoap never moves. Listener requests and songs from standard
+  playlists with random or shuffled order can move; jingles and songs from
+  sequential, "once per x" and other timed playlists keep their place. A moved
+  request plays one position later or earlier than AzuraCast planned.
   The exchanged song must still respect **Songs without sweeper before a jingle**.
   If nothing fits, the order stays unchanged. Intro fit uses AzuraCast's cue
   values for the file (the file start when AutoCue is off) and the same sweeper
