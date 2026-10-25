@@ -8,6 +8,7 @@ use App\Http\Response;
 use App\Http\ServerRequest;
 use InvalidArgumentException;
 use Plugin\AzuracastSweepers\Service\Media;
+use Plugin\AzuracastSweepers\Service\Module;
 use Plugin\AzuracastSweepers\Service\Queue;
 use Plugin\AzuracastSweepers\Service\State;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
@@ -72,6 +73,7 @@ final readonly class PanelController
             'csrf' => $request->getCsrf()->generate('sweepers'),
             'station' => ['id' => $station->id, 'name' => $station->name, 'needs_restart' => $station->needs_restart],
             'queue_length' => Queue::length($station),
+            'module' => Module::status($data),
             'settings' => Settings::fromArray($data['settings'] ?? [])->toArray(),
             'playlists' => array_map(static fn($playlist): array => [
                 'id' => $playlist->id,
@@ -103,12 +105,18 @@ final readonly class PanelController
         }
 
         $this->media->validateJinglePlaylists($station, $settings->jinglePlaylistIds);
-        $this->state->update($station->getRadioConfigDir(), static function (array $data) use ($settings): array {
+        $directory = $station->getRadioConfigDir();
+        $data = $this->state->update($directory, static function (array $data) use ($settings): array {
             $data['settings'] = $settings->toArray();
 
             return $data;
         });
-        return $response->withJson(['success' => true, 'needs_restart' => $station->needs_restart]);
+
+        return $response->withJson([
+            'success' => true,
+            'needs_restart' => $station->needs_restart,
+            'module' => Module::status($data),
+        ]);
     }
 
     public function mediaAction(ServerRequest $request, Response $response, array $params): ResponseInterface

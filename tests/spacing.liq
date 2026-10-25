@@ -15,6 +15,16 @@ def test_configure(~enabled=true, ~minimum_songs=1, ~after_jingle=-1, ~after_swe
     })
 end
 
+def expect(value, message) =
+    if not value then error.raise(error.failure, message) end
+end
+
+# Invalid initial settings from a generated configuration must never stop the station.
+sweepers.load(version="v1", {enabled=true, revision="", songs_after_jingle=-1, songs_after_sweeper=0,
+    count_jingle_mode=true, jingle_playlists=[7]})
+expect(not sweepers.settings().enabled, "Invalid initial settings keep sweepers disabled")
+expect(sweepers.version() == "v1", "The module version is reported even with invalid settings")
+
 test_configure()
 
 def test_track(~playlist_id=1, ~jingle=false, queue_id) =
@@ -22,10 +32,6 @@ def test_track(~playlist_id=1, ~jingle=false, queue_id) =
         ("sq_id", "#{queue_id}"), ("media_id", "1"),
         ("playlist_id", "#{playlist_id}"), ("jingle_mode", if jingle then "true" else "false" end)
     ])
-end
-
-def expect(value, message) =
-    if not value then error.raise(error.failure, message) end
 end
 
 expect(not test_track(1, jingle=true), "Jingle Mode track must reset spacing")

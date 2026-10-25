@@ -32,10 +32,11 @@ const { default: App } = await import(`data:text/javascript;base64,${Buffer.from
 const writes = [];
 let releaseSave;
 let needsRestart = false;
+let moduleState = { state: "active", message: "The sweeper module is running on this station." };
 globalThis.fetch = async (url, options) => {
     let data;
     if (url.endsWith("/state")) {
-        data = { csrf: "session-token", station: { id: 1, name: "Test" }, queue_length: 3, settings: {
+        data = { csrf: "session-token", station: { id: 1, name: "Test" }, queue_length: 3, module: moduleState, settings: {
             enabled: false, playlist_id: null, max_wait: null, margin: .8, duck_db: -7, jingle_gain: 1,
             songs_after_jingle: 0, songs_after_sweeper: 0, songs_before_jingle: 0,
             count_jingle_mode: true, jingle_playlist_ids: [], longest_fit: false, length_tolerance: 20,
@@ -190,5 +191,24 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(writes.at(-1).url, "/sweepers/1/settings");
     } finally {
         app.unmount();
+    }
+});
+
+test("module status tells when a one-time restart is still required", async () => {
+    moduleState = { state: "restart", message: "The sweeper module is not running. Restart broadcasting once after installing or updating the plugin." };
+    const app = createApp(App, { base: "/sweepers/1", csrf: "session-token" });
+    app.mount(document.querySelector("#app"));
+    try {
+        await settle();
+        const status = document.querySelector('[data-module-status="restart"]');
+        assert.ok(status, "Restart requirement is not shown");
+        assert.ok(status.classList.contains("alert-warning"));
+        assert.match(status.textContent, /Restart broadcasting once/);
+        document.querySelector("section.card form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        await settle();
+        assert.match(document.querySelector('p.alert-info[role="status"]').textContent, /apply as soon as the sweeper module runs/);
+    } finally {
+        app.unmount();
+        moduleState = { state: "active", message: "The sweeper module is running on this station." };
     }
 });

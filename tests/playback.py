@@ -110,7 +110,7 @@ end)
     script.write_text(f'''settings.init.allow_root := true
 %include {json.dumps(str(args.runtime.resolve() / 'azuracast.liq'))}
 %include {json.dumps(str(plugin / 'liquidsoap/sweepers.liq'))}
-sweepers.configure({{enabled={'false' if args.scenario == 'hot-enable' else 'true'}, revision="initial",
+sweepers.load(version={json.dumps('test')}, {{enabled={'false' if args.scenario == 'hot-enable' else 'true'}, revision="initial",
     songs_after_jingle={1 if spacing else 0}, songs_after_sweeper={1 if spacing else 0},
     count_jingle_mode=true, jingle_playlists=[7]}})
 settings.azuracast.api_url := "http://127.0.0.1:{server.server_port}"
@@ -143,6 +143,8 @@ thread.run(delay=7., {{shutdown()}})
     assert (124 if spacing else 123) in metadata, 'Song metadata lost'
     events = [event for path, body, _ in calls if path == '/sweepers/heartbeat'
               for event in body.get('events', [])]
+    assert all(body.get('version') == 'test' for path, body, _ in calls if path == '/sweepers/heartbeat'), \
+        'Heartbeats must report the loaded module version'
     if spacing:
         played = {e['token'] for e in events if e['event'] == 'played'}
         assert '124' not in played and '125' not in played, ('Jingle or immediately following song overlaid', played)

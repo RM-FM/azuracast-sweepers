@@ -11,6 +11,8 @@
             </div>
             <div class="card-body">
             <p class="text-muted">Configure overlays for {{ station.name || 'your station' }}.</p>
+            <p v-if="moduleStatus.state === 'active'" class="text-success small mb-3" data-module-status="active">{{ moduleStatus.message }}</p>
+            <p v-else-if="moduleStatus.state" class="alert alert-warning" role="status" :data-module-status="moduleStatus.state">{{ moduleStatus.message }}</p>
             <form @submit.prevent="saveSettings">
                 <div class="form-check form-switch mb-3">
                     <input id="sweepers-enabled" v-model="settings.enabled" class="form-check-input" type="checkbox" role="switch">
@@ -96,7 +98,7 @@
                 </div>
                 <p class="form-text">Sidechain attack: 150 ms · release: 750 ms. AutoCue supplies jingle start, handover and tail.</p>
                 <button class="btn btn-primary" :disabled="saving">Save settings</button>
-                <p class="form-text mb-0">All settings, including Enable sweepers, update live within about 5 seconds. An audible sweeper finishes; old pending overlays are cancelled. New settings apply to following songs. Restart broadcasting once after installing the plugin or updating its Liquidsoap code.</p>
+                <p class="form-text mb-0">All settings, including Enable sweepers, update live within about 5 seconds. Enable only decides whether sweepers are used; the module is loaded on every station either way. An audible sweeper finishes; old pending overlays are cancelled. New settings apply to following songs. Restart broadcasting only once after installing or updating the plugin.</p>
                 <p class="form-text mb-0">Edit Intro End in the waveform below, under Music Files → Custom Fields, or through the intro API.</p>
             </form>
             </div>
@@ -207,6 +209,7 @@ const props = defineProps({ base: { type: String, required: true }, csrf: { type
 const csrf = ref(props.csrf);
 const station = ref({});
 const queueLength = ref(2);
+const moduleStatus = ref({});
 const settings = ref({});
 const playlists = ref([]);
 const jinglePlaylists = ref([]);
@@ -302,7 +305,10 @@ async function saveIntro() {
 async function saveSettings() {
     await save(async () => {
         const result = await api("settings", settings.value);
-        notice.value = "Settings saved. Live updates are picked up within about 5 seconds; an audible sweeper finishes and old pending overlays are cancelled."
+        moduleStatus.value = result.module ?? moduleStatus.value;
+        notice.value = (moduleStatus.value.state === "active"
+            ? "Settings saved. Live updates are picked up within about 5 seconds; an audible sweeper finishes and old pending overlays are cancelled."
+            : "Settings saved. They apply as soon as the sweeper module runs on this station (see the status above).")
             + (result.needs_restart ? " AzuraCast still has other pending changes requiring a restart." : "");
     });
 }
@@ -326,6 +332,7 @@ onMounted(async () => {
         csrf.value = state.csrf ?? csrf.value;
         station.value = state.station;
         queueLength.value = state.queue_length ?? 2;
+        moduleStatus.value = state.module ?? {};
         settings.value = state.settings;
         playlists.value = state.playlists;
         jinglePlaylists.value = state.jingle_playlists ?? [];

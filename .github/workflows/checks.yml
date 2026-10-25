@@ -76,6 +76,8 @@ jobs:
             -v "$PWD:/plugin:ro" \
             -v /tmp/azuracast-runtime:/azuracast:ro \
             savonet/liquidsoap:v2.4.5 /plugin/tests/spacing.liq
+      - name: Verify fail-safe rollback with the real Liquidsoap check
+        run: bash tests/failsafe.sh /tmp/azuracast-runtime
       - name: Render playback and cancellation with AzuraCast's AutoDJ factory
         run: |
           for scenario in normal skip live unavailable spacing playlist-spacing hot-enable hot-disable hot-pending hot-change hot-error before-jingle; do

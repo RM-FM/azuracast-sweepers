@@ -67,6 +67,9 @@ activation. Every plan (including an empty plan) carries the settings revision.
 Liquidsoap checks it before activation and releases obsolete plans; empty plans
 need no release. Already started overlays retain their original timing and gain
 and still report actual playback. Heartbeats continue while sweepers are disabled.
+Each heartbeat request includes the running module `version`; the plugin records it
+at most every 30 seconds so the panel can tell whether the module runs, is outdated
+or still needs the one-time restart after installation or update.
 
 ## Panel rotation settings
 
@@ -94,3 +97,5 @@ value, which may reflect unrelated station changes. All settings update through
 the five-second heartbeat after the module has been installed and loaded once.
 The current audible sweeper finishes; old pending plans are cancelled, and new
 settings apply to subsequent plans. Enabling with manual AutoDJ is rejected.
+The panel state and the save response include `module` with `state` (`active`,
+`outdated`, `restart` or `unavailable`) and a human-readable `message`.

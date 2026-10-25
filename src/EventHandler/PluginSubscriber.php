@@ -12,17 +12,20 @@ use Plugin\AzuracastSweepers\Controller\InternalController;
 use Plugin\AzuracastSweepers\Controller\PanelController;
 use Plugin\AzuracastSweepers\Middleware\SidebarNavigation;
 use Plugin\AzuracastSweepers\Service\Media;
+use Plugin\AzuracastSweepers\Service\Module;
 use Plugin\AzuracastSweepers\Service\State;
+use Plugin\AzuracastSweepers\Service\Verifier;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
-use RuntimeException;
 use Slim\Routing\RouteCollectorProxy;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+use Throwable;
 
 final readonly class PluginSubscriber implements EventSubscriberInterface
 {
     public function __construct(
         private Media $media,
-        private State $state
+        private State $state,
+        private Verifier $verifier
     ) {
     }
 
@@ -33,6 +36,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
             WriteLiquidsoapConfiguration::class => [
                 ['header', 32],
                 ['mixer', 24],
+                ['verify', -100],
             ],
         ];
     }
@@ -81,72 +85,148 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
             ->add(Middleware\InjectSession::class);
     }
 
+    /**
+     * Loads the module on every station, regardless of the Enable switch, so that enabling needs no restart.
+     * Nothing here may prevent a station from starting.
+     */
     public function header(WriteLiquidsoapConfiguration $event): void
     {
-        $this->media->ensureField();
-        $settings = $this->settings($event);
         if ($event->isForEditing()) {
             return;
         }
+        try {
+            $this->media->ensureField();
+        } catch (Throwable $exception) {
+            error_log('AzuraCast Sweepers: intro_end field not initialized: ' . $exception->getMessage());
+        }
         if ($event->getBackendConfig()->use_manual_autodj) {
-            if ($settings->enabled) {
-                throw new RuntimeException('Sweepers require AzuraCast AutoDJ queue management.');
-            }
+            $this->record($event, false, 'manual AutoDJ mode does not provide the AzuraCast queue');
 
             return;
         }
 
-        $event->appendBlock(self::includeLine());
-        $runtime = $settings->runtime();
-        $event->appendBlock('sweepers.configure({'
-            . 'enabled=' . ($settings->enabled ? 'true' : 'false')
-            . ', revision="' . $runtime['revision'] . '"'
-            . ', songs_after_jingle=' . $settings->songsAfterJingle
-            . ', songs_after_sweeper=' . $settings->songsAfterSweeper
-            . ', count_jingle_mode=' . ($settings->countJingleMode ? 'true' : 'false')
-            . ', jingle_playlists=' . json_encode($runtime['jingle_playlists'], JSON_THROW_ON_ERROR)
-            . '})');
+        $event->appendBlock(Module::includeLine());
+        $event->appendBlock(Module::loadLine($this->settings($event)));
     }
 
     public function mixer(WriteLiquidsoapConfiguration $event): void
     {
-        if ($event->isForEditing() || $event->getBackendConfig()->use_manual_autodj) {
-            return;
-        }
-
         $lines = explode("\n", $event->buildConfiguration());
-        $matches = array_keys($lines, 'radio = azuracast.apply_crossfade(radio)', true);
-        $factories = array_keys($lines, 'radio = azuracast.enable_autodj(radio)', true);
-        if (count($matches) !== 1 || count($factories) !== 1) {
-            if ($this->settings($event)->enabled) {
-                throw new RuntimeException('Unsupported Liquidsoap configuration: sweeper insertion point not found.');
-            }
-            // Never prevent a station that does not use sweepers from starting.
-            foreach ($lines as $index => $line) {
-                if ($line === self::includeLine() || str_starts_with($line, 'sweepers.configure(')) {
-                    $event->replaceLine($index, '# AzuraCast Sweepers not loaded: unsupported configuration.');
-                }
-            }
+        if ($event->isForEditing() || !in_array(Module::includeLine(), $lines, true)) {
+            return;
+        }
+
+        $crossfades = array_keys($lines, Module::CROSSFADE, true);
+        $factories = array_keys($lines, Module::AUTODJ, true);
+        if (count($crossfades) !== 1 || count($factories) !== 1) {
+            $this->rollback($event, $lines);
+            $this->record($event, false, 'this AzuraCast version generates an unsupported configuration');
 
             return;
         }
-        $event->replaceLine($factories[0], 'radio = sweepers.enable_autodj(radio)');
-
-        $index = $matches[0];
-        $event->replaceLine($index, $lines[$index] . "\nradio = sweepers.mix(radio)");
+        // Single-line replacements keep AzuraCast's line indexes valid for later listeners.
+        $event->replaceLine($factories[0], Module::WRAPPED_AUTODJ);
+        $event->replaceLine($crossfades[0], Module::WRAPPED_CROSSFADE);
     }
 
-    private static function includeLine(): string
+    /**
+     * Last listener: if Liquidsoap rejects the configuration only because of the module, start without it.
+     */
+    public function verify(WriteLiquidsoapConfiguration $event): void
     {
-        $path = dirname(__DIR__, 2) . '/liquidsoap/sweepers.liq';
+        $config = $event->buildConfiguration();
+        $lines = explode("\n", $config);
+        if (!$event->shouldWriteToDisk() || !in_array(Module::includeLine(), $lines, true)) {
+            return;
+        }
 
-        return '%include ' . json_encode($path, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        $hash = $this->verifier->fingerprint($config);
+        $data = $this->read($event);
+        if (($data['module']['verified'] ?? null) === $hash) {
+            $this->record($event, true, null, $hash);
+
+            return;
+        }
+        $error = $this->verifier->check($config);
+        if ($error === null) {
+            $this->record($event, true, null, $hash);
+
+            return;
+        }
+
+        $changes = Module::rollback($lines) ?? [];
+        $original = array_replace($lines, $changes);
+        if ($this->verifier->check(implode("\n", $original)) !== null) {
+            // The configuration fails without the module too; removing it would not help.
+            $this->record($event, true, 'the station configuration is invalid independently of sweepers');
+
+            return;
+        }
+        $this->rollback($event, $lines);
+        $summary = strtok($error, "\n");
+        $this->record($event, false, 'Liquidsoap rejected the sweeper module (' . ($summary ?: $error) . ')');
+        error_log('AzuraCast Sweepers: module not loaded for station ' . $event->getStation()->id . ': ' . $error);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function rollback(WriteLiquidsoapConfiguration $event, array $lines): void
+    {
+        foreach (Module::rollback($lines) ?? [] as $index => $line) {
+            $event->replaceLine($index, $line);
+        }
+    }
+
+    private function record(
+        WriteLiquidsoapConfiguration $event,
+        bool $loaded,
+        ?string $reason,
+        ?string $hash = null
+    ): void {
+        if (!$event->shouldWriteToDisk()) {
+            return;
+        }
+        try {
+            $this->state->update($event->getStation()->getRadioConfigDir(), static function (array $data) use (
+                $loaded,
+                $reason,
+                $hash
+            ): array {
+                $data['module'] = [
+                    'loaded' => $loaded,
+                    'reason' => $reason,
+                    'verified' => $hash,
+                    'at' => time(),
+                ];
+
+                return $data;
+            });
+        } catch (Throwable $exception) {
+            error_log('AzuraCast Sweepers: status not saved: ' . $exception->getMessage());
+        }
+    }
+
+    private function read(WriteLiquidsoapConfiguration $event): array
+    {
+        try {
+            return $this->state->read($event->getStation()->getRadioConfigDir());
+        } catch (Throwable $exception) {
+            error_log('AzuraCast Sweepers: state not readable: ' . $exception->getMessage());
+
+            return [];
+        }
     }
 
     private function settings(WriteLiquidsoapConfiguration $event): Settings
     {
-        $data = $this->state->read($event->getStation()->getRadioConfigDir());
+        try {
+            return Settings::fromArray($this->read($event)['settings'] ?? []);
+        } catch (Throwable $exception) {
+            // Load the module disabled; saving valid settings later enables it live.
+            error_log('AzuraCast Sweepers: invalid saved settings: ' . $exception->getMessage());
 
-        return Settings::fromArray($data['settings'] ?? []);
+            return new Settings();
+        }
     }
 }

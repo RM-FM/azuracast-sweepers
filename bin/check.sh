@@ -37,4 +37,5 @@ if [[ "${1:-}" == "--liquidsoap" ]]; then
     docker run --rm --entrypoint liquidsoap \
         -v "$PWD:/plugin:ro" -v "$runtime_dir:/azuracast:ro" \
         savonet/liquidsoap:v2.4.5 --check /plugin/tests/liquidsoap.liq
+    bash tests/failsafe.sh "$runtime_dir"
 fi

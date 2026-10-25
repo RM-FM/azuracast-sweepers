@@ -19,6 +19,7 @@ let sweepers.settings = ref({
     count_jingle_mode=true, jingle_playlists=[]
 })
 let sweepers.blocked = ref([])
+let sweepers.version = ref("")
 let sweepers.songs_since_jingle = ref(0)
 let sweepers.songs_since_sweeper = ref(0)
 let sweepers.previous_song = ref(false)
@@ -33,6 +34,16 @@ def sweepers.configure(s) =
         sweepers.settings := s
         sweepers.catalog_at := -60.
         log(label="sweepers", "Live settings applied: #{s.revision}, enabled=#{s.enabled}, songs_after_jingle=#{s.songs_after_jingle}, songs_after_sweeper=#{s.songs_after_sweeper}")
+    end
+end
+
+# Generated station configurations call this once. Invalid settings keep sweepers disabled; never fail startup.
+def sweepers.load(~version, s) =
+    sweepers.version := version
+    try
+        sweepers.configure(s)
+    catch err do
+        log(label="sweepers", "Initial settings ignored: #{error.message(err)}")
     end
 end
 
@@ -183,7 +194,9 @@ def sweepers.heartbeat() =
     events = list.rev(sweepers.events())
     tokens = list.map(fst, sweepers.plans())
     try
-        response = azuracast.api_call(timeout=2., "sweepers/heartbeat", json.stringify({tokens=tokens, events=events}))
+        response = azuracast.api_call(timeout=2., "sweepers/heartbeat", json.stringify({
+            tokens=tokens, events=events, version=sweepers.version()
+        }))
         if null.defined(response) then
             let json.parse (result : {
                 success: bool,

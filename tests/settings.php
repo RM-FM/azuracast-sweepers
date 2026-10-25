@@ -16,6 +16,7 @@ namespace Symfony\Component\EventDispatcher {
 namespace App\Entity {
     final class Station
     {
+        public int $id = 3;
         public bool $needs_restart = false;
         public object $backend_config;
 
@@ -27,6 +28,29 @@ namespace App\Entity {
         public function getRadioConfigDir(): string
         {
             return $this->directory;
+        }
+    }
+}
+
+namespace App\Radio\Backend {
+    // Mirrors AzuraCast's verifyConfig(): a LogicException carries Liquidsoap's output.
+    class Liquidsoap
+    {
+        public static array $checked = [];
+        public static bool $rejectModule = false;
+        public static bool $rejectAll = false;
+
+        public function verifyConfig(string $config): void
+        {
+            self::$checked[] = $config;
+            if (self::$rejectAll || (self::$rejectModule && str_contains($config, 'sweepers.'))) {
+                throw new \LogicException("At line 12, char 4: this value has type\nmore details");
+            }
+        }
+
+        public function getBinary(): string
+        {
+            return '/usr/local/bin/liquidsoap';
         }
     }
 }
@@ -78,8 +102,13 @@ namespace App\Http {
 namespace Plugin\AzuracastSweepers\Service {
     final class Media
     {
+        public static bool $failField = false;
+
         public function ensureField(): void
         {
+            if (self::$failField) {
+                throw new \RuntimeException('Cannot initialize intro_end.');
+            }
         }
 
         public function jingles(\App\Entity\Station $station, ?int $playlistId): array
@@ -101,12 +130,16 @@ namespace Plugin\AzuracastSweepers\Service {
 }
 
 namespace App\Event\Radio {
+    // Same line API as AzuraCast's AbstractConfigurationEvent and WriteLiquidsoapConfiguration.
     final class WriteLiquidsoapConfiguration
     {
-        public array $lines = ['radio = azuracast.enable_autodj(radio)', 'radio = azuracast.apply_crossfade(radio)'];
+        private array $configLines = [];
 
-        public function __construct(private \App\Entity\Station $station, private bool $editing = false)
-        {
+        public function __construct(
+            private \App\Entity\Station $station,
+            private bool $forEditing = false,
+            private bool $writeToDisk = true
+        ) {
         }
 
         public function getStation(): \App\Entity\Station
@@ -121,22 +154,37 @@ namespace App\Event\Radio {
 
         public function isForEditing(): bool
         {
-            return $this->editing;
+            return $this->forEditing;
         }
 
-        public function appendBlock(string $block): void
+        public function shouldWriteToDisk(): bool
         {
-            $this->lines[] = $block;
+            return $this->writeToDisk && !$this->forEditing;
+        }
+
+        public function appendLines(array $lines): void
+        {
+            $this->configLines = array_merge($this->configLines, [''], $lines);
+        }
+
+        public function appendBlock(string $lines): void
+        {
+            $this->appendLines(explode("\n", $lines));
+        }
+
+        public function prependLines(array $lines): void
+        {
+            $this->configLines = array_merge($lines, [''], $this->configLines);
         }
 
         public function replaceLine(int $index, string $line): void
         {
-            $this->lines[$index] = $line;
+            $this->configLines[$index] = $line;
         }
 
         public function buildConfiguration(): string
         {
-            return implode("\n", $this->lines);
+            return implode("\n", $this->configLines);
         }
     }
 }
@@ -146,10 +194,13 @@ namespace {
     use App\Event\Radio\WriteLiquidsoapConfiguration;
     use App\Http\Response;
     use App\Http\ServerRequest;
+    use App\Radio\Backend\Liquidsoap;
     use Plugin\AzuracastSweepers\Controller\PanelController;
     use Plugin\AzuracastSweepers\EventHandler\PluginSubscriber;
     use Plugin\AzuracastSweepers\Service\Media;
+    use Plugin\AzuracastSweepers\Service\Module;
     use Plugin\AzuracastSweepers\Service\State;
+    use Plugin\AzuracastSweepers\Service\Verifier;
     use Plugin\AzuracastSweepers\ValueObject\Settings;
 
     function expect(bool $value, string $message): void
@@ -161,18 +212,59 @@ namespace {
 
     $directory = sys_get_temp_dir() . '/sweepers-settings-' . bin2hex(random_bytes(6));
     mkdir($directory);
+    $runtime = sys_get_temp_dir() . '/azuracast-runtime-' . bin2hex(random_bytes(6));
+    mkdir($runtime);
+    file_put_contents($runtime . '/azuracast.liq', "# AzuraCast runtime 1\n");
     $station = new Station($directory);
     $state = new State();
     $media = new Media();
     $controller = new PanelController($media, $state);
-    $subscriber = new PluginSubscriber($media, $state);
+    $subscriber = new PluginSubscriber($media, $state, new Verifier(new Liquidsoap()));
     $save = static function (array $settings) use ($controller, $station): array {
         $response = $controller->settingsAction(new ServerRequest($station, $settings), new Response(), []);
 
         return json_decode((string)$response->getBody(), true, flags: JSON_THROW_ON_ERROR);
     };
+    $body = "radio = azuracast.enable_autodj(radio)\nradio = playlist_fallback(radio)\nradio = azuracast.apply_crossfade(radio)";
+    // Runs the plugin listeners in AzuraCast's priority order around representative generated blocks.
+    $generate = static function (
+        bool $editing = false,
+        bool $disk = true,
+        ?string $music = null
+    ) use ($subscriber, $station, $body, $runtime): array {
+        Liquidsoap::$checked = [];
+        $event = new WriteLiquidsoapConfiguration($station, $editing, $disk);
+        $event->prependLines(['# WARNING! This file is automatically generated by AzuraCast.']);
+        $event->appendBlock("# AzuraCast Common Runtime Functions\n%include \"$runtime/azuracast.liq\"\n\nlog.level := 3");
+        $subscriber->header($event);
+        $event->appendBlock($music ?? $body);
+        $subscriber->mixer($event);
+        $event->appendBlock("output.icecast(%mp3, radio)\n# custom bottom");
+        $subscriber->verify($event);
+
+        return [$event->buildConfiguration(), count(Liquidsoap::$checked)];
+    };
+    $loaded = static fn(string $config): bool => str_contains($config, Module::includeLine())
+        && str_contains($config, Module::WRAPPED_AUTODJ) && str_contains($config, Module::WRAPPED_CROSSFADE)
+        && !str_contains($config, "\n" . Module::AUTODJ . "\n") && !str_contains($config, "\n" . Module::CROSSFADE . "\n");
+    $unloaded = static fn(string $config): bool => !str_contains($config, 'sweepers.')
+        && !str_contains($config, '%include "' . dirname(__DIR__))
+        && str_contains($config, Module::AUTODJ) && str_contains($config, Module::CROSSFADE);
+    $status = static fn(): array => Module::status($state->read($directory));
     try {
-        $state->update($directory, static fn() => ['history' => ['42' => 123.5], 'plans' => ['123' => ['played' => true]]]);
+        // Fresh installation: no saved settings, sweepers disabled, module still loaded.
+        [$config, $checks] = $generate();
+        expect($loaded($config), 'A fresh installation loads the module so that enabling needs no restart.');
+        expect(str_contains($config, 'sweepers.load(version="' . Module::version() . '", {enabled=false'), 'Disabled.');
+        expect($checks === 1, 'The final configuration is checked by Liquidsoap.');
+        expect($state->read($directory)['module']['loaded'] === true, 'Load status recorded.');
+        expect($status()['state'] === 'restart', 'Without heartbeats the page asks for the one-time restart.');
+        [$again, $checks] = $generate();
+        expect($again === $config && $checks === 0, 'An unchanged configuration is not checked again.');
+        // AzuraCast's own line indexes stay valid: no listener may insert a multi-line string.
+        expect(substr_count($config, 'sweepers.mix(') === 1 && count(explode("\n", $config)) === 18, 'Single lines.');
+
+        $state->update($directory, static fn(array $data) => ['history' => ['42' => 123.5], 'plans' => ['123' => ['played' => true]]] + $data);
         $settings = (new Settings(
             enabled: true,
             playlistId: 7,
@@ -180,7 +272,9 @@ namespace {
             songsAfterSweeper: 2,
             songsBeforeJingle: 1
         ))->toArray();
-        expect($save($settings) === ['success' => true, 'needs_restart' => false], 'Enabling requires no restart.');
+        $result = $save($settings);
+        expect($result['success'] && $result['needs_restart'] === false, 'Enabling requires no restart.');
+        expect($result['module']['state'] === 'restart', 'Saving reports whether the module runs.');
         expect(!$station->needs_restart, 'Saving does not mark the station for restart.');
         expect($state->read($directory)['history']['42'] === 123.5, 'Saving preserves actual-play history.');
         expect($state->read($directory)['plans']['123']['played'], 'Saving preserves in-flight playback acknowledgment.');
@@ -188,23 +282,72 @@ namespace {
         expect($save(['enabled' => false])['needs_restart'], 'An unrelated restart flag is preserved.');
         expect($station->needs_restart, 'Saving must not clear unrelated pending changes.');
 
-        foreach ([false, true] as $enabled) {
-            $save(['enabled' => $enabled, 'playlist_id' => 7]);
-            $event = new WriteLiquidsoapConfiguration($station);
-            $subscriber->header($event);
-            $subscriber->mixer($event);
-            $script = $event->buildConfiguration();
-            expect(str_contains($script, 'sweepers.liq'), 'Install the module even while disabled.');
-            expect(str_contains($script, 'sweepers.configure({enabled=' . ($enabled ? 'true' : 'false')), 'Initial enabled state.');
-            expect(str_contains($script, 'radio = sweepers.enable_autodj(radio)'), 'Always install the AutoDJ wrapper.');
-            expect(str_contains($script, 'radio = sweepers.mix(radio)'), 'Always install the mixer.');
-            expect(str_contains($script, 'revision="' . Settings::fromArray($state->read($directory)['settings'])->revision()), 'Initial revision matches the API.');
+        $save(['enabled' => true, 'playlist_id' => 7, 'songs_after_jingle' => 3, 'songs_after_sweeper' => 2]);
+        [$config, $checks] = $generate();
+        expect($loaded($config) && $checks === 1, 'Changed settings are checked once.');
+        expect(str_contains($config, '{enabled=true, revision="'
+            . Settings::fromArray($state->read($directory)['settings'])->revision()
+            . '", songs_after_jingle=3, songs_after_sweeper=2'), 'Initial settings and revision match the API.');
+
+        [$config, $checks] = $generate(editing: true);
+        expect(!str_contains($config, 'sweepers') && $checks === 0, 'Do not inject the module into the editing view.');
+        [$config, $checks] = $generate(disk: false);
+        expect($loaded($config) && $checks === 0, 'Previews show the module without running Liquidsoap.');
+
+        // An AzuraCast upgrade changes its runtime but not the configuration text: check again.
+        [, $checks] = $generate();
+        expect($checks === 0, 'The verified configuration is cached.');
+        file_put_contents($runtime . '/azuracast.liq', "# AzuraCast runtime 2\n");
+        Liquidsoap::$rejectModule = true;
+        [$config, $checks] = $generate();
+        expect($checks === 2, 'A changed AzuraCast runtime invalidates the cached check.');
+        expect($unloaded($config), 'A rejected module is rolled back exactly.');
+        expect(str_contains($config, Module::UNLOADED), 'The configuration explains the missing module.');
+        expect(
+            $status()['state'] === 'unavailable' && str_contains($status()['message'], 'At line 12, char 4'),
+            'The page reports why the station started without sweepers.'
+        );
+        Liquidsoap::$rejectModule = false;
+        [$config] = $generate();
+        expect($loaded($config) && $state->read($directory)['module']['loaded'], 'The next restart retries the module.');
+
+        // Liquidsoap rejects the station regardless of the module: removing it would not help.
+        Liquidsoap::$rejectAll = true;
+        $save(['enabled' => true, 'playlist_id' => 7, 'margin' => 1.0]);
+        [$config, $checks] = $generate();
+        expect($loaded($config) && $checks === 2, 'An unrelated configuration error keeps the module.');
+        Liquidsoap::$rejectAll = false;
+
+        // Unexpected generated layout: never throw, even with sweepers enabled.
+        [$config] = $generate(music: 'radio = custom(radio)');
+        expect(!str_contains($config, 'sweepers.') && str_contains($config, 'radio = custom(radio)'), 'Unload when unsupported.');
+        expect($status()['state'] === 'unavailable', 'Unsupported layout is reported.');
+
+        // Manual AutoDJ has no AzuraCast queue: start normally without the module.
+        $station->backend_config->use_manual_autodj = true;
+        [$config] = $generate();
+        expect(!str_contains($config, 'sweepers'), 'Manual AutoDJ stations start without the module.');
+        expect(str_contains($status()['message'], 'manual AutoDJ'), 'Manual AutoDJ is reported.');
+        try {
+            $save(['enabled' => true, 'playlist_id' => 7]);
+            throw new RuntimeException('Enabling manual AutoDJ was accepted.');
+        } catch (InvalidArgumentException) {
         }
-        expect(str_contains($event->buildConfiguration(), 'songs_after_jingle=0, songs_after_sweeper=0'), 'Initial gaps.');
-        $event = new WriteLiquidsoapConfiguration($station, true);
-        $subscriber->header($event);
-        $subscriber->mixer($event);
-        expect(!str_contains($event->buildConfiguration(), 'sweepers'), 'Do not inject the module into the editing view.');
+        $station->backend_config->use_manual_autodj = false;
+
+        // Database or state failures never stop the station.
+        Media::$failField = true;
+        [$config] = $generate();
+        expect($loaded($config), 'A failed custom-field initialization does not stop the station.');
+        Media::$failField = false;
+        $saved = file_get_contents($directory . '/sweepers.json');
+        file_put_contents($directory . '/sweepers.json', '{');
+        [$config] = $generate();
+        expect($loaded($config) && str_contains($config, '{enabled=false'), 'Damaged state loads the module disabled.');
+        file_put_contents($directory . '/sweepers.json', $saved);
+        $state->update($directory, static fn(array $data) => ['settings' => ['enabled' => 'yes']] + $data);
+        [$config] = $generate();
+        expect($loaded($config) && str_contains($config, '{enabled=false'), 'Invalid settings load the module disabled.');
 
         $save(['songs_before_jingle' => 3]);
         expect(Settings::fromArray($state->read($directory)['settings'])->songsBeforeJingle === 3, 'Queue length is allowed.');
@@ -221,39 +364,6 @@ namespace {
         } catch (InvalidArgumentException $exception) {
             expect(str_contains($exception->getMessage(), 'queue length (3)'), 'Explain the queue limit.');
         }
-
-        // A non-standard configuration must not break a station that does not use sweepers.
-        $save(['enabled' => false]);
-        $event = new WriteLiquidsoapConfiguration($station);
-        $event->lines = ['radio = custom(radio)'];
-        $subscriber->header($event);
-        $subscriber->mixer($event);
-        $script = $event->buildConfiguration();
-        expect(!str_contains($script, '%include') && !str_contains($script, 'sweepers.configure('), 'Unload when unsupported.');
-        expect(str_contains($script, 'radio = custom(radio)'), 'Keep the station configuration unchanged.');
-        $save(['enabled' => true, 'playlist_id' => 7]);
-        $event = new WriteLiquidsoapConfiguration($station);
-        $event->lines = ['radio = custom(radio)'];
-        $subscriber->header($event);
-        try {
-            $subscriber->mixer($event);
-            throw new RuntimeException('An enabled unsupported configuration was accepted silently.');
-        } catch (RuntimeException $exception) {
-            expect(str_contains($exception->getMessage(), 'insertion point'), 'Report unsupported enabled stations.');
-        }
-
-        $station->backend_config->use_manual_autodj = true;
-        try {
-            $save($settings);
-            throw new RuntimeException('Enabling manual AutoDJ was accepted.');
-        } catch (InvalidArgumentException) {
-        }
-        $save(['enabled' => false]);
-        $event = new WriteLiquidsoapConfiguration($station);
-        $subscriber->header($event);
-        $subscriber->mixer($event);
-        expect(!str_contains($event->buildConfiguration(), 'sweepers'), 'Leave unsupported manual AutoDJ unchanged.');
-        $station->backend_config->use_manual_autodj = false;
         foreach ([['enabled' => true, 'playlist_id' => 99], ['jingle_playlist_ids' => [99]]] as $invalid) {
             try {
                 $save($invalid);
@@ -261,11 +371,20 @@ namespace {
             } catch (InvalidArgumentException) {
             }
         }
-        echo "Live settings, restart flags and installation hooks passed.\n";
+
+        $now = 1_000_000;
+        $heartbeat = static fn(int $at, string $version): array => ['heartbeat' => ['at' => $at, 'version' => $version]];
+        expect(Module::status($heartbeat($now - 20, Module::version()), $now)['state'] === 'active', 'Running.');
+        expect(Module::status($heartbeat($now - 20, 'older'), $now)['state'] === 'outdated', 'Update needs a restart.');
+        expect(Module::status($heartbeat($now - 600, Module::version()), $now)['state'] === 'restart', 'Stopped.');
+        expect(Module::rollback(['radio = custom(radio)']) === null, 'Nothing to roll back.');
+        echo "Module loading, fail-safe configuration and live settings passed.\n";
     } finally {
         foreach (glob($directory . '/*') as $path) {
             unlink($path);
         }
         rmdir($directory);
+        unlink($runtime . '/azuracast.liq');
+        rmdir($runtime);
     }
 }

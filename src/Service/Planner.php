@@ -147,15 +147,24 @@ final readonly class Planner
     /**
      * @return array{settings: Settings, blocked: list<string>}
      */
-    public function heartbeat(Station $station, array $tokens, array $events): array
+    public function heartbeat(Station $station, array $tokens, array $events, mixed $version = null): array
     {
         if (count($tokens) > 16 || count($events) > 128) {
             throw new InvalidArgumentException('Too many reservation events.');
         }
         $data = $this->state->update($station->getRadioConfigDir(), static function (array $data) use (
             $tokens,
-            $events
+            $events,
+            $version
         ): array {
+            // Proves the module is running; limited to one state write per 30 seconds.
+            if (
+                is_string($version) && $version !== ''
+                && (($data['heartbeat']['version'] ?? null) !== $version
+                    || time() - (int)($data['heartbeat']['at'] ?? 0) >= 30)
+            ) {
+                $data['heartbeat'] = ['at' => time(), 'version' => substr($version, 0, 64)];
+            }
             foreach ($events as $event) {
                 $token = (string)($event['token'] ?? '');
                 $plan = $data['plans'][$token] ?? null;

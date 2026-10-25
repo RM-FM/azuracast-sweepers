@@ -81,10 +81,12 @@ The plugin creates or reuses `intro_end` on the first page visit or station
 configuration generation. It does not overwrite an existing field or change other custom fields.
 
 Create an **Advanced** playlist containing the sweeper jingles, select it in the
-plugin settings and enable sweepers. Restart broadcasting once through AzuraCast
-after installing the plugin, even if sweepers are initially disabled. The module
-then remains loaded and all later settings changes, including enabling/disabling,
-work without a restart.
+plugin settings and enable sweepers. After installing (or updating) the plugin,
+restart broadcasting once per station through AzuraCast. This is the only restart
+needed: the module is loaded on every station, whether sweepers are enabled or
+not, and **Enable sweepers** only decides whether sweepers are used. All later
+settings changes, including enabling and disabling, apply live. The Sweepers page
+shows whether the module runs on the station or still needs that restart.
 Advanced playlists prevent the jingles from also entering the normal song rotation.
 The page requires station Media permission; changing settings also requires
 Broadcasting permission. The page includes an audio waveform with a movable
@@ -210,14 +212,33 @@ inserted retroactively. New playlists may need additional background AutoCue tim
 Failed heartbeat requests retain the last valid settings and are logged; changes
 take effect after communication recovers.
 
-Upgrading from an older release to this live-settings implementation requires one
-broadcasting restart per station to load the new Liquidsoap module. Installing,
-removing or updating Liquidsoap code still requires a restart; ordinary settings
+Upgrading from an older release requires one broadcasting restart per station to
+load the new Liquidsoap module; the Sweepers page reports an outdated module until
+then. Installing, removing or updating the plugin requires that restart; settings
 changes do not. Other pending AzuraCast changes can independently require one.
-Every station on the server loads the module after its next restart, including
-stations that keep sweepers disabled, so that enabling later needs no restart.
-If a station's generated configuration lacks the expected insertion points, a
-disabled station starts without the module; an enabled one reports an error.
+
+### Fail-safe loading
+
+The plugin must never prevent a station from starting:
+
+- Configuration generation never raises an error. If the custom field, the saved
+  state or the settings cannot be read, the module loads with sweepers disabled.
+- After AzuraCast has generated the complete configuration, the plugin checks it
+  with AzuraCast's own Liquidsoap check (`liquidsoap --check`). If Liquidsoap
+  rejects it only because of the sweeper module (for example after an AzuraCast
+  upgrade changed its runtime), every plugin line is restored to AzuraCast's
+  original and the station starts normally without sweepers. A configuration that
+  fails without the module too is left unchanged, as removing the module would
+  not help. A successful check is cached until the configuration changes.
+- An unexpected configuration layout or manual AutoDJ mode (which lacks the
+  AzuraCast queue) also starts the station without the module.
+- Invalid initial settings inside Liquidsoap keep sweepers disabled instead of
+  stopping the station. At runtime, API, catalogue and planning failures leave the
+  music playing without an overlay.
+
+The Sweepers page shows the reason whenever a station started without the module.
+The next broadcasting restart tries again. The check adds one Liquidsoap type
+check (a few seconds) to a restart whose configuration changed.
 
 ## Intro cues
 
