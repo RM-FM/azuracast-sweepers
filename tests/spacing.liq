@@ -2,12 +2,16 @@ settings.init.allow_root := true
 %include "/azuracast/azuracast.liq"
 %include "/plugin/liquidsoap/sweepers.liq"
 
-def test_configure(~enabled=true, ~minimum_songs=1, ~count_jingle_mode=true, ~jingle_playlists=[7, 8]) =
+def test_configure(~enabled=true, ~minimum_songs=1, ~after_jingle=-1, ~after_sweeper=-1,
+                   ~count_jingle_mode=true, ~jingle_playlists=[7, 8]) =
+    songs_after_jingle = if after_jingle < 0 then minimum_songs else after_jingle end
+    songs_after_sweeper = if after_sweeper < 0 then minimum_songs else after_sweeper end
     sweepers.configure({
-        enabled=enabled, minimum_songs=minimum_songs,
+        enabled=enabled, songs_after_jingle=songs_after_jingle, songs_after_sweeper=songs_after_sweeper,
         count_jingle_mode=count_jingle_mode, jingle_playlists=jingle_playlists,
-        revision=json.stringify({enabled=enabled, minimum_songs=minimum_songs,
-            count_jingle_mode=count_jingle_mode, jingle_playlists=jingle_playlists})
+        revision=json.stringify({enabled=enabled, songs_after_jingle=songs_after_jingle,
+            songs_after_sweeper=songs_after_sweeper, count_jingle_mode=count_jingle_mode,
+            jingle_playlists=jingle_playlists})
     })
 end
 
@@ -66,6 +70,48 @@ expect(not test_track(28, playlist_id=9), "Live playlist change takes effect")
 expect(not test_track(29, playlist_id=7), "Former jingle playlist now counts as first song")
 expect(test_track(30, playlist_id=7), "Former jingle playlist no longer resets spacing")
 
+test_configure(after_jingle=3, after_sweeper=2)
+expect(not test_track(31, jingle=true), "Separate gaps: jingle")
+expect(not test_track(32), "After jingle 3: first song blocked")
+expect(not test_track(33), "After jingle 3: second song blocked")
+expect(not test_track(34), "After jingle 3: third song blocked")
+expect(test_track(35), "After jingle 3: fourth song allowed")
+sweepers.notify("played", "35")
+expect(not test_track(36), "After sweeper 2: first song blocked")
+expect(not test_track(37), "After sweeper 2: second song blocked")
+expect(test_track(38), "After sweeper 2: third song allowed without restarting the jingle gap")
+test_configure(after_jingle=0, after_sweeper=1)
+sweepers.notify("played", "38")
+expect(not test_track(39), "After sweeper 1 applies with no jingle gap")
+expect(test_track(40), "One clear song after a sweeper")
+test_configure(after_jingle=2, after_sweeper=0)
+expect(not test_track(41, playlist_id=7), "Jingle with only an after-jingle gap")
+expect(not test_track(42), "After jingle 2: first song blocked")
+expect(not test_track(43), "After jingle 2: second song blocked")
+expect(test_track(44), "After jingle 2: third song allowed")
+sweepers.notify("played", "44")
+expect(test_track(45), "A sweeper does not start the jingle gap")
+test_configure(after_jingle=0, after_sweeper=2)
+sweepers.notify("played", "45")
+expect(not test_track(46, jingle=true), "A jingle is never overlaid")
+expect(not test_track(47), "A jingle is not a song for the sweeper gap")
+expect(not test_track(48), "Sweeper gap still counts only songs")
+expect(test_track(49), "Two clear songs after the sweeper")
+
+current = sweepers.settings().revision
+sweepers.blocked := ["51"]
+expect(not sweepers.current("51", current), "A queued jingle cancels that song's plan")
+expect(sweepers.current("52", current), "Other plans remain valid")
+blocked_overlay = source.fail()
+sweepers.plans := [("51", {
+    source=blocked_overlay, ready=true, offset=1., duration=1., duck_gain=0.5, revision=current
+})]
+sweepers.pending := {source=blocked_overlay, due=1., duck_end=2., token="51", revision=current}
+ignore(sweepers.next_overlay())
+expect(not null.defined(sweepers.pending()), "A newly queued jingle cancels a pending overlay")
+expect(sweepers.plans() == [], "A blocked reservation is released")
+sweepers.blocked := []
+
 revision = sweepers.settings().revision
 overlay = source.fail()
 sweepers.plans := [("31", {
@@ -83,8 +129,8 @@ sweepers.reset := false
 expect(not null.defined(sweepers.next_overlay()), "Disabling does not interrupt an already audible sweeper")
 expect(sweepers.duck_end() == 10., "Active ducking remains tied to its original handover")
 test_configure(enabled=true, minimum_songs=2)
-expect(sweepers.current(sweepers.settings().revision), "Re-enable without rebuilding the source")
-expect(not sweepers.current(revision), "Plans from an older configuration remain invalid")
+expect(sweepers.current("31", sweepers.settings().revision), "Re-enable without rebuilding the source")
+expect(not sweepers.current("31", revision), "Plans from an older configuration remain invalid")
 print("Song spacing checks passed.")
 
 thread.run(delay=0.1, {shutdown()})

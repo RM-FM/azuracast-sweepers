@@ -24,7 +24,8 @@ namespace {
     $station = new \App\Entity\Station($directory);
     $state = new \Plugin\AzuracastSweepers\Service\State();
     $media = (new ReflectionClass(\Plugin\AzuracastSweepers\Service\Media::class))->newInstanceWithoutConstructor();
-    $planner = new \Plugin\AzuracastSweepers\Service\Planner($state, $media);
+    $queue = (new ReflectionClass(\Plugin\AzuracastSweepers\Service\Queue::class))->newInstanceWithoutConstructor();
+    $planner = new \Plugin\AzuracastSweepers\Service\Planner($state, $media, $queue);
     $seed = static fn(int $expires): array => ['plans' => ['123' => [
         'jingle_id' => 42, 'expires_at' => $expires, 'played' => false,
     ]]];
@@ -45,14 +46,21 @@ namespace {
         $state->update($directory, static fn() => $seed(time() + 20));
         $planner->heartbeat($station, [], [['event' => 'release', 'token' => '123']]);
         check(empty($state->read($directory)['history']), 'A skipped sweeper does not advance rotation.');
-        $liveSettings = new \Plugin\AzuracastSweepers\ValueObject\Settings(enabled: true, playlistId: 7, minimumSongs: 3);
+        $liveSettings = new \Plugin\AzuracastSweepers\ValueObject\Settings(
+            enabled: true,
+            playlistId: 7,
+            songsAfterJingle: 3,
+            songsAfterSweeper: 2
+        );
         $state->update($directory, static fn(array $data) => ['settings' => $liveSettings->toArray()] + $data);
+        $result = $planner->heartbeat($station, ['123'], []);
         check(
-            $planner->heartbeat($station, [], [])->runtime() === $liveSettings->runtime(),
+            $result['settings']->runtime() === $liveSettings->runtime(),
             'Heartbeat supplies all runtime settings without a restart.'
         );
+        check($result['blocked'] === [], 'Without a before-jingle gap the queue is not queried.');
         $state->update($directory, static fn(array $data) => ['settings' => ['enabled' => false]] + $data);
-        check(!$planner->heartbeat($station, [], [])->enabled, 'Heartbeat picks up disabling immediately.');
+        check(!$planner->heartbeat($station, [], [])['settings']->enabled, 'Heartbeat picks up disabling immediately.');
     } finally {
         foreach (glob($directory . '/*') as $path) {
             unlink($path);

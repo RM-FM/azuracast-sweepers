@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Plugin\AzuracastSweepers\Service\Media;
+use Plugin\AzuracastSweepers\Service\Queue;
 use Plugin\AzuracastSweepers\Service\State;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
 use Plugin\AzuracastSweepers\ValueObject\Selection;
@@ -88,7 +89,8 @@ check(abs(Timing::fromMetadata($metadata, 12)->gainDb + 6.0206) < 0.001, 'Linear
 check(Settings::fromArray($settings->toArray())->toArray() === $settings->toArray(), 'Settings round trip.');
 check(Settings::fromArray($settings->toArray())->revision() === $settings->revision(), 'Stable settings revision.');
 foreach ([
-    'enabled' => false, 'playlist_id' => 2, 'minimum_songs' => 3, 'count_jingle_mode' => false,
+    'enabled' => false, 'playlist_id' => 2, 'songs_after_jingle' => 3, 'songs_after_sweeper' => 2,
+    'songs_before_jingle' => 1, 'count_jingle_mode' => false,
     'jingle_playlist_ids' => [4, 5], 'max_wait' => 0, 'margin' => 1.2, 'duck_db' => -10,
     'jingle_gain' => 0.5, 'longest_fit' => true, 'length_tolerance' => 50,
 ] as $key => $value) {
@@ -122,10 +124,35 @@ $rotation[1]['last_played'] = 4;
 check(Selection::order($rotation, 30, $longest)[0]['id'] === 3, 'Within tolerance actual playback advances rotation.');
 check(Selection::order($rotation, 30, new Settings(longestFit: true, lengthTolerance: 100))[0]['id'] === 1,
     '100% tolerance admits every fitting body.');
-$custom = new Settings(minimumSongs: 2, countJingleMode: false, jinglePlaylistIds: [3, 7], longestFit: true);
+$custom = new Settings(
+    songsAfterJingle: 3,
+    countJingleMode: false,
+    jinglePlaylistIds: [3, 7],
+    longestFit: true,
+    songsAfterSweeper: 2,
+    songsBeforeJingle: 1
+);
 check(Settings::fromArray($custom->toArray())->toArray() === $custom->toArray(), 'New settings persist without conversion.');
+check(!array_key_exists('minimum_songs', $custom->toArray()), 'The shared legacy gap is no longer saved.');
+$legacy = Settings::fromArray(['minimum_songs' => 2]);
+check(
+    $legacy->songsAfterJingle === 2 && $legacy->songsAfterSweeper === 2 && $legacy->songsBeforeJingle === 0,
+    'A saved shared gap migrates to both after-gaps without adding a before-gap.'
+);
+check(
+    Settings::fromArray(['minimum_songs' => 2, 'songs_after_sweeper' => 0])->songsAfterSweeper === 0,
+    'Explicit separate gaps take precedence over the legacy value.'
+);
+$runtime = $custom->runtime();
+check(
+    $runtime['songs_after_jingle'] === 3 && $runtime['songs_after_sweeper'] === 2
+        && !array_key_exists('songs_before_jingle', $runtime),
+    'Liquidsoap receives both after-gaps; the queue lookahead stays server-side.'
+);
 foreach ([
-    ['minimum_songs' => -1], ['minimum_songs' => 1.5], ['count_jingle_mode' => 'false'],
+    ['songs_after_jingle' => -1], ['songs_after_sweeper' => 1.5], ['songs_before_jingle' => -1],
+    ['songs_before_jingle' => 1001], ['minimum_songs' => -1], ['minimum_songs' => 1.5],
+    ['count_jingle_mode' => 'false'],
     ['jingle_playlist_ids' => '2'], ['jingle_playlist_ids' => ['2']], ['jingle_playlist_ids' => [0]],
     ['longest_fit' => 1], ['length_tolerance' => -1], ['length_tolerance' => 101], ['max_wait' => ''],
 ] as $invalid) {
@@ -133,6 +160,44 @@ foreach ([
 }
 
 check(Media::parseIntro(null, 300) === null, 'Unknown is null.');
+
+$at = static fn(int $second): DateTimeImmutable => new DateTimeImmutable('@' . $second);
+$queueRow = static fn(int $id, bool $sent, int $cued, ?int $playlist = null, bool $jingle = false, bool $played = false)
+    => [
+        'id' => $id, 'is_played' => $played, 'sent_to_autodj' => $sent, 'timestamp_cued' => $at($cued),
+        'playlist_id' => $playlist, 'is_jingle' => $playlist === null ? null : $jingle,
+    ];
+$lookahead = new Settings(playlistId: 9, jinglePlaylistIds: [8], songsBeforeJingle: 2);
+$queue = [
+    $queueRow(10, true, 100, 1),
+    $queueRow(11, true, 200, 1),
+    $queueRow(12, false, 300, 1),
+    $queueRow(13, false, 400, 5, true),
+];
+check(Queue::select($queue, [11], 2, $lookahead) === ['11'], 'A Jingle Mode track two songs ahead blocks.');
+check(Queue::select($queue, [11], 1, $lookahead) === [], 'A jingle beyond the lookahead does not block.');
+check(Queue::select($queue, [10], 2, $lookahead) === [], 'Count tracks after the planned song, not the queue head.');
+check(Queue::select($queue, [12], 1, $lookahead) === ['12'], 'Unsent planned rows use their queue position.');
+check(
+    Queue::select($queue, [11], 2, new Settings(countJingleMode: false, songsBeforeJingle: 2)) === [],
+    'Disabled Jingle Mode recognition is honoured.'
+);
+$played = [$queueRow(10, true, 100, 1, played: true), $queueRow(11, true, 200, 1), $queueRow(14, false, 300, 8)];
+check(Queue::select($played, [10], 2, $lookahead) === ['10'], 'A playing song still sees later queued jingles.');
+check(
+    Queue::select([$queueRow(10, true, 100, 1, played: true), $queueRow(9, true, 50, 8), $queueRow(11, false, 300, 1)], [10], 1, $lookahead) === [],
+    'An earlier sent but unplayed row is not after the playing song.'
+);
+check(Queue::select($played, [10], 1, $lookahead) === [], 'Respect the configured count for playing songs.');
+check(
+    Queue::select([$queueRow(11, true, 200, 1), $queueRow(12, false, 300, 9)], [11], 1, $lookahead) === ['11'],
+    'The sweeper playlist itself counts as a jingle.'
+);
+check(
+    Queue::select([$queueRow(11, true, 200, 1), $queueRow(12, false, 300)], [11], 2, $lookahead) === [],
+    'Listener requests without a playlist are not jingles.'
+);
+check(Queue::select($queue, [99], 2, $lookahead) === [], 'Unknown or removed queue rows never block.');
 check(Media::parseIntro('0', 300) === 0.0, 'No intro is zero.');
 check(Media::parseIntro('11.5', 300) === 11.5, 'Decimal cue.');
 foreach ([-1, 301, NAN, 'vocals', true, '30s+'] as $invalid) {

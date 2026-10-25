@@ -25,11 +25,21 @@
                         </option>
                     </select>
                 </label>
-                <label class="form-label d-block mb-1">
-                    Minimum songs between jingles or sweepers
-                    <input v-model.number="settings.minimum_songs" class="form-control" type="number" min="0" max="1000" step="1" required>
-                </label>
-                <p class="form-text mb-3">0 disables spacing. With 1, one song plays without a sweeper between events. The song carrying the previous sweeper does not count.</p>
+                <div class="row g-3 mb-1">
+                    <label class="form-label col-md-4">
+                        Songs without sweeper after a jingle
+                        <input v-model.number="settings.songs_after_jingle" class="form-control" type="number" min="0" max="1000" step="1" required>
+                    </label>
+                    <label class="form-label col-md-4">
+                        Songs without sweeper after a sweeper
+                        <input v-model.number="settings.songs_after_sweeper" class="form-control" type="number" min="0" max="1000" step="1" required>
+                    </label>
+                    <label class="form-label col-md-4">
+                        Songs without sweeper before a jingle
+                        <input v-model.number="settings.songs_before_jingle" class="form-control" type="number" min="0" :max="queueLength" step="1" required>
+                    </label>
+                </div>
+                <p class="form-text mb-3">0 disables a rule. After a jingle or sweeper, that many complete songs must play without an overlay; the song carrying a sweeper does not count. Before a jingle uses AzuraCast's upcoming queue and is limited to its AutoDJ queue length ({{ queueLength }}). It is checked again until the overlay starts. Interrupting or unqueued jingles cannot be foreseen.</p>
                 <div class="form-check form-switch mb-3">
                     <input id="sweepers-count-jingle-mode" v-model="settings.count_jingle_mode" class="form-check-input" type="checkbox" role="switch">
                     <label class="form-check-label" for="sweepers-count-jingle-mode">Count Jingle Mode playlists</label>
@@ -196,6 +206,7 @@ import Waveform from "./Waveform.vue";
 const props = defineProps({ base: { type: String, required: true }, csrf: { type: String, required: true } });
 const csrf = ref(props.csrf);
 const station = ref({});
+const queueLength = ref(2);
 const settings = ref({});
 const playlists = ref([]);
 const jinglePlaylists = ref([]);
@@ -314,6 +325,7 @@ onMounted(async () => {
         const state = await api("state");
         csrf.value = state.csrf ?? csrf.value;
         station.value = state.station;
+        queueLength.value = state.queue_length ?? 2;
         settings.value = state.settings;
         playlists.value = state.playlists;
         jinglePlaylists.value = state.jingle_playlists ?? [];

@@ -17,7 +17,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 parser = argparse.ArgumentParser()
 parser.add_argument('--liquidsoap', default='liquidsoap')
 parser.add_argument('--scenario', choices=['normal', 'skip', 'live', 'unavailable', 'spacing', 'playlist-spacing',
-                                          'hot-enable', 'hot-disable', 'hot-pending', 'hot-change', 'hot-error'], default='normal')
+                                          'hot-enable', 'hot-disable', 'hot-pending', 'hot-change', 'hot-error',
+                                          'before-jingle'], default='normal')
 parser.add_argument('--runtime', type=Path, required=True)
 args = parser.parse_args()
 plugin = Path(__file__).resolve().parents[1]
@@ -47,7 +48,8 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
     song_requests = 0
     heartbeat_requests = 0
     initial_settings = dict(enabled=args.scenario != 'hot-enable', revision='initial',
-                            minimum_songs=1 if spacing else 0, count_jingle_mode=True, jingle_playlists=[7])
+                            songs_after_jingle=1 if spacing else 0, songs_after_sweeper=1 if spacing else 0,
+                            count_jingle_mode=True, jingle_playlists=[7])
     live_settings = initial_settings.copy()
 
     class Handler(BaseHTTPRequestHandler):
@@ -70,13 +72,15 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
             elif self.path == '/sweepers/plan':
                 value = dict(token=json.loads(body)['token'], revision=live_settings['revision'],
                              uri=f'annotate:liq_cue_in="0",liq_cue_out="{0.5 if short_tracks else 2}":{root}/sweeper.wav' if short_tracks or json.loads(body)['token'] == '123' else '',
-                             offset=.1 if short_tracks else (3. if args.scenario in ('skip', 'hot-pending', 'hot-change') else 1.),
+                             offset=.1 if short_tracks else (3. if args.scenario in ('skip', 'hot-pending', 'hot-change', 'before-jingle') else 1.),
                              duck_duration=.3 if short_tracks else 1., gain=1., duck_gain=.4467)
             elif self.path == '/sweepers/heartbeat':
                 heartbeat_requests += 1
                 if heartbeat_requests >= 2 and args.scenario in ('hot-enable', 'hot-disable', 'hot-pending', 'hot-change'):
                     live_settings.update(enabled=args.scenario in ('hot-enable', 'hot-change'), revision='changed')
-                value = {'success': True, 'settings': live_settings.copy()}
+                value = {'success': True, 'settings': live_settings.copy(), 'blocked': []}
+                if heartbeat_requests >= 2 and args.scenario == 'before-jingle':
+                    value['blocked'] = ['123']
                 if heartbeat_requests == 2 and args.scenario == 'hot-error':
                     value = {'success': False}
             else:
@@ -92,7 +96,7 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
     threading.Thread(target=server.serve_forever, daemon=True).start()
     script = root / 'playback.liq'
     action = {'skip': 'thread.run(delay=1.2, {music.skip()})', 'live': 'thread.run(delay=2., {azuracast.live_enabled := true})'}.get(args.scenario, '')
-    if args.scenario.startswith('hot-'):
+    if args.scenario.startswith('hot-') or args.scenario == 'before-jingle':
         action = 'thread.run(delay=1.6, {ignore(sweepers.heartbeat())})'
     if action:
         action = f'''action_started = ref(false)
@@ -107,7 +111,8 @@ end)
 %include {json.dumps(str(args.runtime.resolve() / 'azuracast.liq'))}
 %include {json.dumps(str(plugin / 'liquidsoap/sweepers.liq'))}
 sweepers.configure({{enabled={'false' if args.scenario == 'hot-enable' else 'true'}, revision="initial",
-    minimum_songs={1 if spacing else 0}, count_jingle_mode=true, jingle_playlists=[7]}})
+    songs_after_jingle={1 if spacing else 0}, songs_after_sweeper={1 if spacing else 0},
+    count_jingle_mode=true, jingle_playlists=[7]}})
 settings.azuracast.api_url := "http://127.0.0.1:{server.server_port}"
 radio = sweepers.enable_autodj(fallback([blank(duration=0.1)]))
 music = radio
@@ -153,11 +158,13 @@ thread.run(delay=7., {{shutdown()}})
         assert played, 'Enabling did not activate sweepers without a restart'
         assert not played.intersection({'123', '124'}), 'Disabled startup scheduled a sweeper'
         assert max(amplitude(samples, 880, t / 10) for t in range(25, 60)) > 5000, 'Enabled sweeper inaudible'
-    elif args.scenario in ('skip', 'unavailable', 'hot-pending', 'hot-change'):
+    elif args.scenario in ('skip', 'unavailable', 'hot-pending', 'hot-change', 'before-jingle'):
         assert max(amplitude(samples, 880, t / 10) for t in range(5, 60)) < 100, 'Unexpected sweeper'
-        if args.scenario in ('skip', 'hot-pending', 'hot-change'):
+        if args.scenario in ('skip', 'hot-pending', 'hot-change', 'before-jingle'):
             assert {'event': 'release', 'token': '123'} in events, 'Skipped reservation not released'
             assert not any(e['event'] == 'played' for e in events), 'Cancelled plan counted as playback'
+        if args.scenario == 'before-jingle':
+            assert 'Sweeper cancelled: jingle queued' in result.stdout, 'Queued jingle cancellation not logged'
     else:
         ducked = amplitude(samples, 440, onset + 1.4)
         assert .40 < ducked / normal < .65, (normal, ducked)
@@ -172,6 +179,8 @@ thread.run(delay=7., {{shutdown()}})
         else:
             assert amplitude(samples, 880, onset + 2.5) > 5000, 'Reverb tail cut at handover'
             assert amplitude(samples, 880, onset + 3.3) < 50, 'Sweeper ran past cue-out'
+        if args.scenario == 'normal':
+            assert {'event': 'release', 'token': '124'} not in events, 'Empty plans must not emit release events'
     if args.scenario == 'hot-error':
         assert 'Live settings refresh failed:' in result.stdout, 'Invalid heartbeat was not reported'
         assert 'Live settings applied: changed' not in result.stdout, 'Invalid heartbeat changed settings'

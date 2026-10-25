@@ -153,11 +153,26 @@ file to disable the plugin; it may contain unrelated configuration.
 Configure these options on **Sweepers** and save. The running module checks for
 changes every five seconds; no broadcasting restart is needed:
 
-- **Minimum songs** defaults to `0` (disabled). With `1`, a jingle is followed by
-  one song without a sweeper; the next song may carry one. A song carrying a
-  sweeper does not itself count as an intervening song. Only tracks that reached
-  playback count, including a played track subsequently skipped. Prefetch and
-  cancelled overlays never reset the gap or advance sweeper rotation.
+- **Song spacing** has three independent rules, each `0` (disabled) by default.
+  A song must satisfy all of them to carry a sweeper:
+  - **Songs without sweeper after a jingle** (e.g. `3`): after a recognized jingle,
+    that many complete songs play before the next sweeper.
+  - **Songs without sweeper after a sweeper** (e.g. `2`): after an actual sweeper,
+    that many further songs play without one. The song carrying the sweeper does
+    not count.
+  - **Songs without sweeper before a jingle** (e.g. `1`): a song does not carry a
+    sweeper if a recognized jingle is queued within this many following tracks.
+    The maximum is AzuraCast's AutoDJ queue length (**Broadcasting → AutoDJ queue
+    length**, effectively at least 2), because AzuraCast does not know tracks
+    beyond its queue. The check runs at planning and on each five-second heartbeat
+    until the overlay starts, because AzuraCast extends its queue during playback.
+    Interrupting or otherwise unqueued jingles, queue rebuilds within the last
+    seconds before activation, and listener requests are not foreseen.
+
+  Only tracks that reached playback count, including a played track subsequently
+  skipped. A jingle is not a song for the sweeper gap. Prefetch and cancelled
+  overlays never reset a gap or advance sweeper rotation. A previously saved single
+  **Minimum songs** value becomes both after-gaps; the before-gap starts disabled.
 - **Count Jingle Mode playlists** defaults to enabled. **Additional jingle
   playlists** accepts multiple station playlists, including ordinary playlists.
   Recognition follows the playing track's playlist annotation, like AzuraCast's
@@ -179,9 +194,9 @@ margin. Sweeper length means AutoCue cue-in to handover; its reverb tail may
 continue afterward but must finish before the song's next transition. Start-delay
 limits do not make an otherwise oversized sweeper eligible.
 
-Spacing is enforced in Liquidsoap at playback, even for prefetched plans. After
-restarting Liquidsoap, the configured number of intervening songs is required
-before the first sweeper. Unknown sources reset that count conservatively.
+Spacing after jingles and sweepers is enforced in Liquidsoap at playback, even for
+prefetched plans. After restarting Liquidsoap, the configured number of songs is
+required before the first sweeper. Unknown sources reset both counts conservatively.
 Settings and rotation history use the existing station configuration file; these
 options introduce no database tables or new cue fields.
 
@@ -190,7 +205,7 @@ delayed overlays that have not started; their songs continue without an overlay.
 Subsequent plans use the new playlist, timing, gain, ducking and selection settings.
 An already audible sweeper finishes with its original gain, handover and tail.
 Disabling prevents new overlays but keeps tracking played songs, so re-enabling
-and changing the minimum gap preserve the spacing history. No mid-song overlay is
+and changing a gap preserve the spacing history. No mid-song overlay is
 inserted retroactively. New playlists may need additional background AutoCue time.
 Failed heartbeat requests retain the last valid settings and are logged; changes
 take effect after communication recovers.
@@ -199,6 +214,10 @@ Upgrading from an older release to this live-settings implementation requires on
 broadcasting restart per station to load the new Liquidsoap module. Installing,
 removing or updating Liquidsoap code still requires a restart; ordinary settings
 changes do not. Other pending AzuraCast changes can independently require one.
+Every station on the server loads the module after its next restart, including
+stations that keep sweepers disabled, so that enabling later needs no restart.
+If a station's generated configuration lacks the expected insertion points, a
+disabled station starts without the module; an enabled one reports an error.
 
 ## Intro cues
 

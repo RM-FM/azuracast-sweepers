@@ -13,7 +13,8 @@ final readonly class Planner
 {
     public function __construct(
         private State $state,
-        private Media $media
+        private Media $media,
+        private Queue $queue
     ) {
     }
 
@@ -53,6 +54,11 @@ final readonly class Planner
                 Media::identity($song), $intro, $settings->toArray(), $measurements,
             ], JSON_THROW_ON_ERROR));
             if (!$settings->enabled || $intro === null || $intro <= $cueIn) {
+                unset($data['plans'][$token]);
+
+                return $data;
+            }
+            if ($this->queue->blocked($station, [$token], $settings) !== []) {
                 unset($data['plans'][$token]);
 
                 return $data;
@@ -138,7 +144,10 @@ final readonly class Planner
         $this->heartbeat($station, [], [['event' => 'played', 'token' => $token]]);
     }
 
-    public function heartbeat(Station $station, array $tokens, array $events): Settings
+    /**
+     * @return array{settings: Settings, blocked: list<string>}
+     */
+    public function heartbeat(Station $station, array $tokens, array $events): array
     {
         if (count($tokens) > 16 || count($events) > 128) {
             throw new InvalidArgumentException('Too many reservation events.');
@@ -173,7 +182,18 @@ final readonly class Planner
             return $data;
         });
 
-        return Settings::fromArray($data['settings'] ?? []);
+        $settings = Settings::fromArray($data['settings'] ?? []);
+        $pending = array_values(array_filter(
+            array_map('strval', $tokens),
+            static fn(string $token): bool => isset($data['plans'][$token])
+                && !($data['plans'][$token]['played'] ?? false)
+        ));
+
+        // Recheck until activation: AzuraCast extends its upcoming queue after planning.
+        return [
+            'settings' => $settings,
+            'blocked' => $settings->enabled ? $this->queue->blocked($station, $pending, $settings) : [],
+        ];
     }
 
     private static function emptyPlan(string $token, string $revision): array

@@ -96,13 +96,13 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
             return;
         }
 
-        $path = dirname(__DIR__, 2) . '/liquidsoap/sweepers.liq';
-        $event->appendBlock('%include ' . json_encode($path, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+        $event->appendBlock(self::includeLine());
         $runtime = $settings->runtime();
         $event->appendBlock('sweepers.configure({'
             . 'enabled=' . ($settings->enabled ? 'true' : 'false')
             . ', revision="' . $runtime['revision'] . '"'
-            . ', minimum_songs=' . $settings->minimumSongs
+            . ', songs_after_jingle=' . $settings->songsAfterJingle
+            . ', songs_after_sweeper=' . $settings->songsAfterSweeper
             . ', count_jingle_mode=' . ($settings->countJingleMode ? 'true' : 'false')
             . ', jingle_playlists=' . json_encode($runtime['jingle_playlists'], JSON_THROW_ON_ERROR)
             . '})');
@@ -116,18 +116,31 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
 
         $lines = explode("\n", $event->buildConfiguration());
         $matches = array_keys($lines, 'radio = azuracast.apply_crossfade(radio)', true);
-        if (count($matches) !== 1) {
-            throw new RuntimeException('Unsupported Liquidsoap configuration: crossfade insertion point not found.');
-        }
-
         $factories = array_keys($lines, 'radio = azuracast.enable_autodj(radio)', true);
-        if (count($factories) !== 1) {
-            throw new RuntimeException('Unsupported Liquidsoap configuration: AutoDJ insertion point not found.');
+        if (count($matches) !== 1 || count($factories) !== 1) {
+            if ($this->settings($event)->enabled) {
+                throw new RuntimeException('Unsupported Liquidsoap configuration: sweeper insertion point not found.');
+            }
+            // Never prevent a station that does not use sweepers from starting.
+            foreach ($lines as $index => $line) {
+                if ($line === self::includeLine() || str_starts_with($line, 'sweepers.configure(')) {
+                    $event->replaceLine($index, '# AzuraCast Sweepers not loaded: unsupported configuration.');
+                }
+            }
+
+            return;
         }
         $event->replaceLine($factories[0], 'radio = sweepers.enable_autodj(radio)');
 
         $index = $matches[0];
         $event->replaceLine($index, $lines[$index] . "\nradio = sweepers.mix(radio)");
+    }
+
+    private static function includeLine(): string
+    {
+        $path = dirname(__DIR__, 2) . '/liquidsoap/sweepers.liq';
+
+        return '%include ' . json_encode($path, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
     }
 
     private function settings(WriteLiquidsoapConfiguration $event): Settings

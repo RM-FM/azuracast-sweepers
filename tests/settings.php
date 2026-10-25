@@ -21,7 +21,7 @@ namespace App\Entity {
 
         public function __construct(private string $directory)
         {
-            $this->backend_config = (object)['use_manual_autodj' => false];
+            $this->backend_config = (object)['use_manual_autodj' => false, 'autodj_queue_length' => 3];
         }
 
         public function getRadioConfigDir(): string
@@ -173,7 +173,13 @@ namespace {
     };
     try {
         $state->update($directory, static fn() => ['history' => ['42' => 123.5], 'plans' => ['123' => ['played' => true]]]);
-        $settings = (new Settings(enabled: true, playlistId: 7, minimumSongs: 3))->toArray();
+        $settings = (new Settings(
+            enabled: true,
+            playlistId: 7,
+            songsAfterJingle: 3,
+            songsAfterSweeper: 2,
+            songsBeforeJingle: 1
+        ))->toArray();
         expect($save($settings) === ['success' => true, 'needs_restart' => false], 'Enabling requires no restart.');
         expect(!$station->needs_restart, 'Saving does not mark the station for restart.');
         expect($state->read($directory)['history']['42'] === 123.5, 'Saving preserves actual-play history.');
@@ -194,10 +200,47 @@ namespace {
             expect(str_contains($script, 'radio = sweepers.mix(radio)'), 'Always install the mixer.');
             expect(str_contains($script, 'revision="' . Settings::fromArray($state->read($directory)['settings'])->revision()), 'Initial revision matches the API.');
         }
+        expect(str_contains($event->buildConfiguration(), 'songs_after_jingle=0, songs_after_sweeper=0'), 'Initial gaps.');
         $event = new WriteLiquidsoapConfiguration($station, true);
         $subscriber->header($event);
         $subscriber->mixer($event);
         expect(!str_contains($event->buildConfiguration(), 'sweepers'), 'Do not inject the module into the editing view.');
+
+        $save(['songs_before_jingle' => 3]);
+        expect(Settings::fromArray($state->read($directory)['settings'])->songsBeforeJingle === 3, 'Queue length is allowed.');
+        $station->backend_config->autodj_queue_length = 1;
+        $save(['songs_before_jingle' => 2]);
+        expect(
+            Settings::fromArray($state->read($directory)['settings'])->songsBeforeJingle === 2,
+            'AzuraCast builds at least two queue entries, so 2 is allowed for length 1.'
+        );
+        $station->backend_config->autodj_queue_length = 3;
+        try {
+            $save(['songs_before_jingle' => 4]);
+            throw new RuntimeException('A before-jingle gap beyond the AutoDJ queue was accepted.');
+        } catch (InvalidArgumentException $exception) {
+            expect(str_contains($exception->getMessage(), 'queue length (3)'), 'Explain the queue limit.');
+        }
+
+        // A non-standard configuration must not break a station that does not use sweepers.
+        $save(['enabled' => false]);
+        $event = new WriteLiquidsoapConfiguration($station);
+        $event->lines = ['radio = custom(radio)'];
+        $subscriber->header($event);
+        $subscriber->mixer($event);
+        $script = $event->buildConfiguration();
+        expect(!str_contains($script, '%include') && !str_contains($script, 'sweepers.configure('), 'Unload when unsupported.');
+        expect(str_contains($script, 'radio = custom(radio)'), 'Keep the station configuration unchanged.');
+        $save(['enabled' => true, 'playlist_id' => 7]);
+        $event = new WriteLiquidsoapConfiguration($station);
+        $event->lines = ['radio = custom(radio)'];
+        $subscriber->header($event);
+        try {
+            $subscriber->mixer($event);
+            throw new RuntimeException('An enabled unsupported configuration was accepted silently.');
+        } catch (RuntimeException $exception) {
+            expect(str_contains($exception->getMessage(), 'insertion point'), 'Report unsupported enabled stations.');
+        }
 
         $station->backend_config->use_manual_autodj = true;
         try {

@@ -35,9 +35,10 @@ let needsRestart = false;
 globalThis.fetch = async (url, options) => {
     let data;
     if (url.endsWith("/state")) {
-        data = { csrf: "session-token", station: { id: 1, name: "Test" }, settings: {
+        data = { csrf: "session-token", station: { id: 1, name: "Test" }, queue_length: 3, settings: {
             enabled: false, playlist_id: null, max_wait: null, margin: .8, duck_db: -7, jingle_gain: 1,
-            minimum_songs: 0, count_jingle_mode: true, jingle_playlist_ids: [], longest_fit: false, length_tolerance: 20,
+            songs_after_jingle: 0, songs_after_sweeper: 0, songs_before_jingle: 0,
+            count_jingle_mode: true, jingle_playlist_ids: [], longest_fit: false, length_tolerance: 20,
         }, playlists: [{ id: 10, name: "Sweepers" }], jingle_playlists: [
             { id: 20, name: "Station IDs", is_jingle: true }, { id: 21, name: "Promos", is_jingle: false },
         ] };
@@ -157,7 +158,11 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         await submit();
         assert.match(document.querySelector('[role="status"]').textContent, /other pending changes requiring a restart/);
         needsRestart = false;
-        await change("Minimum songs", "2");
+        await change("after a jingle", "3");
+        await change("after a sweeper", "2");
+        await change("before a jingle", "1");
+        assert.equal(field("before a jingle").getAttribute("max"), "3", "Before-jingle limit follows the AutoDJ queue");
+        assert.match(document.querySelector("section.card").textContent, /AutoDJ queue length \(3\)/);
         await change("Count Jingle Mode", false, true);
         await change("Prefer the longest", true, true);
         await change("Intro length tolerance", "20");
@@ -170,7 +175,10 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         await change("Limit start delay", true, true);
         const settings = await submit();
         assert.equal(settings.max_wait, 0);
-        assert.equal(settings.minimum_songs, 2);
+        assert.equal(settings.songs_after_jingle, 3);
+        assert.equal(settings.songs_after_sweeper, 2);
+        assert.equal(settings.songs_before_jingle, 1);
+        assert.equal("minimum_songs" in settings, false);
         assert.equal(settings.count_jingle_mode, false);
         assert.equal(settings.longest_fit, true);
         assert.equal(settings.length_tolerance, 20);

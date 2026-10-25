@@ -15,11 +15,13 @@ final readonly class Settings
         public float $margin = 0.8,
         public float $duckDb = -7.0,
         public float $jingleGain = 1.0,
-        public int $minimumSongs = 0,
+        public int $songsAfterJingle = 0,
         public bool $countJingleMode = true,
         public array $jinglePlaylistIds = [],
         public bool $longestFit = false,
-        public float $lengthTolerance = 20.0
+        public float $lengthTolerance = 20.0,
+        public int $songsAfterSweeper = 0,
+        public int $songsBeforeJingle = 0
     ) {
         foreach ([$maxWait ?? 0.0, $margin, $duckDb, $jingleGain, $lengthTolerance] as $value) {
             if (!is_finite($value)) {
@@ -30,7 +32,9 @@ final readonly class Settings
         if (
             ($maxWait !== null && ($maxWait < 0 || $maxWait > 3600)) || $margin < 0 || $margin > 5
             || $duckDb > 0 || $duckDb < -20 || $jingleGain < 0 || $jingleGain > 2
-            || $minimumSongs < 0 || $minimumSongs > 1000 || $lengthTolerance < 0 || $lengthTolerance > 100
+            || $songsAfterJingle < 0 || $songsAfterJingle > 1000 || $songsAfterSweeper < 0
+            || $songsAfterSweeper > 1000 || $songsBeforeJingle < 0 || $songsBeforeJingle > 1000
+            || $lengthTolerance < 0 || $lengthTolerance > 100
             || ($enabled && ($playlistId === null || $playlistId < 1))
         ) {
             throw new InvalidArgumentException('Invalid sweeper settings.');
@@ -56,9 +60,18 @@ final readonly class Settings
         if ($playlistId !== null && (!is_int($playlistId) || $playlistId < 1)) {
             throw new InvalidArgumentException('Invalid playlist ID.');
         }
-        $minimumSongs = $data['minimum_songs'] ?? 0;
+        // Earlier versions stored one shared minimum_songs gap.
+        $legacy = $data['minimum_songs'] ?? 0;
+        $defaults = ['songs_after_jingle' => $legacy, 'songs_after_sweeper' => $legacy, 'songs_before_jingle' => 0];
+        $gaps = [];
+        foreach ($defaults as $key => $default) {
+            $gaps[$key] = $data[$key] ?? $default;
+            if (!is_int($gaps[$key])) {
+                throw new InvalidArgumentException('Invalid song spacing.');
+            }
+        }
         $playlistIds = $data['jingle_playlist_ids'] ?? [];
-        if (!is_int($minimumSongs) || !is_array($playlistIds) || !array_is_list($playlistIds)) {
+        if (!is_array($playlistIds) || !array_is_list($playlistIds)) {
             throw new InvalidArgumentException('Invalid song spacing or jingle playlists.');
         }
 
@@ -89,11 +102,13 @@ final readonly class Settings
             margin: $values['margin'],
             duckDb: $values['duck_db'],
             jingleGain: $values['jingle_gain'],
-            minimumSongs: $minimumSongs,
+            songsAfterJingle: $gaps['songs_after_jingle'],
             countJingleMode: $booleans['count_jingle_mode'],
             jinglePlaylistIds: $playlistIds,
             longestFit: $booleans['longest_fit'],
-            lengthTolerance: $values['length_tolerance']
+            lengthTolerance: $values['length_tolerance'],
+            songsAfterSweeper: $gaps['songs_after_sweeper'],
+            songsBeforeJingle: $gaps['songs_before_jingle']
         );
     }
 
@@ -107,7 +122,8 @@ final readonly class Settings
         return [
             'enabled' => $this->enabled,
             'revision' => $this->revision(),
-            'minimum_songs' => $this->minimumSongs,
+            'songs_after_jingle' => $this->songsAfterJingle,
+            'songs_after_sweeper' => $this->songsAfterSweeper,
             'count_jingle_mode' => $this->countJingleMode,
             'jingle_playlists' => array_values(array_unique([
                 ...($this->playlistId === null ? [] : [$this->playlistId]),
@@ -125,7 +141,9 @@ final readonly class Settings
             'margin' => $this->margin,
             'duck_db' => $this->duckDb,
             'jingle_gain' => $this->jingleGain,
-            'minimum_songs' => $this->minimumSongs,
+            'songs_after_jingle' => $this->songsAfterJingle,
+            'songs_after_sweeper' => $this->songsAfterSweeper,
+            'songs_before_jingle' => $this->songsBeforeJingle,
             'count_jingle_mode' => $this->countJingleMode,
             'jingle_playlist_ids' => $this->jinglePlaylistIds,
             'longest_fit' => $this->longestFit,

@@ -98,9 +98,13 @@ final readonly class InternalController
     public function heartbeatAction(ServerRequest $request, Response $response, array $params): ResponseInterface
     {
         $body = $this->payload($request);
-        $settings = $this->planner->heartbeat($request->getStation(), $body['tokens'] ?? [], $body['events'] ?? []);
+        $result = $this->planner->heartbeat($request->getStation(), $body['tokens'] ?? [], $body['events'] ?? []);
 
-        return $response->withJson(['success' => true, 'settings' => $settings->runtime()]);
+        return $response->withJson([
+            'success' => true,
+            'settings' => $result['settings']->runtime(),
+            'blocked' => $result['blocked'],
+        ]);
     }
 
     public function playedAction(ServerRequest $request, Response $response, array $params): ResponseInterface

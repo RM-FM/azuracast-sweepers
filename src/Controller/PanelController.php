@@ -8,6 +8,7 @@ use App\Http\Response;
 use App\Http\ServerRequest;
 use InvalidArgumentException;
 use Plugin\AzuracastSweepers\Service\Media;
+use Plugin\AzuracastSweepers\Service\Queue;
 use Plugin\AzuracastSweepers\Service\State;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
 use Psr\Http\Message\ResponseInterface;
@@ -70,6 +71,7 @@ final readonly class PanelController
         return $response->withHeader('Cache-Control', 'no-store')->withJson([
             'csrf' => $request->getCsrf()->generate('sweepers'),
             'station' => ['id' => $station->id, 'name' => $station->name, 'needs_restart' => $station->needs_restart],
+            'queue_length' => Queue::length($station),
             'settings' => Settings::fromArray($data['settings'] ?? [])->toArray(),
             'playlists' => array_map(static fn($playlist): array => [
                 'id' => $playlist->id,
@@ -88,6 +90,11 @@ final readonly class PanelController
         $request->getCsrf()->verify($request->getHeaderLine('X-CSRF-Token'), 'sweepers');
         $settings = Settings::fromArray($this->body($request));
         $station = $request->getStation();
+        if ($settings->songsBeforeJingle > Queue::length($station)) {
+            throw new InvalidArgumentException(
+                'Songs before a jingle cannot exceed the AutoDJ queue length (' . Queue::length($station) . ').'
+            );
+        }
         if ($settings->enabled) {
             if ($station->backend_config->use_manual_autodj) {
                 throw new InvalidArgumentException('Sweepers require AzuraCast AutoDJ queue management.');

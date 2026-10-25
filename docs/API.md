@@ -58,12 +58,15 @@ The Liquidsoap module uses `/api/internal/{station_id}/liquidsoap/sweepers/`:
 These endpoints require AzuraCast's internal connection and the station's adapter
 API key. They are not public control endpoints.
 
-The heartbeat response contains `success: true` and `settings` with `enabled`,
-`minimum_songs`, `count_jingle_mode`, merged `jingle_playlists` and a `revision`
-covering every saved setting. Every plan (including an empty plan) carries that
-same revision. Liquidsoap checks it before activation and releases obsolete plans.
-Already started overlays retain their original timing and gain and still report
-actual playback. Heartbeats continue while sweepers are disabled.
+The heartbeat response contains `success: true`, `settings` with `enabled`,
+`songs_after_jingle`, `songs_after_sweeper`, `count_jingle_mode`, merged
+`jingle_playlists` and a `revision` covering every saved setting, and `blocked`:
+the reserved, not yet played plan tokens whose song is now followed by a queued
+jingle within `songs_before_jingle` tracks. Liquidsoap cancels those plans before
+activation. Every plan (including an empty plan) carries the settings revision.
+Liquidsoap checks it before activation and releases obsolete plans; empty plans
+need no release. Already started overlays retain their original timing and gain
+and still report actual playback. Heartbeats continue while sweepers are disabled.
 
 ## Panel rotation settings
 
@@ -72,16 +75,20 @@ Broadcasting permission. It accepts the existing settings plus:
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `minimum_songs` | `0` | Intervening AutoDJ songs, integer 0–1000 |
+| `songs_after_jingle` | `0` | Songs without sweeper after a jingle, integer 0–1000 |
+| `songs_after_sweeper` | `0` | Songs without sweeper after a sweeper, integer 0–1000 |
+| `songs_before_jingle` | `0` | Queued tracks checked for a following jingle, 0 to the AutoDJ queue length |
 | `count_jingle_mode` | `true` | Recognize the native `jingle_mode` annotation |
 | `jingle_playlist_ids` | `[]` | Additional station playlist IDs (integer array) |
 | `max_wait` | `null` | Disabled; numeric 0–3600 sets the immediate-start threshold |
 | `longest_fit` | `false` | Prefer bodies closest to the available intro length |
 | `length_tolerance` | `20` | Eligible range below the intro length, percent 0–100 |
 
-The panel state supplies Advanced `playlists` for sweeper selection and all station
-`jingle_playlists` for spacing classification. Foreign or missing jingle playlist
-IDs are rejected before saving. Existing settings remain compatible. Saving does
+The panel state supplies Advanced `playlists` for sweeper selection, all station
+`jingle_playlists` for spacing classification and the effective `queue_length`
+(`max(autodj_queue_length, 2)`). Foreign or missing jingle playlist IDs and a
+`songs_before_jingle` above `queue_length` are rejected before saving. A saved
+legacy `minimum_songs` value is read as both after-gaps. Saving does
 not set or clear AzuraCast's `needs_restart` flag; the response reports its existing
 value, which may reflect unrelated station changes. All settings update through
 the five-second heartbeat after the module has been installed and loaded once.
