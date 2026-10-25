@@ -127,10 +127,12 @@ export function mountNavigation(document, window, basePath = "") {
         item.id = itemId;
         item.className = "nav-item";
         item.dataset.signature = signature;
-        // The group link opens Settings; the group unfolds on every Sweepers page.
         const link = document.createElement("a");
         link.className = view ? "nav-link active" : "nav-link";
-        link.setAttribute("href", context.href);
+        link.setAttribute("href", `#${submenuId}`);
+        link.setAttribute("data-bs-toggle", "collapse");
+        link.setAttribute("role", "button");
+        link.setAttribute("aria-controls", submenuId);
         link.setAttribute("aria-expanded", view ? "true" : "false");
         const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         icon.setAttribute("class", "navdrawer-nav-icon");

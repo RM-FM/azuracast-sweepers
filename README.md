@@ -69,8 +69,7 @@ docker compose up -d
 This may recreate the web container and briefly interrupt broadcasting.
 After reloading the dashboard, open **Sweepers** in the station sidebar. It is a
 fold-out group directly below Media, like AzuraCast's own menu groups, with three
-pages that open inside the station dashboard. Clicking **Sweepers** itself opens
-Settings and unfolds the group:
+pages that open inside the station dashboard:
 
 | Page | Contents |
 | --- | --- |
@@ -100,8 +99,8 @@ The cue editor belongs to the plugin; it does not modify AzuraCast's native cue 
 The sidebar group uses a small plugin-owned script injected into successful HTML
 responses from the authenticated dashboard. It follows station switches and Vue
 sidebar redraws without modifying core files or Vue internals. It uses the same
-markup as AzuraCast's own groups; the group link opens Settings, and the group
-stays unfolded on every Sweepers page. The pages load the native station route with `?sweepers=settings`,
+markup as AzuraCast's own groups, so AzuraCast's Bootstrap handles opening and
+closing it. The pages load the native station route with `?sweepers=settings`,
 `?sweepers=intros` or `?sweepers=history` (older `?sweepers=1` links open
 Settings). The script adds the plugin panel beside AzuraCast's own content
 container and restores the original content when leaving the route. Plugin styles

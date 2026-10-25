@@ -63,8 +63,8 @@ test("station paths respect the installation prefix and reject unrelated pages",
 test("adds one top-level Sweepers group after Media and does not loop on its own mutations", async () => {
     const f = fixture();
     const group = f.item().querySelector("a");
-    assert.equal(group.getAttribute("href"), "/station/1?sweepers=settings", "The group link opens Settings");
-    assert.equal(group.hasAttribute("data-bs-toggle"), false, "The group link navigates instead of only folding");
+    assert.equal(group.getAttribute("href"), "#sidebar-submenu-sweepers");
+    assert.equal(group.getAttribute("data-bs-toggle"), "collapse");
     assert.equal(group.getAttribute("aria-expanded"), "false");
     assert.equal(group.textContent, "Sweepers");
     const submenu = f.document.getElementById("sidebar-submenu-sweepers");
