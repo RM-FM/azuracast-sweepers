@@ -88,7 +88,7 @@
                     </div>
                     <div class="form-text" :class="{ 'mb-3': settings.longest_fit }">
                         <strong>Off:</strong> all sweepers that fit the intro take turns; the one played longest ago comes next.
-                        <strong>On:</strong> prefer sweepers that fill most of the intro.
+                        <strong>On:</strong> prefer sweepers that fill most of the intro. How close they must come is set by the <em>intro length tolerance</em> (default 20%), which appears when this is switched on.
                     </div>
                     <template v-if="settings.longest_fit">
                         <label class="form-label d-block mb-0">
