@@ -96,7 +96,7 @@ final readonly class Timing
         }
         if (
             $songCueIn < 0 || $introEnd > $songCueOut || $offset < 0
-            || $offset + $this->cueOut - $this->cueIn > $songCueOut - $songCueIn
+            || $offset + $this->cueOut - $this->cueIn + $settings->reverbTail() > $songCueOut - $songCueIn
         ) {
             return null;
         }

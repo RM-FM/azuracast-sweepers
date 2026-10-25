@@ -8,6 +8,9 @@ use InvalidArgumentException;
 
 final readonly class Settings
 {
+    // Must match the silence the module appends for the reverb to decay.
+    public const float REVERB_TAIL = 0.6;
+
     public function __construct(
         public bool $enabled = true,
         public ?int $playlistId = null,
@@ -24,9 +27,11 @@ final readonly class Settings
         public int $songsBeforeJingle = 0,
         public float $earlyStart = 2.0,
         public bool $limitDelay = false,
-        public bool $swapForIntro = false
+        public bool $swapForIntro = false,
+        public bool $reverb = false,
+        public float $reverbIntensity = 50.0
     ) {
-        foreach ([$maxWait, $margin, $duckDb, $jingleGain, $lengthTolerance, $earlyStart] as $value) {
+        foreach ([$maxWait, $margin, $duckDb, $jingleGain, $lengthTolerance, $earlyStart, $reverbIntensity] as $value) {
             if (!is_finite($value)) {
                 throw new InvalidArgumentException('Settings must be finite.');
             }
@@ -39,7 +44,7 @@ final readonly class Settings
             || $songsAfterJingle < 0 || $songsAfterJingle > 1000 || $songsAfterSweeper < 0
             || $songsAfterSweeper > 1000 || $songsBeforeJingle < 0 || $songsBeforeJingle > 1000
             || $lengthTolerance < 0 || $lengthTolerance > 100 || $earlyStart < 0 || $earlyStart > 60
-            || ($playlistId !== null && $playlistId < 1)
+            || ($playlistId !== null && $playlistId < 1) || $reverbIntensity < 0 || $reverbIntensity > 100
         ) {
             throw new InvalidArgumentException('Invalid sweeper settings.');
         }
@@ -53,7 +58,10 @@ final readonly class Settings
     public static function fromArray(array $data): self
     {
         $booleans = [];
-        $flags = ['enabled' => true, 'count_jingle_mode' => true, 'longest_fit' => false, 'swap_for_intro' => false];
+        $flags = [
+            'enabled' => true, 'count_jingle_mode' => true, 'longest_fit' => false, 'swap_for_intro' => false,
+            'reverb' => false,
+        ];
         foreach ($flags as $key => $default) {
             $value = $data[$key] ?? $default;
             if (!is_bool($value)) {
@@ -94,6 +102,7 @@ final readonly class Settings
             'jingle_gain' => 1.0,
             'length_tolerance' => 20.0,
             'early_start' => 2.0,
+            'reverb_intensity' => 50.0,
         ];
         foreach ($defaults as $key => $default) {
             $value = $data[$key] ?? $default;
@@ -119,7 +128,9 @@ final readonly class Settings
             songsBeforeJingle: $gaps['songs_before_jingle'],
             earlyStart: $values['early_start'],
             limitDelay: $limitDelay,
-            swapForIntro: $booleans['swap_for_intro']
+            swapForIntro: $booleans['swap_for_intro'],
+            reverb: $booleans['reverb'],
+            reverbIntensity: $values['reverb_intensity']
         );
     }
 
@@ -162,6 +173,24 @@ final readonly class Settings
             'length_tolerance' => $this->lengthTolerance,
             'early_start' => $this->earlyStart,
             'swap_for_intro' => $this->swapForIntro,
+            'reverb' => $this->reverb,
+            'reverb_intensity' => $this->reverbIntensity,
         ];
+    }
+
+    /**
+     * Seconds the added reverb keeps sounding after the sweeper file ends.
+     */
+    public function reverbTail(): float
+    {
+        return $this->reverb && $this->reverbIntensity > 0 ? self::REVERB_TAIL : 0.0;
+    }
+
+    /**
+     * Reverb level sent with each plan: 0 (off) to 1 (strongest).
+     */
+    public function reverbLevel(): float
+    {
+        return $this->reverbTail() > 0 ? $this->reverbIntensity / 100 : 0.0;
     }
 }

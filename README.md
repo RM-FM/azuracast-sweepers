@@ -185,6 +185,7 @@ their values:
 | Move a song with an intro forward | Off |
 | Handover margin | 0.5 s |
 | Limit start delay | Off (maximum start delay 10 s, early start 2 s) |
+| Reverb on the sweeper voice | Off (intensity 50%) |
 | Maximum ducking | −7 dB |
 | Jingle gain | 100% |
 
@@ -223,6 +224,14 @@ their values:
   converted: an empty value becomes "off", a number "on" with that maximum.
 - **Jingle gain** is entered in percent (100% = as loud as the songs) and stored
   as a factor (`1.0`).
+- **Add reverb to the sweeper voice** is off by default. It adds a gentle sense
+  of space to the voice, like a produced jingle: soft reflections between 41 and
+  313 ms (FFmpeg `aecho`) on top of the unchanged voice. **Reverb intensity**
+  (default 50%) sets their level; even 100% stays moderate (strongest reflection
+  about −10 dB). The reverb fades out within about 0.6 seconds after the sweeper
+  file ends, so a sweeper with reverb needs that much more room before the song's
+  next transition. Changes apply to sweepers prepared after saving. The effect is
+  computed live by Liquidsoap; sweeper files are not changed.
 - **Prefer the longest fitting sweepers** is off by default. When enabled,
   the tolerance defines an eligible length range: with 30 seconds available and
   20%, bodies of 24–30 seconds participate in oldest-played rotation. If none are

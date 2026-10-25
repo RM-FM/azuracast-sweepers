@@ -133,7 +133,7 @@ foreach ([
     'songs_before_jingle' => 1, 'count_jingle_mode' => false,
     'jingle_playlist_ids' => [4, 5], 'max_wait' => 0, 'limit_delay' => true, 'margin' => 1.2, 'duck_db' => -10,
     'jingle_gain' => 0.5, 'longest_fit' => true, 'length_tolerance' => 50, 'early_start' => 4,
-    'swap_for_intro' => true,
+    'swap_for_intro' => true, 'reverb' => true, 'reverb_intensity' => 70,
 ] as $key => $value) {
     check(
         Settings::fromArray([$key => $value] + $settings->toArray())->revision() !== $settings->revision(),
@@ -325,6 +325,21 @@ check(
 );
 check(Arranger::window('/media/song.mp3', 210) === [0.0, 210.0], 'Without cue values the whole file is used.');
 check(!Settings::fromArray([])->swapForIntro, 'Moving songs forward is off by default.');
+$reverbDefaults = Settings::fromArray([]);
+check(
+    !$reverbDefaults->reverb && $reverbDefaults->reverbIntensity === 50.0 && $reverbDefaults->reverbLevel() === 0.0
+        && $reverbDefaults->reverbTail() === 0.0,
+    'Reverb is off by default with a gentle 50% intensity ready.'
+);
+$withReverb = new Settings(margin: 0.3, reverb: true, reverbIntensity: 40);
+check(abs($withReverb->reverbLevel() - 0.4) < 0.0001, 'Reverb level follows the intensity.');
+check($withReverb->reverbTail() === Settings::REVERB_TAIL, 'Reverb adds its tail.');
+check((new Settings(reverb: true, reverbIntensity: 0))->reverbLevel() === 0.0, 'Intensity 0 adds no reverb.');
+$tight = Timing::fromArray(['cue_in' => 0, 'cue_out' => 3, 'cross_start_next' => 3], 3);
+check($tight->fit(10, 0, 10, new Settings(margin: 0.3)) !== null, 'The sweeper fits without reverb.');
+check($tight->fit(10, 0, 10, $withReverb) === null, 'The reverb tail must also end before the next transition.');
+rejects(static fn() => Settings::fromArray(['reverb_intensity' => 101]));
+rejects(static fn() => Settings::fromArray(['reverb' => 1]));
 check(Settings::fromArray(['swap_for_intro' => true])->swapForIntro, 'Moving songs forward can be switched on.');
 rejects(static fn() => Settings::fromArray(['swap_for_intro' => 'yes']));
 

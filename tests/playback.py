@@ -18,7 +18,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--liquidsoap', default='liquidsoap')
 parser.add_argument('--scenario', choices=['normal', 'skip', 'live', 'unavailable', 'spacing', 'playlist-spacing',
                                           'hot-enable', 'hot-disable', 'hot-pending', 'hot-change', 'hot-error',
-                                          'before-jingle', 'computed-autocue', 'provided-autocue', 'arrange'], default='normal')
+                                          'before-jingle', 'computed-autocue', 'provided-autocue', 'arrange', 'reverb'], default='normal')
 parser.add_argument('--runtime', type=Path, required=True)
 args = parser.parse_args()
 plugin = Path(__file__).resolve().parents[1]
@@ -84,7 +84,8 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
                 value = dict(token=json.loads(body)['token'], revision=live_settings['revision'],
                              uri=f'annotate:liq_cue_in="0",liq_cue_out="{0.5 if short_tracks else 2}":{root}/sweeper.wav' if short_tracks or json.loads(body)['token'] == '123' else '',
                              offset=.1 if short_tracks else (3. if args.scenario in ('skip', 'hot-pending', 'hot-change', 'before-jingle') else 1.),
-                             duck_duration=.3 if short_tracks else 1., gain=1., duck_gain=.4467)
+                             duck_duration=.3 if short_tracks else 1., gain=1., duck_gain=.4467,
+                             **({'reverb': 1., 'length': 2.} if args.scenario == 'reverb' else {}))
             elif self.path == '/sweepers/arrange':
                 moved = args.scenario == 'arrange' and not any(path == '/sweepers/arrange' for path, _, _ in calls[:-1])
                 value = {'moved': '130', 'before': '125'} if moved else {'moved': '', 'before': ''}
@@ -228,7 +229,16 @@ thread.run(delay=7., {{shutdown()}})
         assert any(e['event'] == 'played' for e in events), 'Playback acknowledgment missing'
         returned = amplitude(samples, 440, onset + 2.3)
         assert .95 < returned / normal < 1.05, (normal, returned)
-        if args.scenario == 'live':
+        if args.scenario == 'reverb':
+            def band(start, duration=.05):
+                return math.sqrt(sum(amplitude(samples, hz, start, duration) ** 2 for hz in range(700, 1100, 20)))
+            voice, tail, faded = band(onset + 2.5), band(onset + 3.35), band(onset + 4.2)
+            assert tail > faded + 300, ('Reverb tail missing after the sweeper', voice, tail, faded)
+            assert tail < voice / 3, ('Reverb too loud for a gentle effect', voice, tail)
+            assert faded < 600, ('Reverb tail must fade out', faded)
+            assert 'Sweeper started for queue 123' in result.stdout, 'Sweeper with reverb did not start'
+            print(f'Reverb band levels: voice {voice:.0f}, tail {tail:.0f}, faded {faded:.0f}')
+        elif args.scenario == 'live':
             assert amplitude(samples, 880, onset + 2.3) < 50, 'Live takeover did not cancel sweeper'
             assert {'event': 'release', 'token': '123'} in events, 'Live takeover did not release reservation'
         else:

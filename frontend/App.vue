@@ -169,6 +169,20 @@
                             <div class="form-text">Volume of the sweepers compared with the songs; <strong>100%</strong> = as loud as the songs.</div>
                         </div>
                     </div>
+                    <div class="form-check form-switch mt-3">
+                        <input id="sweepers-reverb" v-model="settings.reverb" class="form-check-input" type="checkbox" role="switch">
+                        <label class="form-check-label" for="sweepers-reverb">Add reverb to the sweeper voice</label>
+                    </div>
+                    <div class="form-text" :class="{ 'mb-3': settings.reverb }">A gentle reverb that gives the voice some space, like a produced jingle. It fades out within about half a second after the sweeper, so sweepers need that much more room before the song's next transition.</div>
+                    <div v-if="settings.reverb" class="row g-3">
+                        <div class="col-md-6 col-xl-4">
+                            <label class="form-label d-block mb-0">
+                                Reverb intensity (%)
+                                <input v-model.number="settings.reverb_intensity" class="form-control" type="number" min="0" max="100" step="5" required>
+                            </label>
+                            <div class="form-text">How much reverb is mixed in. Low values are barely noticeable; even 100% stays moderate.</div>
+                        </div>
+                    </div>
                 </fieldset>
 
                 <button class="btn btn-primary" :disabled="saving">Save settings</button>

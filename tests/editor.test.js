@@ -40,6 +40,7 @@ globalThis.fetch = async (url, options) => {
             enabled: true, playlist_id: null, limit_delay: false, max_wait: 10, margin: .5, duck_db: -7, jingle_gain: 1,
             songs_after_jingle: 1, songs_after_sweeper: 1, songs_before_jingle: 0, early_start: 2,
             count_jingle_mode: true, jingle_playlist_ids: [], longest_fit: false, length_tolerance: 20, swap_for_intro: false,
+            reverb: false, reverb_intensity: 50,
         }, playlists: [{ id: 10, name: "Sweepers" }], jingle_playlists: [
             { id: 20, name: "Station IDs", is_jingle: true }, { id: 21, name: "Promos", is_jingle: false },
         ] };
@@ -168,6 +169,9 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(first.jingle_gain, 1);
         assert.equal(field("Move a song with an intro forward").checked, false, "Moving songs forward is off by default");
         assert.equal(first.swap_for_intro, false);
+        assert.equal(first.reverb, false, "Reverb is off by default");
+        assert.ok(![...document.querySelectorAll("section.card label")].some((node) => node.textContent.includes("Reverb intensity")),
+            "Intensity appears only when reverb is on");
         assert.equal(document.querySelector('[role="status"]').textContent, "Settings saved.");
         assert.doesNotMatch(document.querySelector('[role="status"]').textContent, /restart/i);
         needsRestart = true;
@@ -194,7 +198,12 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         await change("Early start", "3.5");
         await change("Jingle gain", "70");
         await change("Move a song with an intro forward", true, true);
+        await change("Add reverb to the sweeper voice", true, true);
+        assert.equal(field("Reverb intensity").value, "50");
+        await change("Reverb intensity", "40");
         const settings = await submit();
+        assert.equal(settings.reverb, true);
+        assert.equal(settings.reverb_intensity, 40);
         assert.equal(settings.swap_for_intro, true);
         assert.equal(settings.limit_delay, true);
         assert.equal(settings.max_wait, 10);

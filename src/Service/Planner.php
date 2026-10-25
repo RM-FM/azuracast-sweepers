@@ -122,6 +122,9 @@ final readonly class Planner
                     ...$fit,
                     'gain' => 10 ** ($timing->gainDb / 20) * $settings->jingleGain,
                     'duck_gain' => 10 ** ($settings->duckDb / 20),
+                    'reverb' => $settings->reverbLevel(),
+                    // Playable sweeper length; the module extends the overlay by the reverb tail.
+                    'length' => $timing->cueOut - $timing->cueIn,
                 ];
                 $data['plans'][$token] = [
                     'song_id' => $song->id,

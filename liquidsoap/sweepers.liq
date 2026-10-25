@@ -288,6 +288,29 @@ end
 
 let sweepers.original_next_song = azuracast.autodj_next_song
 
+# A gentle "space" around the voice, like a produced jingle: FFmpeg's aecho adds ten soft reflections
+# between 41 and 313 ms (strongest about -10 dB at level 1, -16 dB at the default 0.5) on top of the
+# unchanged voice. The overlay continues with silence for Settings::REVERB_TAIL seconds so the
+# reflections can fade out. Liquidsoap's own echo/comb add no tail here, and sequence() would skip a
+# request that is not yet ready. level: 0–1; length: playable sweeper seconds.
+def sweepers.reverb(level, length, s) =
+    padded = max_duration(length + 0.6, add(normalize=false, [s, blank()]))
+    decays = list.map(
+        fun (decay) -> "#{decay * level}",
+        [0.32, 0.28, 0.25, 0.22, 0.19, 0.16, 0.13, 0.1, 0.08, 0.06]
+    )
+    def graph(g) =
+        let {audio} = source.tracks(ffmpeg.raw.encode.audio(%ffmpeg(%audio.raw), padded))
+        a = ffmpeg.filter.audio.input(g, audio)
+        a = ffmpeg.filter.aecho(
+            g, a, in_gain=1., out_gain=1., delays="41|59|83|109|137|167|199|233|271|313",
+            decays=string.concat(separator="|", decays)
+        )
+        source({audio=ffmpeg.filter.audio.output(g, a)})
+    end
+    ffmpeg.raw.decode.audio(ffmpeg.filter.create(graph))
+end
+
 # Runs right before AzuraCast sends its next queued song, so no other sender can race the reordering.
 # The plugin decides from the saved settings whether a song with an intro moves forward.
 def sweepers.arrange() =
@@ -342,7 +365,7 @@ def sweepers.next_song() =
                     if null.defined(response) then
                         let json.parse (p : {
                             token: string, revision: string, uri: string, offset: float,
-                            duck_duration: float, gain: float, duck_gain: float
+                            duck_duration: float, gain: float, duck_gain: float, reverb?: float, length?: float
                         }) = null.get(response)
                         ready = ref(false)
                         overlay = source.fail()
@@ -353,7 +376,9 @@ def sweepers.next_song() =
                                     ready := true
                                     s = amplify(override=null, p.gain, request.once(jr))
                                     s.on_track(synchronous=true, fun (_) -> sweepers.notify("played", p.token))
-                                    s
+                                    reverb = null.get(default=0., p?.reverb)
+                                    length = null.get(default=0., p?.length)
+                                    if reverb > 0. and length > 0. then sweepers.reverb(reverb, length, s) else s end
                                 else
                                     request.destroy(jr)
                                     sweepers.notify("release", p.token)

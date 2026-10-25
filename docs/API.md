@@ -108,6 +108,8 @@ Broadcasting permission. It accepts the existing settings plus:
 | `longest_fit` | `false` | Prefer bodies closest to the available intro length |
 | `length_tolerance` | `20` | Eligible range below the intro length, percent 0–100 |
 | `swap_for_intro` | `false` | Move a later queued song with a fitting intro forward when a sweeper is due |
+| `reverb` | `false` | Add a gentle reverb to the sweeper voice |
+| `reverb_intensity` | `50` | Reverb level, percent 0–100; sent to the module as `reverb` (0–1) in each plan |
 
 Saved settings from earlier versions remain valid: a `max_wait` of `null` reads as
 `limit_delay: false` with `max_wait: 10`, a numeric `max_wait` as `limit_delay: true`.
