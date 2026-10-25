@@ -13,7 +13,7 @@ The plugin provides:
 - Rotation by oldest playback or longest fitting sweeper, with configurable length tolerance.
 - Song spacing after jingles/sweepers and an optional early start for long intros.
 - AutoCue-aware start, handover, loudness and tail handling.
-- Sidechain ducking with 150 ms attack and 750 ms release.
+- Music ducking that follows the sweeper's voice.
 - An authenticated endpoint that updates only `intro_end`.
 
 Intro detection is external. No detection models, inference code or GPU services
@@ -37,17 +37,11 @@ cd /var/azuracast/plugins/azuracast-sweepers
 Keep the directory name `azuracast-sweepers`: AzuraCast derives the PHP namespace
 from it. If the repository is already installed, use the update instructions below.
 
-Build the frontend with Node 24:
+Build the frontend in a temporary Node container (Node does not need to be
+installed on the host):
 
 ```bash
 cd /var/azuracast/plugins/azuracast-sweepers
-npm ci --ignore-scripts
-npm run build
-```
-
-Alternatively, build in a temporary Node container:
-
-```bash
 docker run --rm --user "$(id -u):$(id -g)" \
   -e npm_config_cache=/tmp/npm-cache \
   -v "$PWD:/plugin" -w /plugin node:24-alpine \
@@ -105,8 +99,8 @@ navigation hook; verify it after AzuraCast upgrades.
 
 ## Updating from GitHub
 
-Update the existing checkout and rebuild the frontend. This example uses Docker,
-so Node does not need to be installed on the host:
+Update the existing checkout, rebuild the frontend in a temporary Node container
+and reload PHP:
 
 ```bash
 (
@@ -119,17 +113,16 @@ so Node does not need to be installed on the host:
     sh -c 'npm ci --ignore-scripts && npm run build'
 
   cd /var/azuracast
-  docker compose restart web
+  docker compose exec web supervisorctl signal USR2 php-fpm
+  docker compose exec web supervisorctl restart php-worker-fast php-worker-slow php-nowplaying
 )
 ```
 
-The web restart loads updated PHP code and briefly interrupts broadcasting.
-Reload the dashboard afterward. If the update changes Liquidsoap integration,
-restart broadcasting for each affected station through AzuraCast to regenerate
-its configuration. The initial Compose override only needs to be added once.
+The graceful PHP reload loads the updated plugin code without interrupting
+broadcasting. Reload the dashboard afterward. The Sweepers page then tells you
+for each station whether its broadcasting must be restarted once to load the
+updated Liquidsoap module. The initial Compose override only needs to be added once.
 
-With Node 24 installed locally, replace the `docker run` build command with
-`npm ci --ignore-scripts` followed by `npm run build` in the plugin directory.
 If Git reports local changes or diverging history, resolve those before updating;
 do not reset the checkout blindly. Plugin settings, media and `intro_end` values
 are stored by AzuraCast outside this checkout and are preserved by these commands.
@@ -306,14 +299,14 @@ custom field. No review status, detector metadata or import workflow is stored.
 composer install
 composer test
 find src tests -name '*.php' -print0 | xargs -0 -n1 php -l
-npm test
-npm run build
+docker run --rm --user "$(id -u):$(id -g)" -e npm_config_cache=/tmp/npm-cache \
+  -v "$PWD:/plugin" -w /plugin node:24-alpine \
+  sh -c 'npm ci --ignore-scripts && npm test && npm run build'
 ```
 
-`./bin/check.sh --liquidsoap` runs these checks together, using a PHP container
-when PHP is not installed locally, and checks the pinned Liquidsoap runtime.
-Install Node dependencies first. Run `composer install && vendor/bin/phpcs` for
-the PHP style checks used by CI.
+`./bin/check.sh --liquidsoap` runs these checks together, using containers for
+PHP (when not installed locally) and Node, and checks the pinned Liquidsoap
+runtime. Run `composer install && vendor/bin/phpcs` for the PHP style checks used by CI.
 
 GitHub Actions also checks the module against the pinned AzuraCast Liquidsoap
 runtime. See [docs/VALIDATION.md](docs/VALIDATION.md) for the on-air acceptance checks.

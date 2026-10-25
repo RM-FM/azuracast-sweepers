@@ -54,7 +54,7 @@ final readonly class PanelController
         }
         $path = dirname(__DIR__, 2) . '/dist/' . $name;
         if (!is_file($path)) {
-            $response->getBody()->write('Build the plugin frontend with npm install && npm run build.');
+            $response->getBody()->write('The plugin frontend is not built yet. See the README update instructions.');
 
             return $response->withStatus(503)->withHeader('Content-Type', 'text/plain');
         }

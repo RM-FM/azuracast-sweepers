@@ -22,8 +22,9 @@ if [[ -f vendor/autoload.php ]]; then
     "${php_command[@]}" tests/reservations.php
     "${php_command[@]}" tests/settings.php
 fi
-npm test
-npm run build
+docker run --rm --user "$(id -u):$(id -g)" -e npm_config_cache=/tmp/npm-cache \
+    -v "$PWD:/plugin" -w /plugin node:24-alpine \
+    sh -c 'npm ci --ignore-scripts && npm test && npm run build'
 
 if [[ "${1:-}" == "--liquidsoap" ]]; then
     runtime_dir=$(mktemp -d)

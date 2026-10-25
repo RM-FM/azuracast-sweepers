@@ -145,17 +145,16 @@
                                 Maximum ducking (dB)
                                 <input v-model.number="settings.duck_db" class="form-control" type="number" min="-20" max="0" step="0.5" required>
                             </label>
-                            <div class="form-text">How far the music is lowered under the sweeper's voice at most. Example: <strong>−7</strong> is moderate, <strong>−10</strong> makes the voice clearer, values closer to 0 are more subtle. Ducking follows the voice (attack 150 ms, release 750 ms) and ends with it.</div>
+                            <div class="form-text">How far the music is lowered under the sweeper's voice at most. Example: <strong>−7</strong> is moderate, <strong>−10</strong> makes the voice clearer, values closer to 0 are more subtle. The music dips only while the sweeper speaks and comes back right after.</div>
                         </div>
                         <div class="col-md-6 col-xl-4">
                             <label class="form-label d-block mb-0">
                                 Jingle gain
                                 <input v-model.number="settings.jingle_gain" class="form-control" type="number" min="0" max="2" step="0.05" required>
                             </label>
-                            <div class="form-text">Volume factor on top of AzuraCast's loudness normalisation (AutoCue). <strong>1</strong> = same loudness as the songs, <strong>0.7</strong> ≈ −3 dB, <strong>0.5</strong> ≈ −6 dB, <strong>1.4</strong> ≈ +3 dB, <strong>2</strong> ≈ +6 dB.</div>
+                            <div class="form-text">Volume of the sweepers compared with the songs. <strong>1</strong> = as loud as the songs, <strong>0.7</strong> ≈ −3 dB, <strong>0.5</strong> ≈ −6 dB, <strong>1.4</strong> ≈ +3 dB, <strong>2</strong> ≈ +6 dB.</div>
                         </div>
                     </div>
-                    <p class="form-text mb-0">AutoCue supplies each sweeper's start, the end of its voice and its tail.</p>
                 </fieldset>
 
                 <button class="btn btn-primary" :disabled="saving">Save settings</button>
@@ -362,7 +361,7 @@ async function saveIntro() {
             selected.value = { ...selected.value, intro_end: result.intro_end };
             if (marker.value === value) draft.value = result.intro_end ?? "";
         }
-        notice.value = "Intro End saved. Already-prefetched tracks may retain their previous plan.";
+        notice.value = "Intro end saved. A song that is already lined up to play next may still use the previous value.";
     });
 }
 
@@ -371,9 +370,9 @@ async function saveSettings() {
         const result = await api("settings", settings.value);
         moduleStatus.value = result.module ?? moduleStatus.value;
         notice.value = (moduleStatus.value.state === "active"
-            ? "Settings saved. Live updates are picked up within about 5 seconds; an audible sweeper finishes and old pending overlays are cancelled."
+            ? "Settings saved. They apply within about 5 seconds; a sweeper that is already playing finishes first."
             : "Settings saved. They apply as soon as the sweeper module runs on this station (see the status above).")
-            + (result.needs_restart ? " AzuraCast still has other pending changes requiring a restart." : "");
+            + (result.needs_restart ? " AzuraCast also reports other changes that need a broadcasting restart." : "");
     });
 }
 

@@ -153,11 +153,11 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         await settle();
         assert.equal(field("Limit start delay").checked, false);
         assert.equal((await submit()).max_wait, null);
-        assert.match(document.querySelector('[role="status"]').textContent, /Live updates.*5 seconds/);
+        assert.match(document.querySelector('[role="status"]').textContent, /apply within about 5 seconds/);
         assert.doesNotMatch(document.querySelector('[role="status"]').textContent, /restart/i);
         needsRestart = true;
         await submit();
-        assert.match(document.querySelector('[role="status"]').textContent, /other pending changes requiring a restart/);
+        assert.match(document.querySelector('[role="status"]').textContent, /other changes that need a broadcasting restart/);
         needsRestart = false;
         await change("after a jingle", "3");
         await change("after a sweeper", "2");
