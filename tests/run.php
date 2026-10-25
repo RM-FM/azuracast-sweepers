@@ -102,6 +102,16 @@ $metadata['autocue_start_next'] = '';
 $metadata['autocue_fade_out'] = '2';
 check(Timing::fromMetadata($metadata, 12)->handover === 8.0, 'Use effective fade when crossfade is absent.');
 check(Timing::fromMetadata([], 12) === null, 'Missing annotations cannot invent a jingle window.');
+$computed = Timing::fromMetadata([
+    'liq_cue_in' => '', 'liq_cue_out' => '', 'liq_cross_start_next' => '', 'liq_fade_out' => '',
+    'liq_amplify' => '1.887 dB', 'autocue_cue_in' => '0.0', 'autocue_cue_out' => '2.9',
+    'autocue_start_next' => '', 'autocue_fade_out' => '0.10002267574',
+], 3.5);
+check(
+    $computed !== null && $computed->cueOut === 2.9 && abs($computed->handover - 2.79997732426) < 0.0001
+        && abs($computed->gainDb - 1.887) < 0.0001,
+    'Values from the built-in AutoCue fallback are accepted as Liquidsoap formats them.'
+);
 $metadata['liq_amplify'] = '0.5';
 check(abs(Timing::fromMetadata($metadata, 12)->gainDb + 6.0206) < 0.001, 'Linear amplification metadata.');
 check(Settings::fromArray($settings->toArray())->toArray() === $settings->toArray(), 'Settings round trip.');

@@ -9,3 +9,6 @@
 *.mp3
 *.wav
 *.flac
+*.md
+!README.md
+!LICENSE.md

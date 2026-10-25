@@ -80,7 +80,7 @@ jobs:
         run: bash tests/failsafe.sh /tmp/azuracast-runtime
       - name: Render playback and cancellation with AzuraCast's AutoDJ factory
         run: |
-          for scenario in normal skip live unavailable spacing playlist-spacing hot-enable hot-disable hot-pending hot-change hot-error before-jingle; do
+          for scenario in normal skip live unavailable spacing playlist-spacing hot-enable hot-disable hot-pending hot-change hot-error before-jingle computed-autocue provided-autocue; do
             python3 tests/playback.py --scenario "$scenario" \
               --runtime /tmp/azuracast-runtime \
               --liquidsoap "docker run --rm --network host --user $(id -u):$(id -g) \

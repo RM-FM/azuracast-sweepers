@@ -18,20 +18,23 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--liquidsoap', default='liquidsoap')
 parser.add_argument('--scenario', choices=['normal', 'skip', 'live', 'unavailable', 'spacing', 'playlist-spacing',
                                           'hot-enable', 'hot-disable', 'hot-pending', 'hot-change', 'hot-error',
-                                          'before-jingle'], default='normal')
+                                          'before-jingle', 'computed-autocue', 'provided-autocue'], default='normal')
 parser.add_argument('--runtime', type=Path, required=True)
 args = parser.parse_args()
 plugin = Path(__file__).resolve().parents[1]
 rate = 44100
 spacing = args.scenario in ('spacing', 'playlist-spacing')
-short_tracks = spacing or args.scenario == 'hot-enable'
+autocue = args.scenario in ('computed-autocue', 'provided-autocue')
+short_tracks = spacing or autocue or args.scenario == 'hot-enable'
 
 
-def tone(path, hz, duration):
+def tone(path, hz, duration, silence_before=0., silence_after=0.):
     with wave.open(str(path), 'wb') as output:
         output.setparams((2, 2, rate, 0, 'NONE', 'not compressed'))
-        output.writeframes(b''.join(struct.pack('<hh', *([int(6000 * math.sin(2 * math.pi * hz * i / rate))] * 2))
-                                    for i in range(int(rate * duration))))
+        frames = int(rate * (silence_before + duration + silence_after))
+        start, end = int(rate * silence_before), int(rate * (silence_before + duration))
+        output.writeframes(b''.join(struct.pack('<hh', *([int(6000 * math.sin(2 * math.pi * hz * i / rate)) if start <= i < end else 0] * 2))
+                                    for i in range(frames)))
 
 
 def amplitude(samples, hz, start, duration=.1):
@@ -44,6 +47,8 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
     root = Path(temporary)
     tone(root / 'song.wav', 440, 1.2 if short_tracks else 8)
     tone(root / 'sweeper.wav', 880, .5 if short_tracks else 2)
+    # A sweeper file with leading and trailing silence, for AutoCue measurement.
+    tone(root / 'cued.wav', 660, 2, silence_before=.5, silence_after=1.)
     calls = []
     song_requests = 0
     heartbeat_requests = 0
@@ -69,6 +74,12 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
             elif self.path == '/sweepers/catalog':
                 time.sleep(1.5)
                 value = []
+                if args.scenario == 'computed-autocue':
+                    value = [{'media_id': 9, 'identity': 'cued', 'uri': f'{root}/cued.wav'}]
+                elif args.scenario == 'provided-autocue':
+                    value = [{'media_id': 9, 'identity': 'cued', 'uri': (
+                        'annotate:azuracast_autocue="true",autocue_cue_in="0.25",autocue_cue_out="2.75",'
+                        f'autocue_fade_in="0.00",autocue_fade_out="0.50",liq_amplify="-3.00 dB":{root}/cued.wav')}]
             elif self.path == '/sweepers/plan':
                 value = dict(token=json.loads(body)['token'], revision=live_settings['revision'],
                              uri=f'annotate:liq_cue_in="0",liq_cue_out="{0.5 if short_tracks else 2}":{root}/sweeper.wav' if short_tracks or json.loads(body)['token'] == '123' else '',
@@ -167,6 +178,23 @@ thread.run(delay=7., {{shutdown()}})
             assert not any(e['event'] == 'played' for e in events), 'Cancelled plan counted as playback'
         if args.scenario == 'before-jingle':
             assert 'Sweeper cancelled: jingle queued' in result.stdout, 'Queued jingle cancellation not logged'
+    elif autocue:
+        measured = [jingle for path, body, _ in calls if path == '/sweepers/plan' for jingle in body.get('jingles', [])]
+        assert measured, ('The sweeper was never measured', result.stdout[-2000:])
+        jingle = measured[-1]
+        timing = jingle['metadata']
+        if args.scenario == 'computed-autocue':
+            assert jingle['source'] == 'computed', jingle
+            # Values come from Liquidsoap's built-in AutoCue; the plugin must pass them on unchanged.
+            assert 0 <= float(timing['autocue_cue_in']) <= .6, ('Implausible cue-in', timing)
+            assert 2.2 <= float(timing['autocue_cue_out']) <= 3.5, ('Implausible cue-out', timing)
+            assert float(timing['autocue_fade_out']) >= 0, ('Missing fade-out', timing)
+            assert timing['liq_amplify'].endswith('dB'), ('Loudness not measured', timing)
+            assert 'AutoCue computed for sweeper 9' in result.stdout, 'Fallback not logged'
+        else:
+            assert jingle['source'] == 'azuracast', jingle
+            assert (timing['autocue_cue_in'], timing['autocue_cue_out'], timing['liq_amplify']) == ('0.25', '2.75', '-3.00 dB'), timing
+            assert 'AutoCue computed' not in result.stdout, 'AzuraCast values must not be recomputed'
     else:
         ducked = amplitude(samples, 440, onset + 1.4)
         assert .40 < ducked / normal < .65, (normal, ducked)

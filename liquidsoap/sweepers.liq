@@ -143,6 +143,27 @@ end
 
 let sweepers.jingles = source.dynamic(id="sweepers", self_sync=false, track_sensitive=false, sweepers.next_overlay)
 
+# AzuraCast supplied no cue values (AutoCue off, no manual cue points): use Liquidsoap's built-in AutoCue,
+# which honours the station's settings.autocue.* tuning. Results stay in memory and never enter AzuraCast's cache.
+def sweepers.compute_autocue(m, filename) =
+    computed = autocue.internal.implementation(request_metadata=m, file_metadata=m, filename)
+    if null.defined(computed) then
+        c = null.get(computed)
+        start_next = c?.start_next
+        loudness = c?.amplify
+        [
+            ("autocue_cue_in", "#{c.cue_in}"),
+            ("autocue_cue_out", "#{c.cue_out}"),
+            ("autocue_fade_out", "#{c.fade_out}"),
+            ("autocue_start_next", if null.defined(start_next) then "#{null.get(start_next)}" else "" end),
+            ("liq_amplify", if null.defined(loudness) then null.get(loudness) else m["liq_amplify"] end),
+            ...m
+        ]
+    else
+        m
+    end
+end
+
 def sweepers.refresh_catalog() =
     try
         if time() - sweepers.catalog_at() >= 30. then
@@ -167,9 +188,18 @@ def sweepers.refresh_catalog() =
             r = request.create(job.uri)
             try
                 if request.resolve(timeout=10., r) then
-                    m = request.metadata(r)
+                    resolved = request.metadata(r)
+                    provided = ((resolved["liq_cue_in"] != "" or resolved["autocue_cue_in"] != "") and
+                        (resolved["liq_cue_out"] != "" or resolved["autocue_cue_out"] != ""))
+                    m = if provided then resolved else sweepers.compute_autocue(resolved, request.filename(r)) end
+                    origin = if provided then "azuracast" elsif m["autocue_cue_out"] != "" then "computed" else "none" end
+                    if origin == "computed" then
+                        log(label="sweepers", "AutoCue computed for sweeper #{job.media_id}: AzuraCast supplied no cue values")
+                    elsif origin == "none" then
+                        log(label="sweepers", "No cue values for sweeper #{job.media_id}; it will not be used")
+                    end
                     sweepers.measurements := [{
-                        media_id=job.media_id, identity=job.identity,
+                        media_id=job.media_id, identity=job.identity, source=origin,
                         metadata={
                             liq_cue_in=m["liq_cue_in"], liq_cue_out=m["liq_cue_out"],
                             liq_cross_start_next=m["liq_cross_start_next"], liq_fade_out=m["liq_fade_out"],

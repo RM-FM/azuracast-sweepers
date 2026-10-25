@@ -287,10 +287,26 @@ AutoDJ factory call with its callback-aware factory and adds the overlay after t
 standard crossfade, before the
 station's final audio processing and live-DJ fallback.
 
-Jingles use `AnnotateNextSong` and normal request resolution. The planner receives
-the resolved `liq_*` and `autocue_*` metadata, including cached AutoCue values.
-Native cue fields may remain blank. The plugin does not populate those fields or
-reimplement AutoCue. Enable AzuraCast AutoCue, or provide valid manual jingle timing.
+Jingles use `AnnotateNextSong` and normal request resolution, exactly as AzuraCast
+would play them. The plugin measures every sweeper in the background before its
+first use and passes the resolved `liq_*` and `autocue_*` metadata to the planner.
+Timing comes from, in this order:
+
+1. **Manual cue points** set on the file in AzuraCast.
+2. **AzuraCast AutoCue** (when enabled for the station). The measurement itself
+   triggers the analysis, so the result is stored in AzuraCast's AutoCue cache even
+   for sweepers that AzuraCast never plays natively.
+3. **Fallback: Liquidsoap's built-in AutoCue**, when AzuraCast supplies no values
+   (AutoCue disabled, no manual cue points). It is the same analysis AzuraCast
+   uses and honours the station's Liquidsoap `settings.autocue.*` tuning. Results
+   stay in the plugin's memory and are re-measured after a station restart; they
+   are never written to AzuraCast's cache, so AzuraCast's own playback of those
+   files is unchanged.
+
+Native cue fields may remain blank; the plugin does not populate them. A sweeper
+that cannot be measured at all is not used. On stations without AutoCue, songs are
+not loudness-normalised while the computed sweeper loudness is, so adjust
+**Jingle gain** if the balance differs.
 The sweeper catalogue resolves in the background; a cold start can leave the first
 track without an overlay until its jingle measurements are ready. Slow catalogue
 requests cannot delay music prefetch.
@@ -332,7 +348,7 @@ PHP (when not installed locally) and Node, and checks the pinned Liquidsoap
 runtime. Run `composer install && vendor/bin/phpcs` for the PHP style checks used by CI.
 
 GitHub Actions also checks the module against the pinned AzuraCast Liquidsoap
-runtime. See [docs/VALIDATION.md](docs/VALIDATION.md) for the on-air acceptance checks.
+runtime.
 Use AzuraCast's PHP conventions: PSR-12, strict types, typed methods, sorted imports,
 four-space indentation and trailing commas in multiline arrays. Keep code comments
 brief and limited to non-obvious behavior.
