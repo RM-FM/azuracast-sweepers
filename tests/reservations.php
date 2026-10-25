@@ -45,6 +45,14 @@ namespace {
         $state->update($directory, static fn() => $seed(time() + 20));
         $planner->heartbeat($station, [], [['event' => 'release', 'token' => '123']]);
         check(empty($state->read($directory)['history']), 'A skipped sweeper does not advance rotation.');
+        $liveSettings = new \Plugin\AzuracastSweepers\ValueObject\Settings(enabled: true, playlistId: 7, minimumSongs: 3);
+        $state->update($directory, static fn(array $data) => ['settings' => $liveSettings->toArray()] + $data);
+        check(
+            $planner->heartbeat($station, [], [])->runtime() === $liveSettings->runtime(),
+            'Heartbeat supplies all runtime settings without a restart.'
+        );
+        $state->update($directory, static fn(array $data) => ['settings' => ['enabled' => false]] + $data);
+        check(!$planner->heartbeat($station, [], [])->enabled, 'Heartbeat picks up disabling immediately.');
     } finally {
         foreach (glob($directory . '/*') as $path) {
             unlink($path);

@@ -14,11 +14,28 @@ let sweepers.catalog = ref([])
 let sweepers.attempted = ref([])
 let sweepers.catalog_at = ref(-60.)
 let sweepers.started = ref(false)
-let sweepers.minimum_songs = ref(0)
-let sweepers.count_jingle_mode = ref(true)
-let sweepers.jingle_playlists = ref([])
+let sweepers.settings = ref({
+    enabled=false, revision="", minimum_songs=0,
+    count_jingle_mode=true, jingle_playlists=[]
+})
 let sweepers.songs_since_jingle = ref(0)
 let sweepers.previous_song = ref(false)
+
+def sweepers.configure(s) =
+    if s.revision == "" or s.minimum_songs < 0 or s.minimum_songs > 1000 then
+        error.raise(error.failure, "Invalid live sweeper settings")
+    end
+    if s.revision != sweepers.settings().revision then
+        sweepers.settings := s
+        sweepers.catalog_at := -60.
+        log(label="sweepers", "Live settings applied: #{s.revision}, enabled=#{s.enabled}, minimum_songs=#{s.minimum_songs}")
+    end
+end
+
+def sweepers.current(revision) =
+    s = sweepers.settings()
+    s.enabled and revision == s.revision
+end
 
 def sweepers.notify(event, token) =
     if token != "" then
@@ -33,8 +50,9 @@ end
 
 
 def sweepers.is_jingle(m) =
-    (sweepers.count_jingle_mode() and m["jingle_mode"] == "true") or
-        list.mem(int_of_string(default=0, m["playlist_id"]), sweepers.jingle_playlists())
+    s = sweepers.settings()
+    (s.count_jingle_mode and m["jingle_mode"] == "true") or
+        list.mem(int_of_string(default=0, m["playlist_id"]), s.jingle_playlists)
 end
 
 def sweepers.track_allowed(m) =
@@ -44,15 +62,20 @@ def sweepers.track_allowed(m) =
     if is_jingle or not is_song then
         sweepers.songs_since_jingle := 0
     elsif sweepers.previous_song() then
-        sweepers.songs_since_jingle := min(sweepers.minimum_songs(), sweepers.songs_since_jingle() + 1)
+        sweepers.songs_since_jingle := min(1000, sweepers.songs_since_jingle() + 1)
     end
     sweepers.previous_song := is_song
-    is_song and sweepers.songs_since_jingle() >= sweepers.minimum_songs()
+    is_song and sweepers.songs_since_jingle() >= sweepers.settings().minimum_songs
 end
 
 def sweepers.next_overlay() =
     music_clock = sweepers.now()
     now = music_clock()
+    list.iter(fun (entry) -> begin
+        if not sweepers.current(snd(entry).revision) then
+            sweepers.notify("release", fst(entry))
+        end
+    end, sweepers.plans())
     if azuracast.live_enabled() and sweepers.active() != "" then
         sweepers.notify("release", sweepers.active())
         sweepers.active := ""
@@ -61,7 +84,7 @@ def sweepers.next_overlay() =
         (source.fail() : source)
     elsif null.defined(sweepers.pending()) then
         p = null.get(sweepers.pending())
-        if azuracast.live_enabled() then
+        if azuracast.live_enabled() or not sweepers.current(p.revision) then
             sweepers.notify("release", p.token)
             sweepers.pending := null
             (source.fail() : source)
@@ -144,9 +167,24 @@ end
 def sweepers.heartbeat() =
     events = list.rev(sweepers.events())
     tokens = list.map(fst, sweepers.plans())
-    response = azuracast.api_call(timeout=2., "sweepers/heartbeat", json.stringify({tokens=tokens, events=events}))
-    if null.defined(response) then
-        sweepers.events := list.filter(fun (e) -> not list.mem(e, events), sweepers.events())
+    try
+        response = azuracast.api_call(timeout=2., "sweepers/heartbeat", json.stringify({tokens=tokens, events=events}))
+        if null.defined(response) then
+            let json.parse (result : {
+                success: bool,
+                settings: {
+                    enabled: bool, revision: string, minimum_songs: int,
+                    count_jingle_mode: bool, jingle_playlists: [int]
+                }
+            }) = null.get(response)
+            if not result.success then
+                error.raise(error.failure, "Sweeper heartbeat rejected")
+            end
+            sweepers.configure(result.settings)
+            sweepers.events := list.filter(fun (e) -> not list.mem(e, events), sweepers.events())
+        end
+    catch err do
+        log(label="sweepers", "Live settings refresh failed: #{error.message(err)}")
     end
     5.
 end
@@ -158,7 +196,7 @@ def sweepers.next_song() =
     if null.defined(next) then
         r = null.get(next)
         try
-            if request.resolve(timeout=settings.azuracast.request_timeout(), r) then
+            if sweepers.settings().enabled and request.resolve(timeout=settings.azuracast.request_timeout(), r) then
                 m = request.metadata(r)
                 token = m["sq_id"]
                 cue_in = float_of_string(default=0., m["liq_cue_in"])
@@ -178,13 +216,13 @@ def sweepers.next_song() =
                     response = azuracast.api_call(timeout=1., "sweepers/plan", body)
                     if null.defined(response) then
                         let json.parse (p : {
-                            token: string, uri: string, offset: float,
+                            token: string, revision: string, uri: string, offset: float,
                             duck_duration: float, gain: float, duck_gain: float
                         }) = null.get(response)
                         ready = ref(false)
                         overlay = source.fail()
                         overlay =
-                            if p.uri != "" then
+                            if p.uri != "" and sweepers.current(p.revision) then
                                 jr = request.create(resolve_metadata=false, p.uri)
                                 if request.resolve(timeout=1., jr) then
                                     ready := true
@@ -196,13 +234,18 @@ def sweepers.next_song() =
                                     sweepers.notify("release", p.token)
                                     overlay
                                 end
-                            else overlay end
-                        if ready() then
+                            else
+                                sweepers.notify("release", p.token)
+                                overlay
+                            end
+                        if ready() and sweepers.current(p.revision) then
                             list.iter(fun (entry) -> sweepers.notify("release", fst(entry)), list.slice(offset=15, sweepers.plans()))
                             sweepers.plans := [(token, {
                                 source=overlay, ready=true, offset=p.offset,
-                                duration=p.duck_duration, duck_gain=p.duck_gain
+                                duration=p.duck_duration, duck_gain=p.duck_gain, revision=p.revision
                             }), ...list.assoc.remove(token, sweepers.plans())]
+                        elsif ready() then
+                            sweepers.notify("release", p.token)
                         end
                     end
                 end
@@ -273,12 +316,13 @@ def sweepers.mix(music) =
             if list.assoc.mem(token, sweepers.plans()) then
                 p = list.assoc(token, sweepers.plans())
                 sweepers.duck_gain := p.duck_gain
-                if p.ready and allowed then
+                if p.ready and allowed and sweepers.current(p.revision) then
                     sweepers.pending := {
                         source=p.source,
                         due=now() + p.offset,
                         duck_end=now() + p.offset + p.duration,
-                        token=token
+                        token=token,
+                        revision=p.revision
                     }
                 else
                     sweepers.notify("release", token)

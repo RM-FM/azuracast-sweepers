@@ -18,6 +18,7 @@ done < <(find src tests -name '*.php')
 "${php_command[@]}" tests/run.php
 if [[ -f vendor/autoload.php ]]; then
     "${php_command[@]}" tests/navigation.php
+    "${php_command[@]}" tests/settings.php
 fi
 npm test
 npm run build

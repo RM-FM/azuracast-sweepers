@@ -81,7 +81,10 @@ The plugin creates or reuses `intro_end` on the first page visit or station
 configuration generation. It does not overwrite an existing field or change other custom fields.
 
 Create an **Advanced** playlist containing the sweeper jingles, select it in the
-plugin settings, enable sweepers and restart broadcasting through AzuraCast.
+plugin settings and enable sweepers. Restart broadcasting once through AzuraCast
+after installing the plugin, even if sweepers are initially disabled. The module
+then remains loaded and all later settings changes, including enabling/disabling,
+work without a restart.
 Advanced playlists prevent the jingles from also entering the normal song rotation.
 The page requires station Media permission; changing settings also requires
 Broadcasting permission. The page includes an audio waveform with a movable
@@ -147,7 +150,8 @@ file to disable the plugin; it may contain unrelated configuration.
 
 ## Rotation and timing
 
-Configure these options on **Sweepers**, then restart broadcasting:
+Configure these options on **Sweepers** and save. The running module checks for
+changes every five seconds; no broadcasting restart is needed:
 
 - **Minimum songs** defaults to `0` (disabled). With `1`, a jingle is followed by
   one song without a sweeper; the next song may carry one. A song carrying a
@@ -180,6 +184,21 @@ restarting Liquidsoap, the configured number of intervening songs is required
 before the first sweeper. Unknown sources reset that count conservatively.
 Settings and rotation history use the existing station configuration file; these
 options introduce no database tables or new cue fields.
+
+All saved settings have a shared revision. A change cancels old prefetched or
+delayed overlays that have not started; their songs continue without an overlay.
+Subsequent plans use the new playlist, timing, gain, ducking and selection settings.
+An already audible sweeper finishes with its original gain, handover and tail.
+Disabling prevents new overlays but keeps tracking played songs, so re-enabling
+and changing the minimum gap preserve the spacing history. No mid-song overlay is
+inserted retroactively. New playlists may need additional background AutoCue time.
+Failed heartbeat requests retain the last valid settings and are logged; changes
+take effect after communication recovers.
+
+Upgrading from an older release to this live-settings implementation requires one
+broadcasting restart per station to load the new Liquidsoap module. Installing,
+removing or updating Liquidsoap code still requires a restart; ordinary settings
+changes do not. Other pending AzuraCast changes can independently require one.
 
 ## Intro cues
 
@@ -260,7 +279,10 @@ brief and limited to non-obvious behavior.
 
 ## Removal
 
-Disable sweepers and restart broadcasting before removing the plugin mount.
+Disable sweepers and let any audible sweeper finish. Remove the plugin and
+regenerate/restart broadcasting so the generated configuration no longer includes
+the plugin module. Keep the module files available until the old configuration is
+no longer in use.
 Preserve `intro_end` and `sweepers.json` if their data is still needed. Removal
 does not require deleting media, rebuilding the database or resetting AutoCue.
 

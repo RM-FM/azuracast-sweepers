@@ -21,7 +21,8 @@
       "php tests/run.php",
       "php tests/navigation.php",
       "php tests/routes.php",
-      "php tests/reservations.php"
+      "php tests/reservations.php",
+      "php tests/settings.php"
     ]
   },
   "require-dev": {

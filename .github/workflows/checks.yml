@@ -77,7 +77,7 @@ jobs:
             savonet/liquidsoap:v2.4.5 /plugin/tests/spacing.liq
       - name: Render playback and cancellation with AzuraCast's AutoDJ factory
         run: |
-          for scenario in normal skip live unavailable spacing playlist-spacing; do
+          for scenario in normal skip live unavailable spacing playlist-spacing hot-enable hot-disable hot-pending hot-change hot-error; do
             python3 tests/playback.py --scenario "$scenario" \
               --runtime /tmp/azuracast-runtime \
               --liquidsoap "docker run --rm --network host --user $(id -u):$(id -g) \

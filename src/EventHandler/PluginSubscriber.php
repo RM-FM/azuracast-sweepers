@@ -85,26 +85,32 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
     {
         $this->media->ensureField();
         $settings = $this->settings($event);
-        if (!$settings->enabled || $event->isForEditing()) {
+        if ($event->isForEditing()) {
             return;
         }
         if ($event->getBackendConfig()->use_manual_autodj) {
-            throw new RuntimeException('Sweepers require AzuraCast AutoDJ queue management.');
+            if ($settings->enabled) {
+                throw new RuntimeException('Sweepers require AzuraCast AutoDJ queue management.');
+            }
+
+            return;
         }
 
         $path = dirname(__DIR__, 2) . '/liquidsoap/sweepers.liq';
         $event->appendBlock('%include ' . json_encode($path, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
-        $event->appendBlock('sweepers.minimum_songs := ' . $settings->minimumSongs);
-        $event->appendBlock('sweepers.count_jingle_mode := ' . ($settings->countJingleMode ? 'true' : 'false'));
-        $event->appendBlock('sweepers.jingle_playlists := ' . json_encode(
-            array_values(array_unique([$settings->playlistId, ...$settings->jinglePlaylistIds])),
-            JSON_THROW_ON_ERROR
-        ));
+        $runtime = $settings->runtime();
+        $event->appendBlock('sweepers.configure({'
+            . 'enabled=' . ($settings->enabled ? 'true' : 'false')
+            . ', revision="' . $runtime['revision'] . '"'
+            . ', minimum_songs=' . $settings->minimumSongs
+            . ', count_jingle_mode=' . ($settings->countJingleMode ? 'true' : 'false')
+            . ', jingle_playlists=' . json_encode($runtime['jingle_playlists'], JSON_THROW_ON_ERROR)
+            . '})');
     }
 
     public function mixer(WriteLiquidsoapConfiguration $event): void
     {
-        if (!$this->settings($event)->enabled || $event->isForEditing()) {
+        if ($event->isForEditing() || $event->getBackendConfig()->use_manual_autodj) {
             return;
         }
 

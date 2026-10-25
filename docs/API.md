@@ -53,10 +53,17 @@ The Liquidsoap module uses `/api/internal/{station_id}/liquidsoap/sweepers/`:
 | `catalog` | Get normally annotated sweeper requests |
 | `plan` | Select/reserve a fitting sweeper using resolved request metadata |
 | `played` | Legacy playback acknowledgment |
-| `heartbeat` | Renew live reservations and acknowledge playback or release events |
+| `heartbeat` | Renew reservations, acknowledge events and return current live settings |
 
 These endpoints require AzuraCast's internal connection and the station's adapter
 API key. They are not public control endpoints.
+
+The heartbeat response contains `success: true` and `settings` with `enabled`,
+`minimum_songs`, `count_jingle_mode`, merged `jingle_playlists` and a `revision`
+covering every saved setting. Every plan (including an empty plan) carries that
+same revision. Liquidsoap checks it before activation and releases obsolete plans.
+Already started overlays retain their original timing and gain and still report
+actual playback. Heartbeats continue while sweepers are disabled.
 
 ## Panel rotation settings
 
@@ -74,5 +81,9 @@ Broadcasting permission. It accepts the existing settings plus:
 
 The panel state supplies Advanced `playlists` for sweeper selection and all station
 `jingle_playlists` for spacing classification. Foreign or missing jingle playlist
-IDs are rejected before saving. Existing settings remain compatible. Restart
-broadcasting after saving to apply the spacing configuration.
+IDs are rejected before saving. Existing settings remain compatible. Saving does
+not set or clear AzuraCast's `needs_restart` flag; the response reports its existing
+value, which may reflect unrelated station changes. All settings update through
+the five-second heartbeat after the module has been installed and loaded once.
+The current audible sweeper finishes; old pending plans are cancelled, and new
+settings apply to subsequent plans. Enabling with manual AutoDJ is rejected.

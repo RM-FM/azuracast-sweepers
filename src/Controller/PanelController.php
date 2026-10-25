@@ -6,7 +6,6 @@ namespace Plugin\AzuracastSweepers\Controller;
 
 use App\Http\Response;
 use App\Http\ServerRequest;
-use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
 use Plugin\AzuracastSweepers\Service\Media;
 use Plugin\AzuracastSweepers\Service\State;
@@ -17,8 +16,7 @@ final readonly class PanelController
 {
     public function __construct(
         private Media $media,
-        private State $state,
-        private EntityManagerInterface $em
+        private State $state
     ) {
     }
 
@@ -91,6 +89,9 @@ final readonly class PanelController
         $settings = Settings::fromArray($this->body($request));
         $station = $request->getStation();
         if ($settings->enabled) {
+            if ($station->backend_config->use_manual_autodj) {
+                throw new InvalidArgumentException('Sweepers require AzuraCast AutoDJ queue management.');
+            }
             $this->media->jingles($station, $settings->playlistId);
         }
 
@@ -100,10 +101,7 @@ final readonly class PanelController
 
             return $data;
         });
-        $station->needs_restart = true;
-        $this->em->flush();
-
-        return $response->withJson(['success' => true, 'needs_restart' => true]);
+        return $response->withJson(['success' => true, 'needs_restart' => $station->needs_restart]);
     }
 
     public function mediaAction(ServerRequest $request, Response $response, array $params): ResponseInterface

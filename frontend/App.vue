@@ -86,6 +86,7 @@
                 </div>
                 <p class="form-text">Sidechain attack: 150 ms · release: 750 ms. AutoCue supplies jingle start, handover and tail.</p>
                 <button class="btn btn-primary" :disabled="saving">Save settings</button>
+                <p class="form-text mb-0">All settings, including Enable sweepers, update live within about 5 seconds. An audible sweeper finishes; old pending overlays are cancelled. New settings apply to following songs. Restart broadcasting once after installing the plugin or updating its Liquidsoap code.</p>
                 <p class="form-text mb-0">Edit Intro End in the waveform below, under Music Files → Custom Fields, or through the intro API.</p>
             </form>
             </div>
@@ -289,8 +290,9 @@ async function saveIntro() {
 
 async function saveSettings() {
     await save(async () => {
-        await api("settings", settings.value);
-        notice.value = "Settings saved. Restart broadcasting in AzuraCast to apply them.";
+        const result = await api("settings", settings.value);
+        notice.value = "Settings saved. Live updates are picked up within about 5 seconds; an audible sweeper finishes and old pending overlays are cancelled."
+            + (result.needs_restart ? " AzuraCast still has other pending changes requiring a restart." : "");
     });
 }
 

@@ -97,6 +97,25 @@ final readonly class Settings
         );
     }
 
+    public function revision(): string
+    {
+        return hash('sha256', json_encode($this->toArray(), JSON_THROW_ON_ERROR));
+    }
+
+    public function runtime(): array
+    {
+        return [
+            'enabled' => $this->enabled,
+            'revision' => $this->revision(),
+            'minimum_songs' => $this->minimumSongs,
+            'count_jingle_mode' => $this->countJingleMode,
+            'jingle_playlists' => array_values(array_unique([
+                ...($this->playlistId === null ? [] : [$this->playlistId]),
+                ...$this->jinglePlaylistIds,
+            ])),
+        ];
+    }
+
     public function toArray(): array
     {
         return [

@@ -86,6 +86,22 @@ check(Timing::fromMetadata([], 12) === null, 'Missing annotations cannot invent 
 $metadata['liq_amplify'] = '0.5';
 check(abs(Timing::fromMetadata($metadata, 12)->gainDb + 6.0206) < 0.001, 'Linear amplification metadata.');
 check(Settings::fromArray($settings->toArray())->toArray() === $settings->toArray(), 'Settings round trip.');
+check(Settings::fromArray($settings->toArray())->revision() === $settings->revision(), 'Stable settings revision.');
+foreach ([
+    'enabled' => false, 'playlist_id' => 2, 'minimum_songs' => 3, 'count_jingle_mode' => false,
+    'jingle_playlist_ids' => [4, 5], 'max_wait' => 0, 'margin' => 1.2, 'duck_db' => -10,
+    'jingle_gain' => 0.5, 'longest_fit' => true, 'length_tolerance' => 50,
+] as $key => $value) {
+    check(
+        Settings::fromArray([$key => $value] + $settings->toArray())->revision() !== $settings->revision(),
+        'Every changed setting invalidates old plans: ' . $key
+    );
+}
+check((new Settings())->runtime()['jingle_playlists'] === [], 'No null playlist in disabled runtime settings.');
+check(
+    (new Settings(playlistId: 2, jinglePlaylistIds: [2, 4]))->runtime()['jingle_playlists'] === [2, 4],
+    'Runtime recognition includes the sweeper playlist once.'
+);
 foreach ([['enabled' => 'false'], ['enabled' => true], ['duck_db' => -21], ['max_wait' => -1]] as $invalid) {
     rejects(static fn() => Settings::fromArray($invalid));
 }

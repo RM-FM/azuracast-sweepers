@@ -31,6 +31,7 @@ const compiled = compileScript(descriptor, { id: "editor-test", inlineTemplate: 
 const { default: App } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
 const writes = [];
 let releaseSave;
+let needsRestart = false;
 globalThis.fetch = async (url, options) => {
     let data;
     if (url.endsWith("/state")) {
@@ -48,7 +49,7 @@ globalThis.fetch = async (url, options) => {
     } else {
         writes.push({ url, options, body: JSON.parse(options.body) });
         if (releaseSave) await new Promise((resolve) => { releaseSave = resolve; });
-        data = { success: true, intro_end: JSON.parse(options.body).intro_end };
+        data = { success: true, needs_restart: needsRestart, intro_end: JSON.parse(options.body).intro_end };
     }
     return { ok: true, json: async () => data };
 };
@@ -150,6 +151,12 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         await settle();
         assert.equal(field("Limit start delay").checked, false);
         assert.equal((await submit()).max_wait, null);
+        assert.match(document.querySelector('[role="status"]').textContent, /Live updates.*5 seconds/);
+        assert.doesNotMatch(document.querySelector('[role="status"]').textContent, /restart/i);
+        needsRestart = true;
+        await submit();
+        assert.match(document.querySelector('[role="status"]').textContent, /other pending changes requiring a restart/);
+        needsRestart = false;
         await change("Minimum songs", "2");
         await change("Count Jingle Mode", false, true);
         await change("Prefer the longest", true, true);

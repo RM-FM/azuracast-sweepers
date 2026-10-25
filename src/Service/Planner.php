@@ -32,7 +32,7 @@ final readonly class Planner
         $song = $this->media->get($station, $mediaId);
         $intro = $this->media->intro($song);
         $directory = $station->getRadioConfigDir();
-        $result = self::emptyPlan($token);
+        $result = [];
         $this->state->update($directory, function (array $data) use (
             $station,
             $song,
@@ -44,6 +44,7 @@ final readonly class Planner
             &$result
         ): array {
             $settings = Settings::fromArray($data['settings'] ?? []);
+            $result = self::emptyPlan($token, $settings->revision());
             $data['plans'] = array_filter(
                 $data['plans'] ?? [],
                 static fn(array $plan): bool => $plan['expires_at'] > time()
@@ -108,6 +109,7 @@ final readonly class Planner
                     . '",liq_cue_out="' . $timing->cueOut . '":media:' . ltrim($jingle->path, '/');
                 $result = [
                     'token' => $token,
+                    'revision' => $settings->revision(),
                     'uri' => $uri,
                     ...$fit,
                     'gain' => 10 ** ($timing->gainDb / 20) * $settings->jingleGain,
@@ -136,12 +138,12 @@ final readonly class Planner
         $this->heartbeat($station, [], [['event' => 'played', 'token' => $token]]);
     }
 
-    public function heartbeat(Station $station, array $tokens, array $events): void
+    public function heartbeat(Station $station, array $tokens, array $events): Settings
     {
         if (count($tokens) > 16 || count($events) > 128) {
             throw new InvalidArgumentException('Too many reservation events.');
         }
-        $this->state->update($station->getRadioConfigDir(), static function (array $data) use (
+        $data = $this->state->update($station->getRadioConfigDir(), static function (array $data) use (
             $tokens,
             $events
         ): array {
@@ -170,12 +172,15 @@ final readonly class Planner
 
             return $data;
         });
+
+        return Settings::fromArray($data['settings'] ?? []);
     }
 
-    private static function emptyPlan(string $token): array
+    private static function emptyPlan(string $token, string $revision): array
     {
         return [
             'token' => $token,
+            'revision' => $revision,
             'uri' => '',
             'offset' => 0.0,
             'duck_duration' => 0.0,
