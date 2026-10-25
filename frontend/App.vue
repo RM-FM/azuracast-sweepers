@@ -69,7 +69,7 @@
                     <input id="sweepers-limitDelay" v-model="limitDelay" class="form-check-input" type="checkbox" role="switch">
                     <label class="form-check-label" for="sweepers-limitDelay">Limit start delay</label>
                 </div>
-                <p class="form-text mb-3">Disabled: time the handover to the intro end. Enabled: if that would exceed the limit, start immediately. 0 always starts immediately.</p>
+                <p class="form-text mb-3">Disabled: time the handover to the intro end. Enabled: if that would wait longer than the limit, start the sweeper at the early start instead (never later than the aligned start, so it still fits the intro).</p>
                 <div class="row g-3 mb-3">
                     <label v-if="limitDelay" class="form-label col-md-6 col-xl-3">
                         Maximum start delay (s)
@@ -82,6 +82,10 @@
                             step="0.1"
                             required
                         >
+                    </label>
+                    <label v-if="limitDelay" class="form-label col-md-6 col-xl-3">
+                        Early start after song start (s)
+                        <input v-model.number="settings.early_start" class="form-control" type="number" min="0" max="60" step="0.1" required>
                     </label>
                     <label class="form-label col-md-6 col-xl-3">
                         Handover margin (s)

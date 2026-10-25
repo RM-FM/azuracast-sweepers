@@ -38,7 +38,7 @@ globalThis.fetch = async (url, options) => {
     if (url.endsWith("/state")) {
         data = { csrf: "session-token", station: { id: 1, name: "Test" }, queue_length: 3, module: moduleState, settings: {
             enabled: false, playlist_id: null, max_wait: null, margin: .8, duck_db: -7, jingle_gain: 1,
-            songs_after_jingle: 0, songs_after_sweeper: 0, songs_before_jingle: 0,
+            songs_after_jingle: 0, songs_after_sweeper: 0, songs_before_jingle: 0, early_start: 2,
             count_jingle_mode: true, jingle_playlist_ids: [], longest_fit: false, length_tolerance: 20,
         }, playlists: [{ id: 10, name: "Sweepers" }], jingle_playlists: [
             { id: 20, name: "Station IDs", is_jingle: true }, { id: 21, name: "Promos", is_jingle: false },
@@ -174,8 +174,11 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         select.dispatchEvent(new Event("change", { bubbles: true }));
         await settle();
         await change("Limit start delay", true, true);
+        assert.equal(field("Early start").value, "2", "Early start shows its 2-second default");
+        await change("Early start", "3.5");
         const settings = await submit();
         assert.equal(settings.max_wait, 0);
+        assert.equal(settings.early_start, 3.5);
         assert.equal(settings.songs_after_jingle, 3);
         assert.equal(settings.songs_after_sweeper, 2);
         assert.equal(settings.songs_before_jingle, 1);

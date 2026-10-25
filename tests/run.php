@@ -45,14 +45,32 @@ $fit = $timing->fit(12, 2, 180, $settings);
 check(abs($fit['offset'] - 3.2) < 0.001, 'Subtract song cue-in once.');
 check(abs($fit['duck_duration'] - 6) < 0.001, 'Use body handover, not jingle file end.');
 check(abs($timing->fit(30, 0, 180, $settings)['offset'] - 23.2) < 0.001, 'Default handover aligns to intro minus margin.');
-check($timing->fit(30, 0, 180, new Settings(maxWait: 5))['offset'] === 0.0, 'Long delay falls back to immediate start.');
+check(abs($timing->fit(30, 0, 180, new Settings(maxWait: 5))['offset'] - 2.0) < 0.001, 'Long delay starts at the default early start.');
+check(
+    abs($timing->fit(30, 0, 180, new Settings(maxWait: 5, earlyStart: 3.5))['offset'] - 3.5) < 0.001,
+    'Configured early start.'
+);
+check(
+    abs($timing->fit(30, 0, 180, new Settings(maxWait: 5, earlyStart: 30))['offset'] - 23.2) < 0.001,
+    'Early start never exceeds the aligned start, so the body still ends before the intro.'
+);
+check(
+    abs($timing->fit(30, 5, 180, new Settings(maxWait: 5))['offset'] - 2.0) < 0.001,
+    'Early start is measured from the song cue-in.'
+);
+check($timing->fit(30, 0, 180, new Settings(maxWait: 5, earlyStart: 0))['offset'] === 0.0, 'Early start 0 starts at cue-in.');
+check(Settings::fromArray([])->earlyStart === 2.0, 'Early start defaults to 2 seconds.');
 check(abs($timing->fit(12, 2, 180, new Settings(maxWait: 5))['offset'] - 3.2) < 0.001, 'Short delay retains end alignment.');
 check(Settings::fromArray([])->maxWait === null, 'Start delay disabled by default.');
 check(Settings::fromArray(['max_wait' => null])->maxWait === null, 'Explicit null disables delay limit.');
 check(Settings::fromArray(['max_wait' => 5])->maxWait === 5.0, 'Keep previously saved delay setting.');
 check($timing->fit(5, 0, 180, $settings) === null, 'Reject a jingle body that does not fit.');
 check($timing->fit(12, 2, 13, $settings) === null, 'The tail must fit before the next transition.');
-check($timing->fit(12, 2, 180, new Settings(maxWait: 0))['offset'] === 0.0, 'Allow an immediate overlay.');
+check($timing->fit(12, 2, 180, new Settings(maxWait: 0, earlyStart: 0))['offset'] === 0.0, 'Allow an immediate overlay.');
+check(
+    abs($timing->fit(12, 2, 180, new Settings(maxWait: 0))['offset'] - 2.0) < 0.001,
+    'Limit 0 uses the early start.'
+);
 check($timing->fit(NAN, 0, 100, $settings) === null, 'Reject nonfinite intro.');
 
 foreach ([
@@ -92,7 +110,7 @@ foreach ([
     'enabled' => false, 'playlist_id' => 2, 'songs_after_jingle' => 3, 'songs_after_sweeper' => 2,
     'songs_before_jingle' => 1, 'count_jingle_mode' => false,
     'jingle_playlist_ids' => [4, 5], 'max_wait' => 0, 'margin' => 1.2, 'duck_db' => -10,
-    'jingle_gain' => 0.5, 'longest_fit' => true, 'length_tolerance' => 50,
+    'jingle_gain' => 0.5, 'longest_fit' => true, 'length_tolerance' => 50, 'early_start' => 4,
 ] as $key => $value) {
     check(
         Settings::fromArray([$key => $value] + $settings->toArray())->revision() !== $settings->revision(),
@@ -152,6 +170,7 @@ check(
 foreach ([
     ['songs_after_jingle' => -1], ['songs_after_sweeper' => 1.5], ['songs_before_jingle' => -1],
     ['songs_before_jingle' => 1001], ['minimum_songs' => -1], ['minimum_songs' => 1.5],
+    ['early_start' => -1], ['early_start' => 61], ['early_start' => '2'],
     ['count_jingle_mode' => 'false'],
     ['jingle_playlist_ids' => '2'], ['jingle_playlist_ids' => ['2']], ['jingle_playlist_ids' => [0]],
     ['longest_fit' => 1], ['length_tolerance' => -1], ['length_tolerance' => 101], ['max_wait' => ''],

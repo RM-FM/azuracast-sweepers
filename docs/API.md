@@ -83,7 +83,8 @@ Broadcasting permission. It accepts the existing settings plus:
 | `songs_before_jingle` | `0` | Queued tracks checked for a following jingle, 0 to the AutoDJ queue length |
 | `count_jingle_mode` | `true` | Recognize the native `jingle_mode` annotation |
 | `jingle_playlist_ids` | `[]` | Additional station playlist IDs (integer array) |
-| `max_wait` | `null` | Disabled; numeric 0–3600 sets the immediate-start threshold |
+| `max_wait` | `null` | Disabled; numeric 0–3600 is the longest wait before the early start is used |
+| `early_start` | `2` | Seconds after the song cue-in used when `max_wait` is exceeded, 0–60; never later than the aligned start |
 | `longest_fit` | `false` | Prefer bodies closest to the available intro length |
 | `length_tolerance` | `20` | Eligible range below the intro length, percent 0–100 |
 

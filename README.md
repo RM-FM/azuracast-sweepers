@@ -11,7 +11,7 @@ The plugin provides:
 - A sweeper configuration page with playlist selection and visual intro cue editor.
 - An automatically created `intro_end` custom field.
 - Rotation by oldest playback or longest fitting sweeper, with configurable length tolerance.
-- Song spacing after jingles/sweepers and optional immediate starts for long intros.
+- Song spacing after jingles/sweepers and an optional early start for long intros.
 - AutoCue-aware start, handover, loudness and tail handling.
 - Sidechain ducking with 150 ms attack and 750 ms release.
 - An authenticated endpoint that updates only `intro_end`.
@@ -182,8 +182,12 @@ changes every five seconds; no broadcasting restart is needed:
   always counts. Recognized jingles never receive an overlay.
 - **Limit start delay** defaults to disabled (`max_wait: null`): align the sweeper
   handover to the intro boundary minus the safety margin. With a limit, retain
-  that timing if it fits; otherwise start immediately. `0` always starts at song
-  start. Previously saved numeric limits remain enabled after an update.
+  that timing if the wait after the song's cue-in does not exceed the limit;
+  otherwise start the sweeper at **Early start after song start** (default `2` s)
+  after the song's cue-in. The early start is never later than the aligned start,
+  so the sweeper still ends before the intro. `0` starts at cue-in. Previously
+  saved numeric limits remain enabled after an update and now use the 2-second
+  early start instead of starting at cue-in.
 - **Prefer the longest fitting sweepers** defaults to disabled. When enabled,
   the tolerance defines an eligible length range: with 30 seconds available and
   20%, bodies of 24–30 seconds participate in oldest-played rotation. If none are
@@ -277,7 +281,7 @@ requests cannot delay music prefetch.
 
 Song cue-in is subtracted once. A jingle's handover, rather than its file end,
 determines its fit. The handover aligns to the intro boundary unless the optional
-start-delay limit selects immediate playback. Ducking ends at handover and the remaining tail plays out. The tail must fit
+start-delay limit selects the early start. Ducking ends at handover and the remaining tail plays out. The tail must fit
 inside the song's remaining playback window. Jingle normalization is applied once.
 
 Planning reserves a jingle; only its playback callback updates rotation history.

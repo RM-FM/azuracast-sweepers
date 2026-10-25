@@ -21,9 +21,10 @@ final readonly class Settings
         public bool $longestFit = false,
         public float $lengthTolerance = 20.0,
         public int $songsAfterSweeper = 0,
-        public int $songsBeforeJingle = 0
+        public int $songsBeforeJingle = 0,
+        public float $earlyStart = 2.0
     ) {
-        foreach ([$maxWait ?? 0.0, $margin, $duckDb, $jingleGain, $lengthTolerance] as $value) {
+        foreach ([$maxWait ?? 0.0, $margin, $duckDb, $jingleGain, $lengthTolerance, $earlyStart] as $value) {
             if (!is_finite($value)) {
                 throw new InvalidArgumentException('Settings must be finite.');
             }
@@ -34,7 +35,7 @@ final readonly class Settings
             || $duckDb > 0 || $duckDb < -20 || $jingleGain < 0 || $jingleGain > 2
             || $songsAfterJingle < 0 || $songsAfterJingle > 1000 || $songsAfterSweeper < 0
             || $songsAfterSweeper > 1000 || $songsBeforeJingle < 0 || $songsBeforeJingle > 1000
-            || $lengthTolerance < 0 || $lengthTolerance > 100
+            || $lengthTolerance < 0 || $lengthTolerance > 100 || $earlyStart < 0 || $earlyStart > 60
             || ($enabled && ($playlistId === null || $playlistId < 1))
         ) {
             throw new InvalidArgumentException('Invalid sweeper settings.');
@@ -82,6 +83,7 @@ final readonly class Settings
             'duck_db' => -7.0,
             'jingle_gain' => 1.0,
             'length_tolerance' => 20.0,
+            'early_start' => 2.0,
         ];
         foreach ($defaults as $key => $default) {
             $value = $data[$key] ?? $default;
@@ -108,7 +110,8 @@ final readonly class Settings
             longestFit: $booleans['longest_fit'],
             lengthTolerance: $values['length_tolerance'],
             songsAfterSweeper: $gaps['songs_after_sweeper'],
-            songsBeforeJingle: $gaps['songs_before_jingle']
+            songsBeforeJingle: $gaps['songs_before_jingle'],
+            earlyStart: $values['early_start']
         );
     }
 
@@ -148,6 +151,7 @@ final readonly class Settings
             'jingle_playlist_ids' => $this->jinglePlaylistIds,
             'longest_fit' => $this->longestFit,
             'length_tolerance' => $this->lengthTolerance,
+            'early_start' => $this->earlyStart,
         ];
     }
 }
