@@ -47,21 +47,21 @@
                                 Songs without sweeper after a jingle
                                 <input v-model.number="settings.songs_after_jingle" class="form-control" type="number" min="0" max="1000" step="1" required>
                             </label>
-                            <div class="form-text">Complete songs that must play after a jingle before the next sweeper. Example: <strong>3</strong>.</div>
+                            <div class="form-text">Complete songs that must play after a jingle before the next sweeper.</div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label d-block mb-0">
                                 Songs without sweeper after a sweeper
                                 <input v-model.number="settings.songs_after_sweeper" class="form-control" type="number" min="0" max="1000" step="1" required>
                             </label>
-                            <div class="form-text">Songs that must play without a sweeper after a song that carried one. That song itself does not count. Example: <strong>2</strong>.</div>
+                            <div class="form-text">Songs that must play without a sweeper after a song that carried one. That song itself does not count.</div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label d-block mb-0">
                                 Songs without sweeper before a jingle
                                 <input v-model.number="settings.songs_before_jingle" class="form-control" type="number" min="0" :max="queueLength" step="1" required>
                             </label>
-                            <div class="form-text">No sweeper if a jingle is queued within this many following tracks. Example: <strong>1</strong>. Maximum: the AutoDJ queue length ({{ queueLength }}).</div>
+                            <div class="form-text">No sweeper if a jingle is queued within this many following tracks. Maximum: the AutoDJ queue length ({{ queueLength }}).</div>
                         </div>
                     </div>
                 </fieldset>
@@ -82,7 +82,7 @@
                             </option>
                         </select>
                     </label>
-                    <div class="form-text">Other playlists whose tracks count as jingles, for example promos or station IDs. Hold <kbd>Ctrl</kbd> (<kbd>Cmd</kbd> on Mac) to select several. The sweeper playlist always counts.</div>
+                    <div class="form-text">Other playlists whose tracks count as jingles. Hold <kbd>Ctrl</kbd> (<kbd>Cmd</kbd> on Mac) to select several. The sweeper playlist always counts.</div>
                 </fieldset>
 
                 <fieldset>
@@ -93,20 +93,20 @@
                     </div>
                     <div class="form-text" :class="{ 'mb-3': settings.longest_fit }">
                         <strong>Off:</strong> all sweepers that fit the intro take turns; the one played longest ago comes next.
-                        <strong>On:</strong> prefer sweepers that fill most of the intro. How close they must come is set by the <em>intro length tolerance</em> (default 20%), which appears when this is switched on.
+                        <strong>On:</strong> prefer sweepers that fill most of the intro. How close they must come is set by the <em>intro length tolerance</em>, which appears when this is switched on.
                     </div>
                     <template v-if="settings.longest_fit">
                         <label class="form-label d-block mb-0">
                             Intro length tolerance (%)
                             <input v-model.number="settings.length_tolerance" class="form-control" type="number" min="0" max="100" step="1" required>
                         </label>
-                        <div class="form-text">How much shorter than the intro a sweeper may be. Example: <strong>20%</strong> with a 30-second intro lets sweepers of 24–30 s take turns. If none is that long, the longest fitting sweeper plays. With few sweepers, the same one may repeat often.</div>
+                        <div class="form-text">How much shorter than the intro a sweeper may be, in percent of the intro. If none is long enough, the longest fitting sweeper plays. With few sweepers, the same one may repeat often.</div>
                     </template>
                 </fieldset>
 
                 <fieldset>
                     <legend>Timing</legend>
-                    <p class="form-text mt-0">By default a sweeper is timed so that its voice ends just before the singing starts. Any echo or reverb tail may continue over the vocals.</p>
+                    <p class="form-text mt-0">A sweeper is normally timed so that its voice ends just before the singing starts. Any echo or reverb tail may continue over the vocals.</p>
                     <div class="row g-3">
                         <div class="col-md-6 col-xl-4">
                             <label class="form-label d-block mb-0">
@@ -137,7 +137,7 @@
                                 Early start after song start (s)
                                 <input v-model.number="settings.early_start" class="form-control" type="number" min="0" max="60" step="0.1" required>
                             </label>
-                            <div class="form-text">When the wait would be too long, the sweeper starts this many seconds into the song. Default <strong>2</strong>. It never starts later than the timed position, so it still ends before the vocals.</div>
+                            <div class="form-text">When the wait would be too long, the sweeper starts this many seconds into the song. It never starts later than the timed position, so it still ends before the vocals.</div>
                         </div>
                     </div>
                 </fieldset>
@@ -150,14 +150,14 @@
                                 Maximum ducking (dB)
                                 <input v-model.number="settings.duck_db" class="form-control" type="number" min="-20" max="0" step="0.5" required>
                             </label>
-                            <div class="form-text">How far the music is lowered under the sweeper's voice at most. Example: <strong>−7</strong> is moderate, <strong>−10</strong> makes the voice clearer, values closer to 0 are more subtle. The music dips only while the sweeper speaks and comes back right after.</div>
+                            <div class="form-text">How far the music is lowered under the sweeper's voice at most. Lower values make the voice clearer; values closer to 0 are more subtle. The music dips only while the sweeper speaks and comes back right after.</div>
                         </div>
                         <div class="col-md-6 col-xl-4">
                             <label class="form-label d-block mb-0">
                                 Jingle gain
                                 <input v-model.number="settings.jingle_gain" class="form-control" type="number" min="0" max="2" step="0.05" required>
                             </label>
-                            <div class="form-text">Volume of the sweepers compared with the songs. <strong>1</strong> = as loud as the songs, <strong>0.7</strong> ≈ −3 dB, <strong>0.5</strong> ≈ −6 dB, <strong>1.4</strong> ≈ +3 dB, <strong>2</strong> ≈ +6 dB.</div>
+                            <div class="form-text">Volume of the sweepers compared with the songs; <strong>1</strong> = as loud as the songs.</div>
                         </div>
                     </div>
                 </fieldset>
