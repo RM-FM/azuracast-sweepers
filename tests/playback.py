@@ -160,7 +160,12 @@ thread.run(delay=7., {{shutdown()}})
     assert all(body.get('version') == 'test' for path, body, _ in calls if path == '/sweepers/heartbeat'), \
         'Heartbeats must report the loaded module version'
     assert 'Queue arrangement skipped' not in result.stdout, ('Arrangement call failed', result.stdout[-2000:])
+    assert not re.search(r'API sweepers/\S+ - (Sending|Response \(200\))', result.stdout), \
+        'Routine plugin API calls must stay below the default log level'
+    if args.scenario == 'unavailable':
+        assert 'API sweepers/plan - Response (503)' in result.stdout, 'Failed plugin API call not logged'
     if spacing:
+        assert 'Sweeper skipped for queue 125: song spacing' in result.stdout, 'Spacing skip not logged'
         played = {e['token'] for e in events if e['event'] == 'played'}
         assert '124' not in played and '125' not in played, ('Jingle or immediately following song overlaid', played)
         assert '126' in played, ('Sweeper missing after one intervening song', played)
@@ -231,6 +236,8 @@ thread.run(delay=7., {{shutdown()}})
             assert amplitude(samples, 880, onset + 3.3) < 50, 'Sweeper ran past cue-out'
         if args.scenario == 'normal':
             assert {'event': 'release', 'token': '124'} not in events, 'Empty plans must not emit release events'
+            assert 'Sweeper prepared for queue 123' in result.stdout, 'Prepared sweeper not logged'
+            assert 'Sweeper started for queue 123' in result.stdout, 'Started sweeper not logged'
     if args.scenario == 'hot-error':
         assert 'Live settings refresh failed:' in result.stdout, 'Invalid heartbeat was not reported'
         assert 'Live settings applied: changed' not in result.stdout, 'Invalid heartbeat changed settings'

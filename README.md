@@ -266,6 +266,14 @@ inserted retroactively. New playlists may need additional background AutoCue tim
 Failed heartbeat requests retain the last valid settings and are logged; changes
 take effect after communication recovers.
 
+The station's Liquidsoap log shows the plugin's decisions under the `sweepers`
+label: "Sweeper prepared for queue …", "Sweeper started for queue …", "Sweeper
+skipped for queue …: song spacing", "Sweeper cancelled: jingle queued …", "Song
+with intro moved forward" and setting changes. Routine plugin API calls (heartbeat
+every 5 s, catalogue every 60 s, planning, queue arrangement) are logged only at
+debug level 4; failed calls are logged at level 2. Changes to sweeper files or the
+sweeper playlist are picked up within 60 seconds, and at once after saving settings.
+
 Upgrading from an older release requires one broadcasting restart per station to
 load the new Liquidsoap module; the Sweepers page reports an outdated module until
 then. Installing, removing or updating the plugin requires that restart; settings

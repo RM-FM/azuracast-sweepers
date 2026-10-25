@@ -26,6 +26,34 @@ let sweepers.previous_song = ref(false)
 let sweepers.previous_clear = ref(false)
 let sweepers.counted = ref("")
 
+# Like azuracast.api_call, but routine requests and responses are logged at debug level 4: the heartbeat
+# runs every five seconds. Failures are logged at level 2.
+def sweepers.api_call(~timeout, endpoint, payload) =
+    log(level=4, label="sweepers", "API #{endpoint} - Sending: #{payload}")
+    try
+        response = http.post(
+            "#{settings.azuracast.api_url()}/#{endpoint}",
+            headers=[
+                ("Content-Type", "application/json"),
+                ("User-Agent", "Liquidsoap AzuraCast"),
+                ("X-Liquidsoap-Api-Key", "#{settings.azuracast.api_key()}")
+            ],
+            timeout=timeout,
+            data=payload
+        )
+        if response.status_code == 200 then
+            log(level=4, label="sweepers", "API #{endpoint} - Response (200): #{response}")
+            "#{response}"
+        else
+            log(level=2, label="sweepers", "API #{endpoint} - Response (#{response.status_code}): #{response}")
+            null
+        end
+    catch err do
+        log(level=2, label="sweepers", "API #{endpoint} - Error: #{error.kind(err)} - #{error.message(err)}")
+        null
+    end
+end
+
 def sweepers.configure(s) =
     if s.revision == "" or s.songs_after_jingle < 0 or s.songs_after_jingle > 1000 or
         s.songs_after_sweeper < 0 or s.songs_after_sweeper > 1000 then
@@ -56,6 +84,7 @@ end
 def sweepers.notify(event, token) =
     if token != "" then
         if event == "played" then
+            log(label="sweepers", "Sweeper started for queue #{token}")
             sweepers.songs_since_sweeper := 0
             sweepers.previous_clear := false
         end
@@ -168,9 +197,10 @@ end
 
 def sweepers.refresh_catalog() =
     try
-        if time() - sweepers.catalog_at() >= 30. then
+        # Settings changes reset catalog_at, so a newly selected playlist is read at once.
+        if time() - sweepers.catalog_at() >= 60. then
             sweepers.catalog_at := time()
-            result = azuracast.api_call(timeout=2., "sweepers/catalog", "{}")
+            result = sweepers.api_call(timeout=2., "sweepers/catalog", "{}")
             if null.defined(result) then
                 let json.parse (jobs : [{media_id: int, identity: string, uri: string}]) = null.get(result)
                 sweepers.catalog := jobs
@@ -226,7 +256,7 @@ def sweepers.heartbeat() =
     events = list.rev(sweepers.events())
     tokens = list.map(fst, sweepers.plans())
     try
-        response = azuracast.api_call(timeout=2., "sweepers/heartbeat", json.stringify({
+        response = sweepers.api_call(timeout=2., "sweepers/heartbeat", json.stringify({
             tokens=tokens, events=events, version=sweepers.version()
         }))
         if null.defined(response) then
@@ -263,7 +293,7 @@ let sweepers.original_next_song = azuracast.autodj_next_song
 def sweepers.arrange() =
     if sweepers.settings().enabled and sweepers.counted() != "" and not azuracast.live_enabled() then
         try
-            response = azuracast.api_call(timeout=1., "sweepers/arrange", json.stringify({
+            response = sweepers.api_call(timeout=1., "sweepers/arrange", json.stringify({
                 counted=sweepers.counted(),
                 songs_since_jingle=sweepers.songs_since_jingle(),
                 songs_since_sweeper=sweepers.songs_since_sweeper(),
@@ -308,7 +338,7 @@ def sweepers.next_song() =
                         cue_in=cue_in,
                         cue_out=window_end
                     })
-                    response = azuracast.api_call(timeout=1., "sweepers/plan", body)
+                    response = sweepers.api_call(timeout=1., "sweepers/plan", body)
                     if null.defined(response) then
                         let json.parse (p : {
                             token: string, revision: string, uri: string, offset: float,
@@ -336,6 +366,7 @@ def sweepers.next_song() =
                                 overlay
                             end
                         if ready() and sweepers.current(p.token, p.revision) then
+                            log(label="sweepers", "Sweeper prepared for queue #{token}: starts #{p.offset} s after cue-in")
                             list.iter(fun (entry) -> sweepers.notify("release", fst(entry)), list.slice(offset=15, sweepers.plans()))
                             sweepers.plans := [(token, {
                                 source=overlay, ready=true, offset=p.offset,
@@ -422,6 +453,9 @@ def sweepers.mix(music) =
                         revision=p.revision
                     }
                 else
+                    if p.ready and not allowed then
+                        log(label="sweepers", "Sweeper skipped for queue #{token}: song spacing")
+                    end
                     sweepers.notify("release", token)
                 end
             end
