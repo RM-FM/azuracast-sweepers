@@ -132,11 +132,17 @@ and reload PHP:
   cd /var/azuracast
   docker compose exec web supervisorctl signal USR2 php-fpm
   docker compose exec web supervisorctl restart php-worker-fast php-worker-slow php-nowplaying
+  sleep 10
+  docker compose exec web rm -f /var/azuracast/www_tmp/app_routes.cache.php
 )
 ```
 
 The graceful PHP reload loads the updated plugin code without interrupting
-broadcasting. Reload the dashboard afterward. The Sweepers page then tells you
+broadcasting. Keep the order: AzuraCast's route cache must be deleted only after
+the web processes **and** the background processes run the new code. Otherwise
+an old process can rebuild the cache with the previous route list, and requests
+to plugin routes reach the wrong handler until the cache is rebuilt again.
+Reload the dashboard afterward. The Sweepers page then tells you
 for each station whether its broadcasting must be restarted once to load the
 updated Liquidsoap module. The initial Compose override only needs to be added once.
 
