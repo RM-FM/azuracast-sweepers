@@ -117,14 +117,14 @@
                         </div>
                     </div>
                     <div class="form-check form-switch mt-3">
-                        <input id="sweepers-limitDelay" v-model="limitDelay" class="form-check-input" type="checkbox" role="switch">
+                        <input id="sweepers-limitDelay" v-model="settings.limit_delay" class="form-check-input" type="checkbox" role="switch">
                         <label class="form-check-label" for="sweepers-limitDelay">Limit start delay</label>
                     </div>
                     <div class="form-text">
                         <strong>Off:</strong> always time the sweeper to the end of the intro, even if it starts late in a long intro.
                         <strong>On:</strong> if that would make the sweeper wait longer than the maximum start delay, it starts at the early start instead.
                     </div>
-                    <div v-if="limitDelay" class="row g-3 mt-0">
+                    <div v-if="settings.limit_delay" class="row g-3 mt-0">
                         <div class="col-md-6 col-xl-4">
                             <label class="form-label d-block mb-0">
                                 Maximum start delay (s)
@@ -154,10 +154,10 @@
                         </div>
                         <div class="col-md-6 col-xl-4">
                             <label class="form-label d-block mb-0">
-                                Jingle gain
-                                <input v-model.number="settings.jingle_gain" class="form-control" type="number" min="0" max="2" step="0.05" required>
+                                Jingle gain (%)
+                                <input v-model.number="jingleGainPercent" class="form-control" type="number" min="0" max="200" step="1" required>
                             </label>
-                            <div class="form-text">Volume of the sweepers compared with the songs; <strong>1</strong> = as loud as the songs.</div>
+                            <div class="form-text">Volume of the sweepers compared with the songs; <strong>100%</strong> = as loud as the songs.</div>
                         </div>
                     </div>
                 </fieldset>
@@ -341,9 +341,10 @@ const validDraft = computed(() => draft.value === "" || (
     && Number(draft.value) >= 0
     && Number(draft.value) <= (selected.value?.duration ?? 0)
 ));
-const limitDelay = computed({
-    get: () => settings.value.max_wait !== null && settings.value.max_wait !== undefined,
-    set: (enabled) => { settings.value.max_wait = enabled ? 0 : null; },
+// Stored as a factor (1.0); shown and entered as a percentage.
+const jingleGainPercent = computed({
+    get: () => Math.round((settings.value.jingle_gain ?? 1) * 100),
+    set: (percent) => { settings.value.jingle_gain = Number(percent) / 100; },
 });
 const marker = computed(() => validDraft.value && draft.value !== "" ? Number(draft.value) : null);
 

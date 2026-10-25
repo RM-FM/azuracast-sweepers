@@ -113,6 +113,9 @@ namespace Plugin\AzuracastSweepers\Service {
 
         public function jingles(\App\Entity\Station $station, ?int $playlistId): array
         {
+            if ($playlistId === null) {
+                return [];
+            }
             if ($playlistId !== 7) {
                 throw new \InvalidArgumentException('Choose an Advanced playlist.');
             }
@@ -262,10 +265,14 @@ namespace {
         && str_contains($config, Module::AUTODJ) && str_contains($config, Module::CROSSFADE);
     $status = static fn(): array => Module::status($state->read($directory));
     try {
-        // Fresh installation: no saved settings, sweepers disabled, module still loaded.
+        // Fresh installation: no saved settings, so the defaults apply (enabled, gaps 1/1); the module is loaded.
         [$config, $checks] = $generate();
         expect($loaded($config), 'A fresh installation loads the module so that enabling needs no restart.');
-        expect(str_contains($config, 'sweepers.load(version="' . Module::version() . '", {enabled=false'), 'Disabled.');
+        expect(
+            str_contains($config, 'sweepers.load(version="' . Module::version() . '", {enabled=true')
+                && str_contains($config, 'songs_after_jingle=1, songs_after_sweeper=1'),
+            'A new installation starts enabled with the default song gaps.'
+        );
         expect($checks === 1, 'The final configuration is checked by Liquidsoap.');
         expect($state->read($directory)['module']['loaded'] === true, 'Load status recorded.');
         expect($status()['state'] === 'restart', 'Without heartbeats the page asks for the one-time restart.');

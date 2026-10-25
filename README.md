@@ -169,9 +169,23 @@ file to disable the plugin; it may contain unrelated configuration.
 ## Rotation and timing
 
 Configure these options on **Sweepers** and save. The running module checks for
-changes every five seconds; no broadcasting restart is needed:
+changes every five seconds; no broadcasting restart is needed.
 
-- **Song spacing** has three independent rules, each `0` (disabled) by default.
+A new installation starts with these defaults; stations with saved settings keep
+their values:
+
+| Setting | Default |
+| --- | --- |
+| Enable sweepers | On (no sweeper plays until a sweeper playlist is selected) |
+| Songs without sweeper after a jingle / after a sweeper / before a jingle | 1 / 1 / 0 |
+| Count Jingle Mode playlists | On |
+| Prefer the longest fitting sweepers | Off (tolerance 20%) |
+| Handover margin | 0.5 s |
+| Limit start delay | Off (maximum start delay 10 s, early start 2 s) |
+| Maximum ducking | −7 dB |
+| Jingle gain | 100% |
+
+- **Song spacing** has three independent rules; `0` switches a rule off.
   A song must satisfy all of them to carry a sweeper:
   - **Songs without sweeper after a jingle** (e.g. `3`): after a recognized jingle,
     that many complete songs play before the next sweeper.
@@ -191,20 +205,22 @@ changes every five seconds; no broadcasting restart is needed:
   skipped. A jingle is not a song for the sweeper gap. Prefetch and cancelled
   overlays never reset a gap or advance sweeper rotation. A previously saved single
   **Minimum songs** value becomes both after-gaps; the before-gap starts disabled.
-- **Count Jingle Mode playlists** defaults to enabled. **Additional jingle
+- **Count Jingle Mode playlists** is on by default. **Additional jingle
   playlists** accepts multiple station playlists, including ordinary playlists.
   Recognition follows the playing track's playlist annotation, like AzuraCast's
   Jingle Mode, not every playlist the file belongs to. The sweeper playlist itself
   always counts. Recognized jingles never receive an overlay.
-- **Limit start delay** defaults to disabled (`max_wait: null`): align the sweeper
-  handover to the intro boundary minus the safety margin. With a limit, retain
-  that timing if the wait after the song's cue-in does not exceed the limit;
-  otherwise start the sweeper at **Early start after song start** (default `2` s)
-  after the song's cue-in. The early start is never later than the aligned start,
-  so the sweeper still ends before the intro. `0` starts at cue-in. Previously
-  saved numeric limits remain enabled after an update and now use the 2-second
-  early start instead of starting at cue-in.
-- **Prefer the longest fitting sweepers** defaults to disabled. When enabled,
+- **Limit start delay** is off by default: align the sweeper handover to the
+  intro boundary minus the safety margin. When switched on, retain that timing if
+  the wait after the song's cue-in does not exceed **Maximum start delay**;
+  otherwise start the sweeper at **Early start after song start** after the
+  song's cue-in. The early start is never later than the aligned start, so the
+  sweeper still ends before the intro. A maximum of `0` always uses the early
+  start. The maximum is kept while the limit is off. Previously saved limits are
+  converted: an empty value becomes "off", a number "on" with that maximum.
+- **Jingle gain** is entered in percent (100% = as loud as the songs) and stored
+  as a factor (`1.0`).
+- **Prefer the longest fitting sweepers** is off by default. When enabled,
   the tolerance defines an eligible length range: with 30 seconds available and
   20%, bodies of 24–30 seconds participate in oldest-played rotation. If none are
   in range, choose the longest body that still fits (oldest-played for ties).

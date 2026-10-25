@@ -142,7 +142,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
         }
 
         $hash = $this->verifier->fingerprint($config);
-        $data = $this->read($event);
+        $data = $this->read($event) ?? [];
         if (($data['module']['verified'] ?? null) === $hash) {
             $this->record($event, true, null, $hash);
 
@@ -208,26 +208,30 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
         }
     }
 
-    private function read(WriteLiquidsoapConfiguration $event): array
+    /**
+     * @return array<string, mixed>|null Null when the state exists but cannot be read.
+     */
+    private function read(WriteLiquidsoapConfiguration $event): ?array
     {
         try {
             return $this->state->read($event->getStation()->getRadioConfigDir());
         } catch (Throwable $exception) {
             error_log('AzuraCast Sweepers: state not readable: ' . $exception->getMessage());
 
-            return [];
+            return null;
         }
     }
 
     private function settings(WriteLiquidsoapConfiguration $event): Settings
     {
+        // No saved settings means a new installation and its defaults; damaged settings load the module disabled.
+        $data = $this->read($event);
         try {
-            return Settings::fromArray($this->read($event)['settings'] ?? []);
+            return $data === null ? new Settings(enabled: false) : Settings::fromArray($data['settings'] ?? []);
         } catch (Throwable $exception) {
-            // Load the module disabled; saving valid settings later enables it live.
             error_log('AzuraCast Sweepers: invalid saved settings: ' . $exception->getMessage());
 
-            return new Settings();
+            return new Settings(enabled: false);
         }
     }
 }

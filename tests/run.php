@@ -38,39 +38,49 @@ function rejects(callable $callback): void
     check(false, 'Invalid input was accepted.');
 }
 
-$settings = new Settings(enabled: true, playlistId: 1);
+$settings = new Settings(enabled: true, playlistId: 1, margin: 0.8);
 $timing = Timing::fromArray(['cue_in' => 1, 'cue_out' => 10, 'cross_start_next' => 7], 12);
 check($timing !== null, 'Valid jingle timing.');
 $fit = $timing->fit(12, 2, 180, $settings);
 check(abs($fit['offset'] - 3.2) < 0.001, 'Subtract song cue-in once.');
 check(abs($fit['duck_duration'] - 6) < 0.001, 'Use body handover, not jingle file end.');
 check(abs($timing->fit(30, 0, 180, $settings)['offset'] - 23.2) < 0.001, 'Default handover aligns to intro minus margin.');
-check(abs($timing->fit(30, 0, 180, new Settings(maxWait: 5))['offset'] - 2.0) < 0.001, 'Long delay starts at the default early start.');
+$limited = static fn(float $maxWait, float $earlyStart = 2.0): Settings
+    => new Settings(margin: 0.8, limitDelay: true, maxWait: $maxWait, earlyStart: $earlyStart);
+check(abs($timing->fit(30, 0, 180, $limited(5))['offset'] - 2.0) < 0.001, 'Long delay starts at the default early start.');
+check(abs($timing->fit(30, 0, 180, $limited(5, 3.5))['offset'] - 3.5) < 0.001, 'Configured early start.');
 check(
-    abs($timing->fit(30, 0, 180, new Settings(maxWait: 5, earlyStart: 3.5))['offset'] - 3.5) < 0.001,
-    'Configured early start.'
-);
-check(
-    abs($timing->fit(30, 0, 180, new Settings(maxWait: 5, earlyStart: 30))['offset'] - 23.2) < 0.001,
+    abs($timing->fit(30, 0, 180, $limited(5, 30))['offset'] - 23.2) < 0.001,
     'Early start never exceeds the aligned start, so the body still ends before the intro.'
 );
+check(abs($timing->fit(30, 5, 180, $limited(5))['offset'] - 2.0) < 0.001, 'Early start is measured from the song cue-in.');
+check($timing->fit(30, 0, 180, $limited(5, 0))['offset'] === 0.0, 'Early start 0 starts at cue-in.');
+check(abs($timing->fit(12, 2, 180, $limited(5))['offset'] - 3.2) < 0.001, 'Short delay retains end alignment.');
 check(
-    abs($timing->fit(30, 5, 180, new Settings(maxWait: 5))['offset'] - 2.0) < 0.001,
-    'Early start is measured from the song cue-in.'
+    abs($timing->fit(30, 0, 180, new Settings(margin: 0.8, limitDelay: false, maxWait: 5))['offset'] - 23.2) < 0.001,
+    'A disabled limit keeps end alignment regardless of the saved maximum.'
 );
-check($timing->fit(30, 0, 180, new Settings(maxWait: 5, earlyStart: 0))['offset'] === 0.0, 'Early start 0 starts at cue-in.');
-check(Settings::fromArray([])->earlyStart === 2.0, 'Early start defaults to 2 seconds.');
-check(abs($timing->fit(12, 2, 180, new Settings(maxWait: 5))['offset'] - 3.2) < 0.001, 'Short delay retains end alignment.');
-check(Settings::fromArray([])->maxWait === null, 'Start delay disabled by default.');
-check(Settings::fromArray(['max_wait' => null])->maxWait === null, 'Explicit null disables delay limit.');
-check(Settings::fromArray(['max_wait' => 5])->maxWait === 5.0, 'Keep previously saved delay setting.');
+$defaults = Settings::fromArray([]);
+check(
+    $defaults->enabled && $defaults->playlistId === null && $defaults->songsAfterJingle === 1
+        && $defaults->songsAfterSweeper === 1 && $defaults->songsBeforeJingle === 0 && $defaults->countJingleMode
+        && !$defaults->longestFit && $defaults->margin === 0.5 && !$defaults->limitDelay
+        && $defaults->maxWait === 10.0 && $defaults->earlyStart === 2.0 && $defaults->duckDb === -7.0
+        && $defaults->jingleGain === 1.0,
+    'New installations start with the agreed defaults.'
+);
+check(Settings::fromArray([])->toArray() === (new Settings())->toArray(), 'Constructor and stored defaults agree.');
+$legacyOff = Settings::fromArray(['max_wait' => null]);
+check(!$legacyOff->limitDelay && $legacyOff->maxWait === 10.0, 'A saved disabled limit stays disabled.');
+$legacyOn = Settings::fromArray(['max_wait' => 5]);
+check($legacyOn->limitDelay && $legacyOn->maxWait === 5.0, 'A saved numeric limit stays enabled with its value.');
+$kept = Settings::fromArray(['limit_delay' => false, 'max_wait' => 7]);
+check(!$kept->limitDelay && $kept->maxWait === 7.0, 'The maximum is kept while the limit is off.');
+check(Settings::fromArray(['minimum_songs' => 3])->songsAfterJingle === 3, 'A saved legacy gap overrides the default.');
 check($timing->fit(5, 0, 180, $settings) === null, 'Reject a jingle body that does not fit.');
 check($timing->fit(12, 2, 13, $settings) === null, 'The tail must fit before the next transition.');
-check($timing->fit(12, 2, 180, new Settings(maxWait: 0, earlyStart: 0))['offset'] === 0.0, 'Allow an immediate overlay.');
-check(
-    abs($timing->fit(12, 2, 180, new Settings(maxWait: 0))['offset'] - 2.0) < 0.001,
-    'Limit 0 uses the early start.'
-);
+check($timing->fit(12, 2, 180, $limited(0, 0))['offset'] === 0.0, 'Allow an immediate overlay.');
+check(abs($timing->fit(12, 2, 180, $limited(0))['offset'] - 2.0) < 0.001, 'Limit 0 uses the early start.');
 check($timing->fit(NAN, 0, 100, $settings) === null, 'Reject nonfinite intro.');
 
 foreach ([
@@ -119,7 +129,7 @@ check(Settings::fromArray($settings->toArray())->revision() === $settings->revis
 foreach ([
     'enabled' => false, 'playlist_id' => 2, 'songs_after_jingle' => 3, 'songs_after_sweeper' => 2,
     'songs_before_jingle' => 1, 'count_jingle_mode' => false,
-    'jingle_playlist_ids' => [4, 5], 'max_wait' => 0, 'margin' => 1.2, 'duck_db' => -10,
+    'jingle_playlist_ids' => [4, 5], 'max_wait' => 0, 'limit_delay' => true, 'margin' => 1.2, 'duck_db' => -10,
     'jingle_gain' => 0.5, 'longest_fit' => true, 'length_tolerance' => 50, 'early_start' => 4,
 ] as $key => $value) {
     check(
@@ -132,7 +142,7 @@ check(
     (new Settings(playlistId: 2, jinglePlaylistIds: [2, 4]))->runtime()['jingle_playlists'] === [2, 4],
     'Runtime recognition includes the sweeper playlist once.'
 );
-foreach ([['enabled' => 'false'], ['enabled' => true], ['duck_db' => -21], ['max_wait' => -1]] as $invalid) {
+foreach ([['enabled' => 'false'], ['limit_delay' => 1], ['duck_db' => -21], ['max_wait' => -1], ['playlist_id' => 0]] as $invalid) {
     rejects(static fn() => Settings::fromArray($invalid));
 }
 

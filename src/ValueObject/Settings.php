@@ -9,34 +9,36 @@ use InvalidArgumentException;
 final readonly class Settings
 {
     public function __construct(
-        public bool $enabled = false,
+        public bool $enabled = true,
         public ?int $playlistId = null,
-        public ?float $maxWait = null,
-        public float $margin = 0.8,
+        public float $maxWait = 10.0,
+        public float $margin = 0.5,
         public float $duckDb = -7.0,
         public float $jingleGain = 1.0,
-        public int $songsAfterJingle = 0,
+        public int $songsAfterJingle = 1,
         public bool $countJingleMode = true,
         public array $jinglePlaylistIds = [],
         public bool $longestFit = false,
         public float $lengthTolerance = 20.0,
-        public int $songsAfterSweeper = 0,
+        public int $songsAfterSweeper = 1,
         public int $songsBeforeJingle = 0,
-        public float $earlyStart = 2.0
+        public float $earlyStart = 2.0,
+        public bool $limitDelay = false
     ) {
-        foreach ([$maxWait ?? 0.0, $margin, $duckDb, $jingleGain, $lengthTolerance, $earlyStart] as $value) {
+        foreach ([$maxWait, $margin, $duckDb, $jingleGain, $lengthTolerance, $earlyStart] as $value) {
             if (!is_finite($value)) {
                 throw new InvalidArgumentException('Settings must be finite.');
             }
         }
 
+        // Enabled without a playlist is valid: no sweeper plays until a playlist is chosen.
         if (
-            ($maxWait !== null && ($maxWait < 0 || $maxWait > 3600)) || $margin < 0 || $margin > 5
+            $maxWait < 0 || $maxWait > 3600 || $margin < 0 || $margin > 5
             || $duckDb > 0 || $duckDb < -20 || $jingleGain < 0 || $jingleGain > 2
             || $songsAfterJingle < 0 || $songsAfterJingle > 1000 || $songsAfterSweeper < 0
             || $songsAfterSweeper > 1000 || $songsBeforeJingle < 0 || $songsBeforeJingle > 1000
             || $lengthTolerance < 0 || $lengthTolerance > 100 || $earlyStart < 0 || $earlyStart > 60
-            || ($enabled && ($playlistId === null || $playlistId < 1))
+            || ($playlistId !== null && $playlistId < 1)
         ) {
             throw new InvalidArgumentException('Invalid sweeper settings.');
         }
@@ -50,7 +52,7 @@ final readonly class Settings
     public static function fromArray(array $data): self
     {
         $booleans = [];
-        foreach (['enabled' => false, 'count_jingle_mode' => true, 'longest_fit' => false] as $key => $default) {
+        foreach (['enabled' => true, 'count_jingle_mode' => true, 'longest_fit' => false] as $key => $default) {
             $value = $data[$key] ?? $default;
             if (!is_bool($value)) {
                 throw new InvalidArgumentException('Invalid boolean for ' . $key . '.');
@@ -62,7 +64,7 @@ final readonly class Settings
             throw new InvalidArgumentException('Invalid playlist ID.');
         }
         // Earlier versions stored one shared minimum_songs gap.
-        $legacy = $data['minimum_songs'] ?? 0;
+        $legacy = $data['minimum_songs'] ?? 1;
         $defaults = ['songs_after_jingle' => $legacy, 'songs_after_sweeper' => $legacy, 'songs_before_jingle' => 0];
         $gaps = [];
         foreach ($defaults as $key => $default) {
@@ -76,10 +78,16 @@ final readonly class Settings
             throw new InvalidArgumentException('Invalid song spacing or jingle playlists.');
         }
 
+        // Earlier versions stored a disabled delay limit as max_wait null and an enabled one as a number.
+        $limitDelay = $data['limit_delay'] ?? (array_key_exists('max_wait', $data) && $data['max_wait'] !== null);
+        if (!is_bool($limitDelay)) {
+            throw new InvalidArgumentException('Invalid boolean for limit_delay.');
+        }
+
         $values = [];
         $defaults = [
-            'max_wait' => null,
-            'margin' => 0.8,
+            'max_wait' => 10.0,
+            'margin' => 0.5,
             'duck_db' => -7.0,
             'jingle_gain' => 1.0,
             'length_tolerance' => 20.0,
@@ -87,10 +95,6 @@ final readonly class Settings
         ];
         foreach ($defaults as $key => $default) {
             $value = $data[$key] ?? $default;
-            if ($key === 'max_wait' && $value === null) {
-                $values[$key] = null;
-                continue;
-            }
             if (!is_int($value) && !is_float($value)) {
                 throw new InvalidArgumentException('Invalid value for ' . $key . '.');
             }
@@ -111,7 +115,8 @@ final readonly class Settings
             lengthTolerance: $values['length_tolerance'],
             songsAfterSweeper: $gaps['songs_after_sweeper'],
             songsBeforeJingle: $gaps['songs_before_jingle'],
-            earlyStart: $values['early_start']
+            earlyStart: $values['early_start'],
+            limitDelay: $limitDelay
         );
     }
 
@@ -140,6 +145,7 @@ final readonly class Settings
         return [
             'enabled' => $this->enabled,
             'playlist_id' => $this->playlistId,
+            'limit_delay' => $this->limitDelay,
             'max_wait' => $this->maxWait,
             'margin' => $this->margin,
             'duck_db' => $this->duckDb,

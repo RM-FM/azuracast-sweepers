@@ -84,15 +84,23 @@ Broadcasting permission. It accepts the existing settings plus:
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `songs_after_jingle` | `0` | Songs without sweeper after a jingle, integer 0–1000 |
-| `songs_after_sweeper` | `0` | Songs without sweeper after a sweeper, integer 0–1000 |
+| `enabled` | `true` | Use sweepers; without `playlist_id` no sweeper plays |
+| `songs_after_jingle` | `1` | Songs without sweeper after a jingle, integer 0–1000 |
+| `songs_after_sweeper` | `1` | Songs without sweeper after a sweeper, integer 0–1000 |
 | `songs_before_jingle` | `0` | Queued tracks checked for a following jingle, 0 to the AutoDJ queue length |
 | `count_jingle_mode` | `true` | Recognize the native `jingle_mode` annotation |
 | `jingle_playlist_ids` | `[]` | Additional station playlist IDs (integer array) |
-| `max_wait` | `null` | Disabled; numeric 0–3600 is the longest wait before the early start is used |
+| `margin` | `0.5` | Handover margin in seconds, 0–5 |
+| `limit_delay` | `false` | Use the early start when the aligned start would wait longer than `max_wait` |
+| `max_wait` | `10` | Longest wait in seconds, 0–3600; kept while `limit_delay` is off |
 | `early_start` | `2` | Seconds after the song cue-in used when `max_wait` is exceeded, 0–60; never later than the aligned start |
+| `duck_db` | `-7` | Maximum ducking in dB, −20–0 |
+| `jingle_gain` | `1` | Sweeper volume factor, 0–2 (shown as 0–200% in the panel) |
 | `longest_fit` | `false` | Prefer bodies closest to the available intro length |
 | `length_tolerance` | `20` | Eligible range below the intro length, percent 0–100 |
+
+Saved settings from earlier versions remain valid: a `max_wait` of `null` reads as
+`limit_delay: false` with `max_wait: 10`, a numeric `max_wait` as `limit_delay: true`.
 
 The panel state supplies Advanced `playlists` for sweeper selection, all station
 `jingle_playlists` for spacing classification and the effective `queue_length`

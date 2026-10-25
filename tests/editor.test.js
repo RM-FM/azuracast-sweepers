@@ -37,8 +37,8 @@ globalThis.fetch = async (url, options) => {
     let data;
     if (url.endsWith("/state")) {
         data = { csrf: "session-token", station: { id: 1, name: "Test" }, queue_length: 3, module: moduleState, settings: {
-            enabled: false, playlist_id: null, max_wait: null, margin: .8, duck_db: -7, jingle_gain: 1,
-            songs_after_jingle: 0, songs_after_sweeper: 0, songs_before_jingle: 0, early_start: 2,
+            enabled: true, playlist_id: null, limit_delay: false, max_wait: 10, margin: .5, duck_db: -7, jingle_gain: 1,
+            songs_after_jingle: 1, songs_after_sweeper: 1, songs_before_jingle: 0, early_start: 2,
             count_jingle_mode: true, jingle_playlist_ids: [], longest_fit: false, length_tolerance: 20,
         }, playlists: [{ id: 10, name: "Sweepers" }], jingle_playlists: [
             { id: 20, name: "Station IDs", is_jingle: true }, { id: 21, name: "Promos", is_jingle: false },
@@ -157,8 +157,13 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
     };
     try {
         await settle();
+        assert.equal(field("Enable sweepers").checked, true);
         assert.equal(field("Limit start delay").checked, false);
-        assert.equal((await submit()).max_wait, null);
+        assert.equal(field("Jingle gain").value, "100", "Jingle gain is shown in percent");
+        const first = await submit();
+        assert.equal(first.limit_delay, false);
+        assert.equal(first.max_wait, 10, "The maximum start delay keeps its value while the limit is off");
+        assert.equal(first.jingle_gain, 1);
         assert.equal(document.querySelector('[role="status"]').textContent, "Settings saved.");
         assert.doesNotMatch(document.querySelector('[role="status"]').textContent, /restart/i);
         needsRestart = true;
@@ -180,10 +185,14 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         select.dispatchEvent(new Event("change", { bubbles: true }));
         await settle();
         await change("Limit start delay", true, true);
+        assert.equal(field("Maximum start delay").value, "10", "Maximum start delay shows its 10-second default");
         assert.equal(field("Early start").value, "2", "Early start shows its 2-second default");
         await change("Early start", "3.5");
+        await change("Jingle gain", "70");
         const settings = await submit();
-        assert.equal(settings.max_wait, 0);
+        assert.equal(settings.limit_delay, true);
+        assert.equal(settings.max_wait, 10);
+        assert.equal(settings.jingle_gain, 0.7, "70% is stored as the factor 0.7");
         assert.equal(settings.early_start, 3.5);
         assert.equal(settings.songs_after_jingle, 3);
         assert.equal(settings.songs_after_sweeper, 2);
@@ -196,7 +205,9 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         await change("Maximum start delay", "5");
         assert.equal((await submit()).max_wait, 5);
         await change("Limit start delay", false, true);
-        assert.equal((await submit()).max_wait, null);
+        const off = await submit();
+        assert.equal(off.limit_delay, false);
+        assert.equal(off.max_wait, 5, "Switching the limit off keeps the entered maximum");
         assert.equal(writes.at(-1).url, "/sweepers/1/settings");
     } finally {
         app.unmount();
