@@ -10,6 +10,50 @@
     min-height: 128px;
 }
 
+.sweepers-page .sweepers-settings fieldset {
+    min-width: 0;
+    margin: 0 0 1.5rem;
+    padding: 0 0 1.25rem;
+    border: 0;
+    border-bottom: 1px solid var(--bs-border-color, #d7dde5);
+}
+
+.sweepers-page .sweepers-settings legend {
+    float: none;
+    width: auto;
+    margin: 0 0 .75rem;
+    padding: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+.sweepers-page .sweepers-settings .form-text {
+    max-width: 80ch;
+    line-height: 1.45;
+}
+
+.sweepers-page:not(.embedded) .sweepers-settings .form-text {
+    margin-top: .25rem;
+    font-size: .875em;
+    color: #6c757d;
+}
+
+.sweepers-page:not(.embedded) .row > [class*="col-"] {
+    flex: 1 1 260px;
+}
+
+.sweepers-page:not(.embedded) kbd {
+    padding: .1rem .3rem;
+    border-radius: .2rem;
+    font-size: .85em;
+    color: #fff;
+    background: #303943;
+}
+
+:root[data-bs-theme="dark"] .sweepers-page:not(.embedded) .sweepers-settings .form-text {
+    color: #aab3bf;
+}
+
 
 .sweepers-page:not(.embedded) {
     min-height: 100vh;

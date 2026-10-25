@@ -10,100 +10,160 @@
                 <a class="btn btn-sm btn-outline-light" :href="stationUrl">Station dashboard</a>
             </div>
             <div class="card-body">
-            <p class="text-muted">Configure overlays for {{ station.name || 'your station' }}.</p>
+            <p class="text-muted mb-2">Sweepers are short station drop-ins played over the instrumental intro of a song, while the music is ducked underneath. Configure them for {{ station.name || 'your station' }} below.</p>
             <p v-if="moduleStatus.state === 'active'" class="text-success small mb-3" data-module-status="active">{{ moduleStatus.message }}</p>
             <p v-else-if="moduleStatus.state" class="alert alert-warning" role="status" :data-module-status="moduleStatus.state">{{ moduleStatus.message }}</p>
-            <form @submit.prevent="saveSettings">
-                <div class="form-check form-switch mb-3">
-                    <input id="sweepers-enabled" v-model="settings.enabled" class="form-check-input" type="checkbox" role="switch">
-                    <label class="form-check-label" for="sweepers-enabled">Enable sweepers</label>
-                </div>
-                <label class="form-label d-block mb-3">
-                    Sweeper playlist
-                    <select v-model="settings.playlist_id" class="form-select">
-                        <option :value="null">Choose an Advanced playlist</option>
-                        <option v-for="playlist in playlists" :key="playlist.id" :value="playlist.id">
-                            {{ playlist.name }}
-                        </option>
-                    </select>
-                </label>
-                <div class="row g-3 mb-1">
-                    <label class="form-label col-md-4">
-                        Songs without sweeper after a jingle
-                        <input v-model.number="settings.songs_after_jingle" class="form-control" type="number" min="0" max="1000" step="1" required>
+            <form class="sweepers-settings" @submit.prevent="saveSettings">
+                <fieldset>
+                    <legend>General</legend>
+                    <div class="form-check form-switch">
+                        <input id="sweepers-enabled" v-model="settings.enabled" class="form-check-input" type="checkbox" role="switch">
+                        <label class="form-check-label" for="sweepers-enabled">Enable sweepers</label>
+                    </div>
+                    <div class="form-text mb-3">Switches sweepers on or off for this station. Takes effect within about 5 seconds, without restarting.</div>
+                    <label class="form-label d-block mb-0">
+                        Sweeper playlist
+                        <select v-model="settings.playlist_id" class="form-select">
+                            <option :value="null">Choose an Advanced playlist</option>
+                            <option v-for="playlist in playlists" :key="playlist.id" :value="playlist.id">
+                                {{ playlist.name }}
+                            </option>
+                        </select>
                     </label>
-                    <label class="form-label col-md-4">
-                        Songs without sweeper after a sweeper
-                        <input v-model.number="settings.songs_after_sweeper" class="form-control" type="number" min="0" max="1000" step="1" required>
+                    <div class="form-text">The playlist that contains the sweepers. It must be an <strong>Advanced</strong> playlist, so the sweepers do not also play as normal songs.</div>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Song spacing</legend>
+                    <p class="form-text mt-0">A song only gets a sweeper if all three rules allow it. <strong>0</strong> switches a rule off.</p>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label d-block mb-0">
+                                Songs without sweeper after a jingle
+                                <input v-model.number="settings.songs_after_jingle" class="form-control" type="number" min="0" max="1000" step="1" required>
+                            </label>
+                            <div class="form-text">Complete songs that must play after a jingle before the next sweeper. Example: <strong>3</strong>.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label d-block mb-0">
+                                Songs without sweeper after a sweeper
+                                <input v-model.number="settings.songs_after_sweeper" class="form-control" type="number" min="0" max="1000" step="1" required>
+                            </label>
+                            <div class="form-text">Songs that must play without a sweeper after a song that carried one. That song itself does not count. Example: <strong>2</strong>.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label d-block mb-0">
+                                Songs without sweeper before a jingle
+                                <input v-model.number="settings.songs_before_jingle" class="form-control" type="number" min="0" :max="queueLength" step="1" required>
+                            </label>
+                            <div class="form-text">No sweeper if a jingle is queued within this many following tracks. Example: <strong>1</strong>. Maximum: the AutoDJ queue length ({{ queueLength }}), because AzuraCast plans no further ahead. Checked again until the sweeper starts; jingles that interrupt or are not queued cannot be foreseen.</div>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Jingle recognition</legend>
+                    <p class="form-text mt-0">Which tracks count as jingles for the spacing rules. Jingles never get a sweeper themselves.</p>
+                    <div class="form-check form-switch">
+                        <input id="sweepers-count-jingle-mode" v-model="settings.count_jingle_mode" class="form-check-input" type="checkbox" role="switch">
+                        <label class="form-check-label" for="sweepers-count-jingle-mode">Count Jingle Mode playlists</label>
+                    </div>
+                    <div class="form-text mb-3">Tracks from playlists that use AzuraCast's <em>Jingle Mode</em> count as jingles.</div>
+                    <label class="form-label d-block mb-0">
+                        Additional jingle playlists
+                        <select v-model="settings.jingle_playlist_ids" class="form-select" multiple size="5">
+                            <option v-for="playlist in jinglePlaylists" :key="playlist.id" :value="playlist.id">
+                                {{ playlist.name }}{{ playlist.is_jingle ? ' (Jingle Mode)' : '' }}
+                            </option>
+                        </select>
                     </label>
-                    <label class="form-label col-md-4">
-                        Songs without sweeper before a jingle
-                        <input v-model.number="settings.songs_before_jingle" class="form-control" type="number" min="0" :max="queueLength" step="1" required>
-                    </label>
-                </div>
-                <p class="form-text mb-3">0 disables a rule. After a jingle or sweeper, that many complete songs must play without an overlay; the song carrying a sweeper does not count. Before a jingle uses AzuraCast's upcoming queue and is limited to its AutoDJ queue length ({{ queueLength }}). It is checked again until the overlay starts. Interrupting or unqueued jingles cannot be foreseen.</p>
-                <div class="form-check form-switch mb-3">
-                    <input id="sweepers-count-jingle-mode" v-model="settings.count_jingle_mode" class="form-check-input" type="checkbox" role="switch">
-                    <label class="form-check-label" for="sweepers-count-jingle-mode">Count Jingle Mode playlists</label>
-                </div>
-                <label class="form-label d-block mb-1">
-                    Additional jingle playlists
-                    <select v-model="settings.jingle_playlist_ids" class="form-select" multiple size="5">
-                        <option v-for="playlist in jinglePlaylists" :key="playlist.id" :value="playlist.id">
-                            {{ playlist.name }}{{ playlist.is_jingle ? ' (Jingle Mode)' : '' }}
-                        </option>
-                    </select>
-                </label>
-                <p class="form-text mb-3">Hold Ctrl/Cmd to select several. Tracks played from these playlists reset the spacing. The sweeper playlist always counts.</p>
-                <div class="form-check form-switch mb-3">
-                    <input id="sweepers-longest-fit" v-model="settings.longest_fit" class="form-check-input" type="checkbox" role="switch">
-                    <label class="form-check-label" for="sweepers-longest-fit">Prefer the longest fitting sweepers</label>
-                </div>
-                <label v-if="settings.longest_fit" class="form-label d-block mb-1">
-                    Intro length tolerance (%)
-                    <input v-model.number="settings.length_tolerance" class="form-control" type="number" min="0" max="100" step="1" required>
-                </label>
-                <p v-if="settings.longest_fit" class="form-text mb-3">20% selects bodies covering 80–100% of the available intro, then rotates by oldest playback. If none qualify, use the longest fitting body. A small selection may repeat often.</p>
-                <p v-else class="form-text mb-3">Rotate by oldest actual playback among all sweepers that fit.</p>
-                <div class="form-check form-switch mb-1">
-                    <input id="sweepers-limitDelay" v-model="limitDelay" class="form-check-input" type="checkbox" role="switch">
-                    <label class="form-check-label" for="sweepers-limitDelay">Limit start delay</label>
-                </div>
-                <p class="form-text mb-3">Disabled: time the handover to the intro end. Enabled: if that would wait longer than the limit, start the sweeper at the early start instead (never later than the aligned start, so it still fits the intro).</p>
-                <div class="row g-3 mb-3">
-                    <label v-if="limitDelay" class="form-label col-md-6 col-xl-3">
-                        Maximum start delay (s)
-                        <input
-                            v-model.number="settings.max_wait"
-                            class="form-control"
-                            type="number"
-                            min="0"
-                            max="3600"
-                            step="0.1"
-                            required
-                        >
-                    </label>
-                    <label v-if="limitDelay" class="form-label col-md-6 col-xl-3">
-                        Early start after song start (s)
-                        <input v-model.number="settings.early_start" class="form-control" type="number" min="0" max="60" step="0.1" required>
-                    </label>
-                    <label class="form-label col-md-6 col-xl-3">
-                        Handover margin (s)
-                        <input v-model.number="settings.margin" class="form-control" type="number" min="0" max="5" step="0.1" required>
-                    </label>
-                    <label class="form-label col-md-6 col-xl-3">
-                        Maximum ducking (dB)
-                        <input v-model.number="settings.duck_db" class="form-control" type="number" min="-20" max="0" step="0.5" required>
-                    </label>
-                    <label class="form-label col-md-6 col-xl-3">
-                        Jingle gain
-                        <input v-model.number="settings.jingle_gain" class="form-control" type="number" min="0" max="2" step="0.05" required>
-                    </label>
-                </div>
-                <p class="form-text">Sidechain attack: 150 ms · release: 750 ms. AutoCue supplies jingle start, handover and tail.</p>
+                    <div class="form-text">Other playlists whose tracks count as jingles, for example promos or station IDs. Hold <kbd>Ctrl</kbd> (<kbd>Cmd</kbd> on Mac) to select several. The sweeper playlist always counts.</div>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Sweeper selection</legend>
+                    <div class="form-check form-switch">
+                        <input id="sweepers-longest-fit" v-model="settings.longest_fit" class="form-check-input" type="checkbox" role="switch">
+                        <label class="form-check-label" for="sweepers-longest-fit">Prefer the longest fitting sweepers</label>
+                    </div>
+                    <div class="form-text" :class="{ 'mb-3': settings.longest_fit }">
+                        <strong>Off:</strong> all sweepers that fit the intro take turns; the one played longest ago comes next.
+                        <strong>On:</strong> prefer sweepers that fill most of the intro.
+                    </div>
+                    <template v-if="settings.longest_fit">
+                        <label class="form-label d-block mb-0">
+                            Intro length tolerance (%)
+                            <input v-model.number="settings.length_tolerance" class="form-control" type="number" min="0" max="100" step="1" required>
+                        </label>
+                        <div class="form-text">How much shorter than the intro a sweeper may be. Example: <strong>20%</strong> with a 30-second intro lets sweepers of 24–30 s take turns. If none is that long, the longest fitting sweeper plays. With few sweepers, the same one may repeat often.</div>
+                    </template>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Timing</legend>
+                    <p class="form-text mt-0">By default a sweeper is timed so that its voice ends just before the singing starts. Any echo or reverb tail may continue over the vocals.</p>
+                    <div class="row g-3">
+                        <div class="col-md-6 col-xl-4">
+                            <label class="form-label d-block mb-0">
+                                Handover margin (s)
+                                <input v-model.number="settings.margin" class="form-control" type="number" min="0" max="5" step="0.1" required>
+                            </label>
+                            <div class="form-text">Safety gap between the end of the sweeper's voice and the start of the vocals.</div>
+                        </div>
+                    </div>
+                    <div class="form-check form-switch mt-3">
+                        <input id="sweepers-limitDelay" v-model="limitDelay" class="form-check-input" type="checkbox" role="switch">
+                        <label class="form-check-label" for="sweepers-limitDelay">Limit start delay</label>
+                    </div>
+                    <div class="form-text">
+                        <strong>Off:</strong> always time the sweeper to the end of the intro, even if it starts late in a long intro.
+                        <strong>On:</strong> if that would make the sweeper wait longer than the maximum start delay, it starts at the early start instead.
+                    </div>
+                    <div v-if="limitDelay" class="row g-3 mt-0">
+                        <div class="col-md-6 col-xl-4">
+                            <label class="form-label d-block mb-0">
+                                Maximum start delay (s)
+                                <input v-model.number="settings.max_wait" class="form-control" type="number" min="0" max="3600" step="0.1" required>
+                            </label>
+                            <div class="form-text">Longest wait after the song starts for a sweeper timed to the end of the intro. <strong>0</strong> always uses the early start.</div>
+                        </div>
+                        <div class="col-md-6 col-xl-4">
+                            <label class="form-label d-block mb-0">
+                                Early start after song start (s)
+                                <input v-model.number="settings.early_start" class="form-control" type="number" min="0" max="60" step="0.1" required>
+                            </label>
+                            <div class="form-text">When the wait would be too long, the sweeper starts this many seconds into the song. Default <strong>2</strong>. It never starts later than the timed position, so it still ends before the vocals.</div>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Sound</legend>
+                    <div class="row g-3">
+                        <div class="col-md-6 col-xl-4">
+                            <label class="form-label d-block mb-0">
+                                Maximum ducking (dB)
+                                <input v-model.number="settings.duck_db" class="form-control" type="number" min="-20" max="0" step="0.5" required>
+                            </label>
+                            <div class="form-text">How far the music is lowered under the sweeper's voice at most. Example: <strong>−7</strong> is moderate, <strong>−10</strong> makes the voice clearer, values closer to 0 are more subtle. Ducking follows the voice (attack 150 ms, release 750 ms) and ends with it.</div>
+                        </div>
+                        <div class="col-md-6 col-xl-4">
+                            <label class="form-label d-block mb-0">
+                                Jingle gain
+                                <input v-model.number="settings.jingle_gain" class="form-control" type="number" min="0" max="2" step="0.05" required>
+                            </label>
+                            <div class="form-text">Volume factor on top of AzuraCast's loudness normalisation (AutoCue). <strong>1</strong> = same loudness as the songs, <strong>0.7</strong> ≈ −3 dB, <strong>0.5</strong> ≈ −6 dB, <strong>1.4</strong> ≈ +3 dB, <strong>2</strong> ≈ +6 dB.</div>
+                        </div>
+                    </div>
+                    <p class="form-text mb-0">AutoCue supplies each sweeper's start, the end of its voice and its tail.</p>
+                </fieldset>
+
                 <button class="btn btn-primary" :disabled="saving">Save settings</button>
-                <p class="form-text mb-0">All settings, including Enable sweepers, update live within about 5 seconds. Enable only decides whether sweepers are used; the module is loaded on every station either way. An audible sweeper finishes; old pending overlays are cancelled. New settings apply to following songs. Restart broadcasting only once after installing or updating the plugin.</p>
-                <p class="form-text mb-0">Edit Intro End in the waveform below, under Music Files → Custom Fields, or through the intro API.</p>
+                <div class="form-text mt-3">
+                    <strong>How changes apply:</strong> within about 5 seconds, without restarting. A sweeper that is already playing finishes; sweepers prepared for upcoming songs are discarded and planned again with the new settings.
+                    The plugin runs on every station whether sweepers are enabled or not. Restart broadcasting only once after installing or updating the plugin; the status above shows when that is needed.
+                </div>
+                <div class="form-text mt-2">Set the intro end of each song in the list below, under <em>Music Files → Custom Fields</em>, or through the intro API.</div>
             </form>
             </div>
         </section>
