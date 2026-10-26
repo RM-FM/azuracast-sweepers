@@ -110,6 +110,7 @@ Broadcasting permission. It accepts the existing settings plus:
 | `early_start` | `2` | Seconds after the song cue-in used when `max_wait` is exceeded, 0–60; never later than the aligned start |
 | `duck_db` | `-7` | Maximum ducking in dB, −20–0 |
 | `jingle_gain` | `1` | Sweeper volume factor, 0–2 (shown as 0–200% in the panel) |
+| `sweeper_gap` | `1` | Other sweepers that must play before the same sweeper is used again, 0–100 (0 allows repeats) |
 | `longest_fit` | `false` | Prefer bodies closest to the available intro length |
 | `length_tolerance` | `20` | Eligible range below the intro length, percent 0–100 |
 | `swap_for_intro` | `false` | Move a later queued song with a fitting intro forward when a sweeper is due |

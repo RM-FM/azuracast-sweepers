@@ -41,7 +41,7 @@ globalThis.fetch = async (url, options) => {
             enabled: true, playlist_id: null, limit_delay: false, max_wait: 10, margin: .5, duck_db: -7, jingle_gain: 1,
             songs_after_jingle: 1, songs_after_sweeper: 1, songs_before_jingle: 0, early_start: 2,
             count_jingle_mode: true, jingle_playlist_ids: [], longest_fit: false, length_tolerance: 20, swap_for_intro: false,
-            reverb: false, reverb_intensity: 25, swap_sequential: false, excluded_playlist_ids: [],
+            reverb: false, reverb_intensity: 25, swap_sequential: false, excluded_playlist_ids: [], sweeper_gap: 1,
         }, playlists: [{ id: 10, name: "Sweepers" }], jingle_playlists: [
             { id: 20, name: "Station IDs", is_jingle: true }, { id: 21, name: "Promos", is_jingle: false },
         ] };
@@ -181,6 +181,7 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(first.swap_for_intro, false);
         assert.equal(first.swap_sequential, false);
         assert.deepEqual(first.excluded_playlist_ids, []);
+        assert.equal(first.sweeper_gap, 1, "One other sweeper before a repeat by default");
         assert.equal(first.reverb, false, "Reverb is off by default");
         assert.ok(![...document.querySelectorAll("section.card label")].some((node) => node.textContent.includes("Reverb intensity")),
             "Intensity appears only when reverb is on");
@@ -209,6 +210,7 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(field("Early start").value, "2", "Early start shows its 2-second default");
         await change("Early start", "3.5");
         await change("Jingle gain", "70");
+        await change("Other sweepers before a repeat", "2");
         await change("Move a song with an intro forward", true, true);
         await change("Also move songs from sequential playlists", true, true);
         const excluded = field("Exclude these playlists");
@@ -227,6 +229,7 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(settings.reverb_intensity, 40);
         assert.equal(settings.swap_for_intro, true);
         assert.equal(settings.swap_sequential, true);
+        assert.equal(settings.sweeper_gap, 2);
         assert.deepEqual(settings.excluded_playlist_ids, [21], "Playlists without sweepers are saved");
         assert.equal(settings.limit_delay, true);
         assert.equal(settings.max_wait, 10);

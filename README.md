@@ -181,6 +181,7 @@ their values:
 | Enable sweepers | On (no sweeper plays until a sweeper playlist is selected) |
 | Songs without sweeper after a jingle / after a sweeper / before a jingle | 1 / 1 / 0 |
 | Count Jingle Mode playlists | On |
+| Other sweepers before a repeat | 1 |
 | Prefer the longest fitting sweepers | Off (tolerance 20%) |
 | Move a song with an intro forward | Off (sequential playlists: off) |
 | Playlists without sweepers | None |
@@ -243,6 +244,10 @@ their values:
   cue points) with the same chain, before saving; switching the reverb or
   changing the intensity is heard while it plays. The preview has no music,
   ducking or station loudness processing.
+- **Other sweepers before a repeat** (default 1): at least this many other
+  sweepers play before the same sweeper is used again; sweepers already prepared
+  for upcoming songs count too. If none of the others fits a song's intro, the song
+  gets no sweeper. `0` allows repeats. Moving a song forward respects this rule.
 - **Prefer the longest fitting sweepers** is off by default. When enabled,
   the tolerance defines an eligible length range: with 30 seconds available and
   20%, bodies of 24–30 seconds participate in oldest-played rotation. If none are

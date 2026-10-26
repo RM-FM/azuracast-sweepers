@@ -7,6 +7,7 @@ namespace Plugin\AzuracastSweepers\Service;
 use App\Entity\Station;
 use InvalidArgumentException;
 use Plugin\AzuracastSweepers\ValueObject\Arrangement;
+use Plugin\AzuracastSweepers\ValueObject\Selection;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
 use Plugin\AzuracastSweepers\ValueObject\Timing;
 
@@ -50,7 +51,7 @@ final readonly class Arranger
             );
         }
         unset($row);
-        $timings = array_diff_key($measurements, array_flip(array_column($plans, 'jingle_id')));
+        $timings = array_diff_key($measurements, array_flip(Selection::unavailable($data, $settings->sweeperGap)));
 
         $known = [];
         $usable = function (int $mediaId) use ($station, $settings, $timings, &$known): bool {

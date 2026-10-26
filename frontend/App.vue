@@ -98,6 +98,15 @@
 
                 <fieldset>
                     <legend>Sweeper selection</legend>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6 col-xl-4">
+                            <label class="form-label d-block mb-0">
+                                Other sweepers before a repeat
+                                <input v-model.number="settings.sweeper_gap" class="form-control" type="number" min="0" max="100" step="1" required>
+                            </label>
+                            <div class="form-text">At least this many other sweepers play before the same sweeper is used again. If none of the others fits a song's intro, that song gets no sweeper. <strong>0</strong> allows repeats.</div>
+                        </div>
+                    </div>
                     <div class="form-check form-switch">
                         <input id="sweepers-longest-fit" v-model="settings.longest_fit" class="form-check-input" type="checkbox" role="switch">
                         <label class="form-check-label" for="sweepers-longest-fit">Prefer the longest fitting sweepers</label>

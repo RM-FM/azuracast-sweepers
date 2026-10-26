@@ -84,10 +84,7 @@ final readonly class Planner
                 unset($data['plans'][$token]);
             }
 
-            $reserved = array_column(array_filter(
-                $data['plans'],
-                static fn(array $plan): bool => !($plan['played'] ?? false)
-            ), 'jingle_id');
+            $reserved = Selection::unavailable($data, $settings->sweeperGap);
             $jingles = $this->media->jingles($station, $settings->playlistId);
             $candidates = [];
 

@@ -28,7 +28,8 @@ final readonly class Settings
         public bool $reverb = false,
         public float $reverbIntensity = 25.0,
         public bool $swapSequential = false,
-        public array $excludedPlaylistIds = []
+        public array $excludedPlaylistIds = [],
+        public int $sweeperGap = 1
     ) {
         foreach ([$maxWait, $margin, $duckDb, $jingleGain, $lengthTolerance, $earlyStart, $reverbIntensity] as $value) {
             if (!is_finite($value)) {
@@ -44,6 +45,7 @@ final readonly class Settings
             || $songsAfterSweeper > 1000 || $songsBeforeJingle < 0 || $songsBeforeJingle > 1000
             || $lengthTolerance < 0 || $lengthTolerance > 100 || $earlyStart < 0 || $earlyStart > 60
             || ($playlistId !== null && $playlistId < 1) || $reverbIntensity < 0 || $reverbIntensity > 100
+            || $sweeperGap < 0 || $sweeperGap > 100
         ) {
             throw new InvalidArgumentException('Invalid sweeper settings.');
         }
@@ -74,7 +76,10 @@ final readonly class Settings
         }
         // Earlier versions stored one shared minimum_songs gap.
         $legacy = $data['minimum_songs'] ?? 1;
-        $defaults = ['songs_after_jingle' => $legacy, 'songs_after_sweeper' => $legacy, 'songs_before_jingle' => 0];
+        $defaults = [
+            'songs_after_jingle' => $legacy, 'songs_after_sweeper' => $legacy, 'songs_before_jingle' => 0,
+            'sweeper_gap' => 1,
+        ];
         $gaps = [];
         foreach ($defaults as $key => $default) {
             $gaps[$key] = $data[$key] ?? $default;
@@ -135,7 +140,8 @@ final readonly class Settings
             reverb: $booleans['reverb'],
             reverbIntensity: $values['reverb_intensity'],
             swapSequential: $booleans['swap_sequential'],
-            excludedPlaylistIds: $excludedIds
+            excludedPlaylistIds: $excludedIds,
+            sweeperGap: $gaps['sweeper_gap']
         );
     }
 
@@ -182,6 +188,7 @@ final readonly class Settings
             'reverb_intensity' => $this->reverbIntensity,
             'swap_sequential' => $this->swapSequential,
             'excluded_playlist_ids' => $this->excludedPlaylistIds,
+            'sweeper_gap' => $this->sweeperGap,
         ];
     }
 

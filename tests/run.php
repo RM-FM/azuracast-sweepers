@@ -134,7 +134,7 @@ foreach ([
     'jingle_playlist_ids' => [4, 5], 'max_wait' => 0, 'limit_delay' => true, 'margin' => 1.2, 'duck_db' => -10,
     'jingle_gain' => 0.5, 'longest_fit' => true, 'length_tolerance' => 50, 'early_start' => 4,
     'swap_for_intro' => true, 'reverb' => true, 'reverb_intensity' => 70, 'swap_sequential' => true,
-    'excluded_playlist_ids' => [6],
+    'excluded_playlist_ids' => [6], 'sweeper_gap' => 3,
 ] as $key => $value) {
     check(
         Settings::fromArray([$key => $value] + $settings->toArray())->revision() !== $settings->revision(),
@@ -365,6 +365,19 @@ check(
 );
 check(Arranger::window('/media/song.mp3', 210) === [0.0, 210.0], 'Without cue values the whole file is used.');
 check(!Settings::fromArray([])->swapForIntro, 'Moving songs forward is off by default.');
+check(Settings::fromArray([])->sweeperGap === 1, 'At least one other sweeper plays before a repeat by default.');
+check(Settings::fromArray(['sweeper_gap' => 0])->sweeperGap === 0, 'Repeats can be allowed.');
+rejects(static fn() => Settings::fromArray(['sweeper_gap' => -1]));
+rejects(static fn() => Settings::fromArray(['sweeper_gap' => '2']));
+$history = ['log' => [['jingle_id' => 5], ['jingle_id' => 6], ['jingle_id' => 7]]];
+check(Selection::unavailable($history, 0) === [], 'Gap 0 blocks nothing that is not reserved.');
+check(Selection::unavailable($history, 1) === [5], 'The last played sweeper waits for one other.');
+check(Selection::unavailable($history, 2) === [5, 6], 'A gap of two blocks the last two sweepers.');
+$pending = ['plans' => ['9' => ['jingle_id' => 8, 'played' => false], '10' => ['jingle_id' => 5, 'played' => true]]] + $history;
+check(
+    Selection::unavailable($pending, 1) === [8] && Selection::unavailable($pending, 2) === [8, 5],
+    'A sweeper reserved for an upcoming song plays first and counts towards the gap.'
+);
 $reverbDefaults = Settings::fromArray([]);
 check(
     !$reverbDefaults->reverb && $reverbDefaults->reverbIntensity === 25.0 && $reverbDefaults->reverbLevel() === 0.0,
