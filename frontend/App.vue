@@ -119,8 +119,6 @@
                     </div>
                     <div class="form-text">
                         When a sweeper is due but the next song has no usable intro, it changes places with a later queued song that has one.
-                        Listener requests and playlist songs can move; jingles (recognized as above) and songs from playlists without sweepers keep their place.
-                        This changes the order AzuraCast planned.
                     </div>
                     <template v-if="settings.swap_for_intro">
                         <div class="form-check form-switch mt-2">
