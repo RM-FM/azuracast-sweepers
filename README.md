@@ -51,7 +51,7 @@ Then run `docker compose up -d` in `/var/azuracast` (this briefly interrupts bro
    playlist and save.
 3. Restart broadcasting once per station to load the plugin's Liquidsoap module. The
    Settings page shows whether the module is running.
-4. Set intro ends under **Sweepers → Intros**, or import them through the [API](docs/API.md).
+4. Set the intro ends (see [Intro end](#intro-end)).
 
 The pages need station Media permission; changing settings also needs Broadcasting
 permission.
@@ -88,8 +88,19 @@ the start of the file:
 | `0` | No intro, no sweeper |
 | Number | The vocals start here |
 
-It can also be edited under Custom Fields in AzuraCast's file editor. The plugin
-changes no other custom field.
+Ways to set it:
+
+- **Intro editor**: **Sweepers → Intros**, or click the intro value in the Playback
+  Timeline. Drag the marker on the waveform, set it at the playhead or type the seconds.
+- **AzuraCast file editor**: Music Files → edit a file → Custom Fields → `intro_end`.
+- **CSV import/export**: AzuraCast's bulk media CSV (Music Files → Bulk Media
+  Import/Export) contains the column `custom_field_intro_end`. Export, fill in the values
+  and import the file again to set many intros at once.
+- **API**: `POST /api/station/{station_id}/sweepers/intro/{media_id}` with body
+  `{"intro_end": 14.5}` and an AzuraCast API key changes only this field, for example
+  from an external intro detector. See [docs/API.md](docs/API.md).
+
+The plugin changes no other custom field.
 
 ## Settings
 
