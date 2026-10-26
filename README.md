@@ -3,7 +3,7 @@
 Plays short station sweepers over song intros in the AzuraCast AutoDJ: the sweeper
 ends right where the vocals start, and the music ducks under the voice.
 
-In use on all RadioMonster.FM stations. Works with AzuraCast stable (0.24, Liquidsoap 2.4)
+Works with AzuraCast stable (0.24, Liquidsoap 2.4)
 and rolling releases with Liquidsoap 2.5.
 
 > [!TIP]
