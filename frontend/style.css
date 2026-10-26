@@ -211,6 +211,7 @@
 .sweepers-timeline .timeline-intro {
     padding: 0;
     text-decoration: none;
+    text-transform: none;
 }
 
 .sweepers-timeline tr.timeline-played > td {
