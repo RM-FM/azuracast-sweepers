@@ -340,8 +340,7 @@
                 <h2 id="sweepers-history-heading" class="card-title mb-0">Sweeper Playback Timeline</h2>
                 <button class="btn btn-sm btn-outline-light" type="button" @click="loadHistory">Refresh</button>
             </div>
-            <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <p class="text-muted mb-0">All played tracks. Songs with a sweeper are highlighted; for the others the reason is shown.</p>
+            <div class="card-body d-flex justify-content-end">
                 <div class="form-check form-switch mb-0">
                     <input id="sweepers-only-played" v-model="onlySweepers" class="form-check-input" type="checkbox" role="switch">
                     <label class="form-check-label" for="sweepers-only-played">Only songs with a sweeper</label>
@@ -353,7 +352,8 @@
                         <tr>
                             <th scope="col">Date/Time</th>
                             <th scope="col">Track</th>
-                            <th scope="col">Sweeper</th>
+                            <th scope="col">Sweeper Status</th>
+                            <th scope="col">Sweeper or reason</th>
                             <th scope="col" class="text-end">Started after</th>
                         </tr>
                     </thead>
@@ -374,9 +374,12 @@
                                     <small class="text-muted">{{ entry.moved_before ? 'ahead of ' + describe(entry.moved_before) : 'ahead of a song without intro' }}</small>
                                 </div>
                             </td>
+                            <td class="text-nowrap timeline-status">
+                                <span v-if="status(entry)" class="badge" :class="status(entry).class">{{ status(entry).label }}</span>
+                            </td>
                             <td class="file-name">
                                 <template v-if="entry.result === 'played'">
-                                    <div class="timeline-title"><span class="badge text-bg-success">Sweeper</span> {{ fileTitle(entry.sweeper) }}</div>
+                                    <div class="timeline-title">{{ fileTitle(entry.sweeper) }}</div>
                                     <small v-if="fileArtist(entry.sweeper)" class="text-muted timeline-artist">{{ fileArtist(entry.sweeper) }}</small>
                                 </template>
                                 <small v-else class="text-muted timeline-reason">{{ reasonText(entry) }}</small>
@@ -504,9 +507,25 @@ const reasons = {
 
 function reasonText(entry) {
     if (entry.result === "scheduled") {
-        return entry === history.value[0] ? "Sweeper coming up" : "Sweeper did not start";
+        return isUpcoming(entry) ? "Sweeper coming up" : "Sweeper did not start";
     }
     return reasons[entry.result] ?? "No sweeper";
+}
+
+function isUpcoming(entry) {
+    return entry.result === "scheduled" && entry === history.value[0];
+}
+
+// Spacing rules and track types skip a sweeper by design; any other reason means a due sweeper could not play.
+const intendedSkips = new Set([
+    "jingle", "after_jingle", "after_sweeper", "jingle_follows", "excluded", "other", "live", "disabled",
+]);
+
+function status(entry) {
+    if (entry.result === "played") return { label: "Played", class: "text-bg-success" };
+    if (isUpcoming(entry)) return { label: "Upcoming", class: "text-bg-info" };
+    if (intendedSkips.has(entry.result)) return null;
+    return { label: "Missed", class: "text-bg-danger" };
 }
 
 function rowClass(entry) {
