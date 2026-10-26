@@ -41,7 +41,7 @@ globalThis.fetch = async (url, options) => {
             enabled: true, playlist_id: null, limit_delay: false, max_wait: 10, margin: .5, duck_db: -7, jingle_gain: 1,
             songs_after_jingle: 1, songs_after_sweeper: 1, songs_before_jingle: 0, early_start: 2,
             count_jingle_mode: true, jingle_playlist_ids: [], longest_fit: false, length_tolerance: 20, swap_for_intro: false,
-            reverb: false, reverb_intensity: 50, swap_sequential: false, excluded_playlist_ids: [],
+            reverb: false, reverb_intensity: 25, swap_sequential: false, excluded_playlist_ids: [],
         }, playlists: [{ id: 10, name: "Sweepers" }], jingle_playlists: [
             { id: 20, name: "Station IDs", is_jingle: true }, { id: 21, name: "Promos", is_jingle: false },
         ] };
@@ -220,7 +220,7 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         excluded.dispatchEvent(new Event("change", { bubbles: true }));
         await settle();
         await change("Add reverb to the sweeper voice", true, true);
-        assert.equal(field("Reverb intensity").value, "50");
+        assert.equal(field("Reverb intensity").value, "25");
         await change("Reverb intensity", "40");
         const settings = await submit();
         assert.equal(settings.reverb, true);
@@ -356,7 +356,7 @@ test("reverb preview plays the selected sweeper and follows the reverb settings 
         reverb.checked = true;
         reverb.dispatchEvent(new Event("change", { bubbles: true }));
         await settle();
-        assert.equal(context.gains[0].gain.target, 0.1015, "Switching the reverb on is heard right away (50%)");
+        assert.equal(context.gains[0].gain.target, 0.203 * 0.25, "Switching the reverb on is heard right away (25%)");
         const intensity = input("Reverb intensity");
         intensity.value = "100";
         intensity.dispatchEvent(new Event("input", { bubbles: true }));

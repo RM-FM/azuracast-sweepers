@@ -367,8 +367,8 @@ check(Arranger::window('/media/song.mp3', 210) === [0.0, 210.0], 'Without cue va
 check(!Settings::fromArray([])->swapForIntro, 'Moving songs forward is off by default.');
 $reverbDefaults = Settings::fromArray([]);
 check(
-    !$reverbDefaults->reverb && $reverbDefaults->reverbIntensity === 50.0 && $reverbDefaults->reverbLevel() === 0.0,
-    'Reverb is off by default with a gentle 50% intensity ready.'
+    !$reverbDefaults->reverb && $reverbDefaults->reverbIntensity === 25.0 && $reverbDefaults->reverbLevel() === 0.0,
+    'Reverb is off by default with a gentle 25% intensity ready.'
 );
 $withReverb = new Settings(margin: 0.3, reverb: true, reverbIntensity: 40);
 check(abs($withReverb->reverbLevel() - 0.4) < 0.0001, 'Reverb level follows the intensity.');

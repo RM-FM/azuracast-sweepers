@@ -26,7 +26,7 @@ final readonly class Settings
         public bool $limitDelay = false,
         public bool $swapForIntro = false,
         public bool $reverb = false,
-        public float $reverbIntensity = 50.0,
+        public float $reverbIntensity = 25.0,
         public bool $swapSequential = false,
         public array $excludedPlaylistIds = []
     ) {
@@ -105,7 +105,7 @@ final readonly class Settings
             'jingle_gain' => 1.0,
             'length_tolerance' => 20.0,
             'early_start' => 2.0,
-            'reverb_intensity' => 50.0,
+            'reverb_intensity' => 25.0,
         ];
         foreach ($defaults as $key => $default) {
             $value = $data[$key] ?? $default;

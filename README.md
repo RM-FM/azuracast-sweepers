@@ -186,7 +186,7 @@ their values:
 | Playlists without sweepers | None |
 | Handover margin | 0.5 s |
 | Limit start delay | Off (maximum start delay 10 s, early start 2 s) |
-| Reverb on the sweeper voice | Off (intensity 50%) |
+| Reverb on the sweeper voice | Off (intensity 25%) |
 | Maximum ducking | −7 dB |
 | Jingle gain | 100% |
 
@@ -234,7 +234,7 @@ their values:
   sense of space to the voice, like a produced jingle: only a copy of the voice is
   band-limited to 250 Hz–3 kHz and fed into 16 irregularly spaced reflections
   between 37 and 419 ms with an exponential decay, mixed under the unchanged
-  voice. **Reverb intensity** (default 50%) sets the reverb level; even 100% stays
+  voice. **Reverb intensity** (default 25%) sets the reverb level; even 100% stays
   moderate. The tail fades out within about half a second and may overlap the
   next song; it does not affect sweeper selection or timing. Changes apply to
   sweepers prepared after saving. The effect is

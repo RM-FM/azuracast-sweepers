@@ -116,7 +116,7 @@ Broadcasting permission. It accepts the existing settings plus:
 | `swap_sequential` | `false` | Also move songs from sequential playlists |
 | `excluded_playlist_ids` | `[]` | Station playlists (or groups) whose tracks never receive a sweeper and never move |
 | `reverb` | `false` | Add a gentle reverb to the sweeper voice |
-| `reverb_intensity` | `50` | Reverb level, percent 0–100; sent to the module as `reverb` (0–1) in each plan |
+| `reverb_intensity` | `25` | Reverb level, percent 0–100; sent to the module as `reverb` (0–1) in each plan |
 
 Saved settings from earlier versions remain valid: a `max_wait` of `null` reads as
 `limit_delay: false` with `max_wait: 10`, a numeric `max_wait` as `limit_delay: true`.
