@@ -267,14 +267,14 @@
                         </thead>
                         <tbody>
                             <template v-for="row in visibleRows" :key="row.id">
-                            <tr class="media-track" :class="{ 'table-active': selected?.id === row.id }">
+                            <tr v-if="selected?.id !== row.id" class="media-track">
                                 <td class="file-name">
                                     <span>{{ row.path }}</span>
                                 </td>
                                 <td class="text-nowrap">{{ formatDuration(row.duration) }}</td>
                                 <td class="text-nowrap">{{ formatIntro(row.intro_end) }}</td>
                                 <td class="text-end text-nowrap">
-                                    <button type="button" class="btn btn-sm btn-primary" :aria-label="'Edit intro: ' + row.path" :aria-pressed="selected?.id === row.id" @click="select(row)">Edit intro</button>
+                                    <button type="button" class="btn btn-sm btn-primary" :aria-label="'Edit intro: ' + row.path" @click="select(row)">Edit intro</button>
                                 </td>
                             </tr>
                             <tr v-if="selected?.id === row.id" class="intro-editor-row">
@@ -285,7 +285,7 @@
                     <button class="btn btn-sm btn-outline-light" type="button" @click="selected = null">Close editor</button>
                 </div>
                 <div class="card-body">
-                <p class="text-muted">Saved Intro End: {{ formatIntro(selected.intro_end) }} · Original file position</p>
+                <p class="text-muted">Duration {{ formatDuration(selected.duration) }} · Saved Intro End: {{ formatIntro(selected.intro_end) }} · Original file position</p>
                 <Waveform
                     :key="selected.id"
                     :ref="el => { if (selected?.id === row.id) waveform = el; }"

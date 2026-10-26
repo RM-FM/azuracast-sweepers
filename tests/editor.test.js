@@ -124,7 +124,9 @@ test("intro editor saves one field from numeric, marker and playhead input", asy
         assert.ok(document.querySelector(".media-track button.btn-primary"));
         document.querySelector(".media-track button").click();
         await settle();
-        assert.equal(document.querySelector("article").closest("tr").previousElementSibling, document.querySelector(".media-track"));
+        assert.equal(document.querySelector(".media-list tbody tr").querySelector("article h2").textContent, "First song",
+            "The editor replaces the track row");
+        assert.equal(document.querySelectorAll(".media-track").length, 1);
         await setInput("12.5");
         assert.equal(document.querySelector("#marker").textContent, "12.5");
         await save();
@@ -154,7 +156,7 @@ test("intro editor saves one field from numeric, marker and playhead input", asy
         await setInput("14");
         releaseSave = true;
         await save();
-        document.querySelectorAll(".media-track button")[1].click();
+        document.querySelector('.media-track button[aria-label="Edit intro: Second song"]').click();
         await settle();
         releaseSave();
         releaseSave = null;
