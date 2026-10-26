@@ -40,7 +40,7 @@ before all tracks were listed, when the sweeper started), `song` and `sweeper`
 (seconds after the song's cue-in when a sweeper played, otherwise `null`), `moved`
 (the song was moved forward) and `moved_before` (the overtaken song, or `null`).
 `result` is `played`, `scheduled` (sweeper not started yet) or the reason for no
-sweeper: `no_intro`, `intro_before_cue`, `no_fit`, `repeat`, `no_sweepers`,
+sweeper: `no_intro`, `intro_zero`, `intro_before_cue`, `no_fit`, `repeat`, `no_sweepers`,
 `jingle_follows`, `excluded`, `after_jingle`, `after_sweeper`, `jingle`, `other`,
 `live`, `disabled`, `late`, `skipped`, `settings`, `unavailable`, `error` or
 `not_planned`.

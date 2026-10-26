@@ -483,7 +483,8 @@ const timeline = computed(() => (onlySweepers.value
 
 const reasons = {
     no_intro: "No intro set",
-    intro_before_cue: "Intro ends before the song starts",
+    intro_zero: "No intro (intro end 0 s)",
+    intro_before_cue: "Intro ends before the song's audio starts",
     no_fit: "Intro too short for the sweepers",
     repeat: "Only recently played sweepers fit",
     no_sweepers: "No sweepers available",

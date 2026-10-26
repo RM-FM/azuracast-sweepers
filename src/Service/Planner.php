@@ -72,7 +72,11 @@ final readonly class Planner
             if ($intro === null || $intro <= $cueIn) {
                 unset($data['plans'][$token]);
 
-                return $decide($intro === null ? 'no_intro' : 'intro_before_cue');
+                return $decide(match (true) {
+                    $intro === null => 'no_intro',
+                    $intro === 0.0 => 'intro_zero',
+                    default => 'intro_before_cue',
+                });
             }
             if ($this->queue->excluded($station, $token, $settings)) {
                 unset($data['plans'][$token]);
