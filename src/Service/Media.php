@@ -51,6 +51,13 @@ final readonly class Media
         }
     }
 
+    public function fieldId(): ?int
+    {
+        $id = $this->em->getConnection()->fetchOne("SELECT id FROM custom_field WHERE short_name = 'intro_end'");
+
+        return $id === false ? null : (int)$id;
+    }
+
     public function get(Station $station, int $id): StationMedia
     {
         $media = $this->em->find(StationMedia::class, $id);

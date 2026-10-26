@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\Psr7\ServerRequest;
+use Plugin\AzuracastSweepers\Middleware\ProtectIntroField;
 use Plugin\AzuracastSweepers\Middleware\SidebarNavigation;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -64,5 +65,38 @@ foreach ([
 $body = (string)inject('/radio/station/1', $response, base: '/radio')->getBody();
 verify(str_contains($body, 'src="/radio/sweepers/assets/navigation.js"'), 'Respect the application base path.');
 verify(inject('/station/1', $response, base: '/radio') === $response, 'Do not inject outside the application base.');
+
+$passed = new Response(200);
+$protect = static function (string $method, string $path, string $body = '') use ($passed): ResponseInterface {
+    $handler = new class ($passed) implements RequestHandlerInterface {
+        public function __construct(private readonly ResponseInterface $response)
+        {
+        }
+
+        public function handle(ServerRequestInterface $request): ResponseInterface
+        {
+            return $this->response;
+        }
+    };
+
+    return new ProtectIntroField(static fn(): ?int => 7)
+        ->process(new ServerRequest($method, $path, [], $body), $handler);
+};
+$refused = $protect('DELETE', '/api/admin/custom_field/7');
+verify(
+    $refused->getStatusCode() === 409
+        && str_contains(json_decode((string)$refused->getBody(), true)['message'], 'cannot be deleted'),
+    'The intro field cannot be deleted.'
+);
+verify($protect('DELETE', '/api/admin/custom_field/8') === $passed, 'Other fields can be deleted.');
+verify($protect('DELETE', '/api/admin/custom_fields') === $passed, 'Other routes pass.');
+verify(
+    $protect('PUT', '/api/admin/custom_field/7', '{"name":"Intro","short_name":"intro_end"}') === $passed,
+    'Renaming the label is allowed.'
+);
+verify(
+    $protect('PUT', '/api/admin/custom_field/7', '{"name":"Intro","short_name":"intro"}')->getStatusCode() === 409,
+    'Changing the programmatic name is refused.'
+);
 
 echo $checks . " navigation checks passed.\n";

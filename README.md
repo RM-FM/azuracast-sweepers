@@ -100,9 +100,9 @@ Ways to set it:
   `{"intro_end": 14.5}` and an AzuraCast API key, for example from an external intro
   detector. See [docs/API.md](docs/API.md).
 
-> **Do not delete the `Intro End` custom field.** AzuraCast then deletes all intro values
-> of all stations, and no sweepers play until they are set again. Export the media CSV
-> regularly as a backup.
+> The plugin blocks deleting the `Intro End` custom field and changing its programmatic
+> name: AzuraCast would delete all intro values of all stations with it. Still export the
+> media CSV regularly as a backup.
 
 ## Settings
 

@@ -10,6 +10,7 @@ use App\Event\Radio\WriteLiquidsoapConfiguration;
 use App\Middleware;
 use Plugin\AzuracastSweepers\Controller\InternalController;
 use Plugin\AzuracastSweepers\Controller\PanelController;
+use Plugin\AzuracastSweepers\Middleware\ProtectIntroField;
 use Plugin\AzuracastSweepers\Middleware\SidebarNavigation;
 use Plugin\AzuracastSweepers\Service\Media;
 use Plugin\AzuracastSweepers\Service\Module;
@@ -45,6 +46,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
     {
         $app = $event->getApp();
         $app->add(new SidebarNavigation($app->getBasePath()));
+        $app->add(new ProtectIntroField(fn(): ?int => $this->media->fieldId(), $app->getBasePath()));
         $app->get('/sweepers/assets/navigation.js', PanelController::class . ':navigationAction');
         $app->group('/sweepers/{station_id}', function (RouteCollectorProxy $group): void {
             $group->get('', PanelController::class . ':indexAction');
