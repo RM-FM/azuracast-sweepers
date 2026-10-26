@@ -196,7 +196,11 @@
 }
 
 .sweepers-timeline .timeline-moved {
-    color: var(--bs-info-text-emphasis);
+    color: #146c43;
+}
+
+:root[data-bs-theme="dark"] .sweepers-timeline .timeline-moved {
+    color: #75b798;
 }
 
 .sweepers-timeline .timeline-unmoved {
