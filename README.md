@@ -24,7 +24,7 @@ On the AzuraCast host (default path `/var/azuracast`):
 
 ```bash
 mkdir -p /var/azuracast/plugins
-git clone https://github.com/RM-FM/azuracast-sweepers.git /var/azuracast/plugins/azuracast-sweepers
+git clone --branch main https://github.com/RM-FM/azuracast-sweepers.git /var/azuracast/plugins/azuracast-sweepers
 cd /var/azuracast/plugins/azuracast-sweepers
 docker run --rm --user "$(id -u):$(id -g)" -e npm_config_cache=/tmp/npm-cache \
   -v "$PWD:/plugin" -w /plugin node:24-alpine sh -c 'npm ci --ignore-scripts && npm run build'
@@ -162,7 +162,7 @@ The station's Liquidsoap log shows the decisions under the `sweepers` label.
 (
   set -e
   cd /var/azuracast/plugins/azuracast-sweepers
-  git pull --ff-only
+  git pull --ff-only origin main
   docker run --rm --user "$(id -u):$(id -g)" -e npm_config_cache=/tmp/npm-cache \
     -v "$PWD:/plugin" -w /plugin node:24-alpine sh -c 'npm ci --ignore-scripts && npm run build'
   cd /var/azuracast
