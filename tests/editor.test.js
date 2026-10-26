@@ -356,12 +356,12 @@ test("reverb preview plays the selected sweeper and follows the reverb settings 
         reverb.checked = true;
         reverb.dispatchEvent(new Event("change", { bubbles: true }));
         await settle();
-        assert.equal(context.gains[0].gain.target, 0.16, "Switching the reverb on is heard right away (50%)");
+        assert.equal(context.gains[0].gain.target, 0.1015, "Switching the reverb on is heard right away (50%)");
         const intensity = input("Reverb intensity");
         intensity.value = "100";
         intensity.dispatchEvent(new Event("input", { bubbles: true }));
         await settle();
-        assert.equal(context.gains[0].gain.target, 0.32, "Intensity changes are heard right away");
+        assert.equal(context.gains[0].gain.target, 0.203, "Intensity changes are heard right away");
         button().dispatchEvent(new Event("click", { bubbles: true }));
         await settle();
         assert.ok(context.sources[0].stopped);

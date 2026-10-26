@@ -1,16 +1,19 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { createReverbPreview, REVERB_DECAYS, REVERB_DELAYS_MS, reverbLevel } from "../frontend/reverb.js";
+import { createReverbPreview, REVERB_DECAYS, REVERB_DELAYS_MS, REVERB_HIGHPASS_HZ, REVERB_LOWPASS_HZ, reverbLevel }
+    from "../frontend/reverb.js";
 import { FakeAudioContext } from "./fake-audio.js";
 
-test("browser preview uses exactly the reflections of the Liquidsoap module", async () => {
+test("browser preview uses exactly the reverb chain of the Liquidsoap module", async () => {
     const module = await readFile(new URL("../liquidsoap/sweepers.liq", import.meta.url), "utf8");
+    const list = (name) => module.match(new RegExp(`let sweepers\\.${name} = \\[([^\\]]+)\\]`))[1]
+        .split(",").map((value) => Number(value.trim()));
+    assert.deepEqual(list("reverb_delays"), REVERB_DELAYS_MS);
+    assert.deepEqual(list("reverb_decays"), REVERB_DECAYS);
     const reverb = module.slice(module.indexOf("def sweepers.reverb"));
-    const delays = reverb.match(/delays="([\d|]+)"/)[1].split("|").map(Number);
-    const decays = reverb.match(/\[(0\.\d+(?:, 0\.\d+)+)\]/)[1].split(", ").map(Number);
-    assert.deepEqual(delays, REVERB_DELAYS_MS);
-    assert.deepEqual(decays, REVERB_DECAYS);
+    assert.equal(Number(reverb.match(/highpass\(.*?frequency=([\d.]+)/s)[1]), REVERB_HIGHPASS_HZ);
+    assert.equal(Number(reverb.match(/lowpass\(.*?frequency=([\d.]+)/s)[1]), REVERB_LOWPASS_HZ);
 });
 
 test("preview level follows the switch and the intensity like the module", () => {
@@ -29,6 +32,9 @@ test("preview plays the cue range, changes the reverb live and stops", async () 
     const source = context.sources[0];
     assert.deepEqual(source.started, [0, 0.2, 2.0999999999999996]);
     assert.ok(source.connections.includes(context.destination), "The dry voice is unchanged");
+    assert.deepEqual(context.filters.map((filter) => [filter.type, filter.frequency.value]),
+        [["highpass", REVERB_HIGHPASS_HZ], ["lowpass", REVERB_LOWPASS_HZ]], "Only the reverb copy is band-limited");
+    assert.ok(source.connections.includes(context.filters[0]) && context.filters[0].output === context.filters[1]);
     assert.deepEqual(context.delays.map((delay) => Math.round(delay.delayTime.value * 1000)), REVERB_DELAYS_MS);
     assert.deepEqual(context.gains.map((gain) => gain.gain.value), REVERB_DECAYS.map((decay) => decay * 0.5));
     preview.setLevel(1);

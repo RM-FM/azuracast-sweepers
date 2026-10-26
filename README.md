@@ -230,16 +230,17 @@ their values:
   converted: an empty value becomes "off", a number "on" with that maximum.
 - **Jingle gain** is entered in percent (100% = as loud as the songs) and stored
   as a factor (`1.0`).
-- **Add reverb to the sweeper voice** is off by default. It adds a gentle sense
-  of space to the voice, like a produced jingle: soft reflections between 41 and
-  313 ms (FFmpeg `aecho`) on top of the unchanged voice. **Reverb intensity**
-  (default 50%) sets their level; even 100% stays moderate (strongest reflection
-  about −10 dB). The reverb fades out within about 0.6 seconds after the sweeper
-  file ends, so a sweeper with reverb needs that much more room before the song's
-  next transition. Changes apply to sweepers prepared after saving. The effect is
+- **Add reverb to the sweeper voice** is off by default. It adds a gentle, warm
+  sense of space to the voice, like a produced jingle: only a copy of the voice is
+  band-limited to 250 Hz–3 kHz and fed into 16 irregularly spaced reflections
+  between 37 and 419 ms with an exponential decay, mixed under the unchanged
+  voice. **Reverb intensity** (default 50%) sets the reverb level; even 100% stays
+  moderate. The tail fades out within about half a second and may overlap the
+  next song; it does not affect sweeper selection or timing. Changes apply to
+  sweepers prepared after saving. The effect is
   computed live by Liquidsoap; sweeper files are not changed. **Preview sweeper**
   plays a sweeper of the selected playlist in the browser (between its AutoCue
-  cue points) with the same reflections, before saving; switching the reverb or
+  cue points) with the same chain, before saving; switching the reverb or
   changing the intensity is heard while it plays. The preview has no music,
   ducking or station loudness processing.
 - **Prefer the longest fitting sweepers** is off by default. When enabled,

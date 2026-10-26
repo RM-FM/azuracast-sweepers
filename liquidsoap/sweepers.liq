@@ -288,25 +288,32 @@ end
 
 let sweepers.original_next_song = azuracast.autodj_next_song
 
-# A gentle "space" around the voice, like a produced jingle: FFmpeg's aecho adds ten soft reflections
-# between 41 and 313 ms (strongest about -10 dB at level 1, -16 dB at the default 0.5) on top of the
-# unchanged voice. The overlay continues with silence for Settings::REVERB_TAIL seconds so the
-# reflections can fade out. Liquidsoap's own echo/comb add no tail here, and sequence() would skip a
-# request that is not yet ready. level: 0–1; length: playable sweeper seconds.
+# A gentle, warm "space" around the voice, like a produced jingle. Only a copy of the voice is processed:
+# band-limited to 250 Hz–3 kHz (warm, no boom or sizzle), then 16 irregularly spaced reflections between
+# 37 and 419 ms with an exponential decay (smooth, not metallic), mixed under the unchanged voice. The
+# overlay continues with 0.6 s of silence so the tail can fade out (it may overlap the next song).
+# Liquidsoap's own echo/comb add no tail here, and sequence() would skip a request that is not yet ready.
+# frontend/reverb.js plays the same chain for the browser preview. level: 0–1; length: sweeper seconds.
+let sweepers.reverb_delays = [37, 53, 67, 79, 97, 113, 131, 149, 173, 199, 227, 257, 293, 331, 373, 419]
+let sweepers.reverb_decays = [
+    0.203, 0.177, 0.157, 0.141, 0.121, 0.106, 0.09, 0.077, 0.063, 0.05, 0.039, 0.031, 0.022, 0.016, 0.011, 0.008
+]
+
 def sweepers.reverb(level, length, s) =
     padded = max_duration(length + 0.6, add(normalize=false, [s, blank()]))
-    decays = list.map(
-        fun (decay) -> "#{decay * level}",
-        [0.32, 0.28, 0.25, 0.22, 0.19, 0.16, 0.13, 0.1, 0.08, 0.06]
-    )
     def graph(g) =
         let {audio} = source.tracks(ffmpeg.raw.encode.audio(%ffmpeg(%audio.raw), padded))
-        a = ffmpeg.filter.audio.input(g, audio)
-        a = ffmpeg.filter.aecho(
-            g, a, in_gain=1., out_gain=1., delays="41|59|83|109|137|167|199|233|271|313",
-            decays=string.concat(separator="|", decays)
+        input = ffmpeg.filter.audio.input(g, audio)
+        let (parts, _) = ffmpeg.filter.asplit(outputs=2, g, input)
+        wet = ffmpeg.filter.highpass(g, list.nth(parts, 1), frequency=250.)
+        wet = ffmpeg.filter.lowpass(g, wet, frequency=3000.)
+        wet = ffmpeg.filter.aecho(
+            g, wet, in_gain=0., out_gain=1.,
+            delays=string.concat(separator="|", list.map(fun (ms) -> "#{ms}", sweepers.reverb_delays)),
+            decays=string.concat(separator="|", list.map(fun (decay) -> "#{decay * level}", sweepers.reverb_decays))
         )
-        source({audio=ffmpeg.filter.audio.output(g, a)})
+        mixed = ffmpeg.filter.amix(g, inputs=2, normalize=false, [list.nth(parts, 0), wet], [])
+        source({audio=ffmpeg.filter.audio.output(g, mixed)})
     end
     ffmpeg.raw.decode.audio(ffmpeg.filter.create(graph))
 end

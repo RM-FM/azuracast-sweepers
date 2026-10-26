@@ -8,9 +8,6 @@ use InvalidArgumentException;
 
 final readonly class Settings
 {
-    // Must match the silence the module appends for the reverb to decay.
-    public const float REVERB_TAIL = 0.6;
-
     public function __construct(
         public bool $enabled = true,
         public ?int $playlistId = null,
@@ -189,18 +186,10 @@ final readonly class Settings
     }
 
     /**
-     * Seconds the added reverb keeps sounding after the sweeper file ends.
-     */
-    public function reverbTail(): float
-    {
-        return $this->reverb && $this->reverbIntensity > 0 ? self::REVERB_TAIL : 0.0;
-    }
-
-    /**
      * Reverb level sent with each plan: 0 (off) to 1 (strongest).
      */
     public function reverbLevel(): float
     {
-        return $this->reverbTail() > 0 ? $this->reverbIntensity / 100 : 0.0;
+        return $this->reverb && $this->reverbIntensity > 0 ? $this->reverbIntensity / 100 : 0.0;
     }
 }

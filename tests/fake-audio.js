@@ -7,8 +7,18 @@ export class FakeAudioContext {
         this.sources = [];
         this.gains = [];
         this.delays = [];
+        this.filters = [];
         this.closed = false;
         FakeAudioContext.last = this;
+    }
+
+    createBiquadFilter() {
+        const filter = {
+            type: "lowpass", frequency: { value: 350 }, Q: { value: 1 },
+            connect(node) { this.output = node; },
+        };
+        this.filters.push(filter);
+        return filter;
     }
 
     async decodeAudioData() { return { duration: 3 }; }

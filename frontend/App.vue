@@ -191,7 +191,7 @@
                         <input id="sweepers-reverb" v-model="settings.reverb" class="form-check-input" type="checkbox" role="switch">
                         <label class="form-check-label" for="sweepers-reverb">Add reverb to the sweeper voice</label>
                     </div>
-                    <div class="form-text" :class="{ 'mb-3': settings.reverb }">A gentle reverb that gives the voice some space, like a produced jingle. It fades out within about half a second after the sweeper, so sweepers need that much more room before the song's next transition.</div>
+                    <div class="form-text" :class="{ 'mb-3': settings.reverb }">A gentle, warm reverb that gives the voice some space, like a produced jingle.</div>
                     <div v-if="settings.reverb" class="row g-3">
                         <div class="col-md-6 col-xl-4">
                             <label class="form-label d-block mb-0">
