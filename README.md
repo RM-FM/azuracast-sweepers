@@ -44,10 +44,7 @@ services:
       - ./plugins/azuracast-sweepers:/var/azuracast/www/plugins/azuracast-sweepers:ro
 ```
 
-Then run `docker compose up -d` in `/var/azuracast`.
-
-> [!NOTE]
-> This recreates the web container and briefly interrupts broadcasting.
+Then run `docker compose up -d` in `/var/azuracast`; this briefly interrupts broadcasting.
 
 ## Setup
 
@@ -55,12 +52,9 @@ Then run `docker compose up -d` in `/var/azuracast`.
    normal rotation).
 2. Open **Sweepers → Settings** in the station sidebar (below Media), select the
    playlist and save.
-3. Restart broadcasting once per station.
+3. Restart broadcasting once per station. This loads the plugin's Liquidsoap module; the
+   Settings page shows whether it runs. Later settings changes need no restart.
 4. Set the intro ends (see [Intro end](#intro-end)).
-
-> [!IMPORTANT]
-> The restart loads the plugin's Liquidsoap module; without it no sweeper plays. The
-> Settings page shows whether the module is running. Later settings changes need no restart.
 
 The pages need station Media permission; changing settings also needs Broadcasting
 permission.
