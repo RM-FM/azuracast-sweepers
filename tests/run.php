@@ -370,12 +370,14 @@ check(Settings::fromArray(['sweeper_gap' => 0])->sweeperGap === 0, 'Repeats can 
 rejects(static fn() => Settings::fromArray(['sweeper_gap' => -1]));
 rejects(static fn() => Settings::fromArray(['sweeper_gap' => '2']));
 $history = ['log' => [['jingle_id' => 5], ['jingle_id' => 6], ['jingle_id' => 7]]];
-check(Selection::unavailable($history, 0) === [], 'Gap 0 blocks nothing that is not reserved.');
-check(Selection::unavailable($history, 1) === [5], 'The last played sweeper waits for one other.');
-check(Selection::unavailable($history, 2) === [5, 6], 'A gap of two blocks the last two sweepers.');
+check(Selection::unavailable($history, 0, 4) === [], 'Gap 0 blocks nothing that is not reserved.');
+check(Selection::unavailable($history, 1, 4) === [5], 'The last played sweeper waits for one other.');
+check(Selection::unavailable($history, 2, 4) === [5, 6], 'A gap of two blocks the last two sweepers.');
+check(Selection::unavailable($history, 1, 1) === [], 'A single sweeper can always repeat.');
+check(Selection::unavailable($history, 5, 3) === [5, 6], 'The gap never exceeds the number of other sweepers.');
 $pending = ['plans' => ['9' => ['jingle_id' => 8, 'played' => false], '10' => ['jingle_id' => 5, 'played' => true]]] + $history;
 check(
-    Selection::unavailable($pending, 1) === [8] && Selection::unavailable($pending, 2) === [8, 5],
+    Selection::unavailable($pending, 1, 4) === [8] && Selection::unavailable($pending, 2, 4) === [8, 5],
     'A sweeper reserved for an upcoming song plays first and counts towards the gap.'
 );
 $reverbDefaults = Settings::fromArray([]);

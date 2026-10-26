@@ -84,8 +84,8 @@ final readonly class Planner
                 unset($data['plans'][$token]);
             }
 
-            $reserved = Selection::unavailable($data, $settings->sweeperGap);
             $jingles = $this->media->jingles($station, $settings->playlistId);
+            $reserved = Selection::unavailable($data, $settings->sweeperGap, count($jingles));
             $candidates = [];
 
             foreach ($jingles as $jingle) {

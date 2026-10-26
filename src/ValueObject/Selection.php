@@ -8,12 +8,14 @@ final class Selection
 {
     /**
      * Sweepers that cannot be chosen now: those reserved for upcoming songs and the last $gap that played.
-     * Reserved sweepers play before this one, so they count towards the gap first.
+     * Reserved sweepers play before this one, so they count towards the gap first. The gap never exceeds
+     * the number of other sweepers in the playlist, so a single sweeper can always repeat.
      *
      * @return list<int>
      */
-    public static function unavailable(array $data, int $gap): array
+    public static function unavailable(array $data, int $gap, int $sweepers): array
     {
+        $gap = min($gap, max(0, $sweepers - 1));
         $reserved = array_values(array_column(array_filter(
             $data['plans'] ?? [],
             static fn(array $plan): bool => !($plan['played'] ?? false)

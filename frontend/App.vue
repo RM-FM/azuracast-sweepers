@@ -104,7 +104,7 @@
                                 Other sweepers before a repeat
                                 <input v-model.number="settings.sweeper_gap" class="form-control" type="number" min="0" max="100" step="1" required>
                             </label>
-                            <div class="form-text">At least this many other sweepers play before the same sweeper is used again. If none of the others fits a song's intro, that song gets no sweeper. <strong>0</strong> allows repeats.</div>
+                            <div class="form-text">At least this many other sweepers play before the same sweeper is used again. If none of the others fits a song's intro, that song gets no sweeper. <strong>0</strong> allows repeats. A single sweeper can always repeat.</div>
                         </div>
                     </div>
                     <div class="form-check form-switch">

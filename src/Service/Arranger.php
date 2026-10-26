@@ -51,7 +51,11 @@ final readonly class Arranger
             );
         }
         unset($row);
-        $timings = array_diff_key($measurements, array_flip(Selection::unavailable($data, $settings->sweeperGap)));
+        $sweepers = count($this->media->jingles($station, $settings->playlistId));
+        $timings = array_diff_key(
+            $measurements,
+            array_flip(Selection::unavailable($data, $settings->sweeperGap, $sweepers))
+        );
 
         $known = [];
         $usable = function (int $mediaId) use ($station, $settings, $timings, &$known): bool {
