@@ -231,7 +231,11 @@ their values:
   about −10 dB). The reverb fades out within about 0.6 seconds after the sweeper
   file ends, so a sweeper with reverb needs that much more room before the song's
   next transition. Changes apply to sweepers prepared after saving. The effect is
-  computed live by Liquidsoap; sweeper files are not changed.
+  computed live by Liquidsoap; sweeper files are not changed. **Preview sweeper**
+  plays a sweeper of the selected playlist in the browser (between its AutoCue
+  cue points) with the same reflections, before saving; switching the reverb or
+  changing the intensity is heard while it plays. The preview has no music,
+  ducking or station loudness processing.
 - **Prefer the longest fitting sweepers** is off by default. When enabled,
   the tolerance defines an eligible length range: with 30 seconds available and
   20%, bodies of 24–30 seconds participate in oldest-played rotation. If none are

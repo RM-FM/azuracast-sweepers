@@ -27,7 +27,8 @@ const source = await readFile(new URL("../frontend/App.vue", import.meta.url), "
 const { descriptor } = parse(source);
 const compiled = compileScript(descriptor, { id: "editor-test", inlineTemplate: true }).content
     .replaceAll('from "vue"', `from ${JSON.stringify(vue)}`)
-    .replaceAll('from "./Waveform.vue"', `from ${JSON.stringify(stubUrl)}`);
+    .replaceAll('from "./Waveform.vue"', `from ${JSON.stringify(stubUrl)}`)
+    .replaceAll('from "./reverb.js"', `from ${JSON.stringify(new URL("../frontend/reverb.js", import.meta.url).href)}`);
 const { default: App } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
 const writes = [];
 let releaseSave;
@@ -43,6 +44,14 @@ globalThis.fetch = async (url, options) => {
             reverb: false, reverb_intensity: 50,
         }, playlists: [{ id: 10, name: "Sweepers" }], jingle_playlists: [
             { id: 20, name: "Station IDs", is_jingle: true }, { id: 21, name: "Promos", is_jingle: false },
+        ] };
+    } else if (url.startsWith("/play/")) {
+        data = {};
+    } else if (url.includes("/media?playlist=")) {
+        previewRequests.push(url);
+        data = { rows: [
+            { id: 31, title: "male", artist: "radiomonster.fm", path: "male.mp3", cue_in: 0.2, cue_out: 2.3, audio_url: "/play/31" },
+            { id: 32, title: null, artist: null, path: "female.mp3", cue_in: 0, cue_out: 3, audio_url: "/play/32" },
         ] };
     } else if (url.includes("/media?")) {
         data = { rows: [
@@ -62,8 +71,9 @@ globalThis.fetch = async (url, options) => {
         if (releaseSave) await new Promise((resolve) => { releaseSave = resolve; });
         data = { success: true, needs_restart: needsRestart, intro_end: JSON.parse(options.body).intro_end };
     }
-    return { ok: true, json: async () => data };
+    return { ok: true, json: async () => data, arrayBuffer: async () => new ArrayBuffer(8) };
 };
+const previewRequests = [];
 const settle = async () => {
     await new Promise((resolve) => setImmediate(resolve));
     await nextTick();
@@ -295,5 +305,58 @@ test("standalone page switches between Settings, Intros and Playback Timeline wi
         assert.ok(document.querySelector(".media-track"));
     } finally {
         app.unmount();
+    }
+});
+
+test("reverb preview plays the selected sweeper and follows the reverb settings live", async () => {
+    const { FakeAudioContext } = await import("./fake-audio.js");
+    window.AudioContext = FakeAudioContext;
+    previewRequests.length = 0;
+    const writesBefore = writes.filter((write) => write.url.endsWith("/settings")).length;
+    const app = createApp(App, { base: "/sweepers/1", csrf: "session-token", view: "settings" });
+    app.mount(document.querySelector("#app"));
+    const label = (text) => [...document.querySelectorAll("section.card label")].find((node) => node.textContent.includes(text));
+    const input = (text) => label(text).querySelector("input,select") ?? document.getElementById(label(text).getAttribute("for"));
+    const button = () => document.querySelector(".sweepers-preview button");
+    try {
+        await settle();
+        assert.match(document.querySelector(".sweepers-preview").textContent, /Choose a sweeper playlist above/);
+        assert.ok(button().disabled, "Nothing to play without a sweeper playlist");
+        const playlist = input("Sweeper playlist");
+        for (const option of playlist.options) {
+            Object.defineProperty(option, "selected", { configurable: true, writable: true, value: option.textContent.trim() === "Sweepers" });
+        }
+        playlist.dispatchEvent(new Event("change", { bubbles: true }));
+        await settle();
+        await settle();
+        assert.deepEqual(previewRequests, ["/sweepers/1/media?playlist=10"], "Unsaved playlist choice loads its sweepers");
+        assert.deepEqual([...input("Preview sweeper").options].map((option) => option.textContent.trim()),
+            ["radiomonster.fm – male", "female.mp3"]);
+        button().dispatchEvent(new Event("click", { bubbles: true }));
+        await settle();
+        await settle();
+        const context = FakeAudioContext.last;
+        assert.equal(button().textContent.trim(), "Stop");
+        assert.deepEqual(context.sources[0].started, [0, 0.2, 2.0999999999999996], "Plays the cue range");
+        assert.ok(context.gains.every((gain) => gain.gain.value === 0), "Reverb off: dry voice only");
+        const reverb = input("Add reverb to the sweeper voice");
+        reverb.checked = true;
+        reverb.dispatchEvent(new Event("change", { bubbles: true }));
+        await settle();
+        assert.equal(context.gains[0].gain.target, 0.16, "Switching the reverb on is heard right away (50%)");
+        const intensity = input("Reverb intensity");
+        intensity.value = "100";
+        intensity.dispatchEvent(new Event("input", { bubbles: true }));
+        await settle();
+        assert.equal(context.gains[0].gain.target, 0.32, "Intensity changes are heard right away");
+        button().dispatchEvent(new Event("click", { bubbles: true }));
+        await settle();
+        assert.ok(context.sources[0].stopped);
+        assert.equal(button().textContent.trim(), "Play");
+        assert.equal(writes.filter((write) => write.url.endsWith("/settings")).length, writesBefore,
+            "Previewing never saves settings");
+    } finally {
+        app.unmount();
+        delete window.AudioContext;
     }
 });

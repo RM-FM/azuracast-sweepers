@@ -183,6 +183,29 @@
                             <div class="form-text">How much reverb is mixed in. Low values are barely noticeable; even 100% stays moderate.</div>
                         </div>
                     </div>
+                    <div class="sweepers-preview mt-3">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-6 col-xl-4">
+                                <label class="form-label d-block mb-0">
+                                    Preview sweeper
+                                    <select v-model="previewId" class="form-select" :disabled="!previewSweepers.length">
+                                        <option v-for="sweeper in previewSweepers" :key="sweeper.id" :value="sweeper.id">{{ describe(sweeper) }}</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div class="col-auto">
+                                <button class="btn btn-outline-primary" type="button" :disabled="!previewSupported || !previewId || previewLoading" @click="togglePreview">
+                                    {{ previewLoading ? 'Loading…' : previewPlaying ? 'Stop' : 'Play' }}
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-text">
+                            <template v-if="!previewSupported">This browser cannot play the preview.</template>
+                            <template v-else-if="!settings.playlist_id">Choose a sweeper playlist above to preview its sweepers.</template>
+                            <template v-else>Plays the sweeper in your browser with the reverb as set above, before saving. Switching the reverb or changing the intensity is heard right away. Volume and ducking are not part of the preview.</template>
+                        </div>
+                        <p v-if="previewError" class="text-danger small mb-0" role="alert">{{ previewError }}</p>
+                    </div>
                 </fieldset>
 
                 <button class="btn btn-primary" :disabled="saving">Save settings</button>
@@ -334,8 +357,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import Waveform from "./Waveform.vue";
+import { createReverbPreview, reverbLevel } from "./reverb.js";
 
 const props = defineProps({
     base: { type: String, required: true },
@@ -450,6 +474,68 @@ async function api(path, data) {
 
     return result;
 }
+
+// Reverb preview: plays a sweeper of the selected playlist in the browser with the current, unsaved settings.
+const AudioContextClass = typeof window === "undefined" ? undefined : (window.AudioContext ?? window.webkitAudioContext);
+const previewSupported = Boolean(AudioContextClass);
+const previewSweepers = ref([]);
+const previewId = ref(null);
+const previewPlaying = ref(false);
+const previewLoading = ref(false);
+const previewError = ref("");
+let preview = null;
+const previewLevel = computed(() => reverbLevel(settings.value.reverb, settings.value.reverb_intensity));
+
+async function fetchAudio(url) {
+    const response = await fetch(url, { credentials: "same-origin" });
+    if (!response.ok) throw new Error("The sweeper file could not be loaded.");
+    return response.arrayBuffer();
+}
+
+function stopPreview() {
+    preview?.stop();
+    previewPlaying.value = false;
+}
+
+async function loadPreviewSweepers(playlist) {
+    stopPreview();
+    previewSweepers.value = [];
+    previewId.value = null;
+    previewError.value = "";
+    if (!playlist) return;
+    try {
+        previewSweepers.value = (await api(`media?playlist=${encodeURIComponent(playlist)}`)).rows;
+        previewId.value = previewSweepers.value[0]?.id ?? null;
+    } catch (exception) {
+        previewError.value = exception.message;
+    }
+}
+
+async function togglePreview() {
+    if (previewPlaying.value) {
+        stopPreview();
+        return;
+    }
+    const sweeper = previewSweepers.value.find((row) => row.id === previewId.value);
+    if (!sweeper) return;
+    preview ??= createReverbPreview(AudioContextClass, fetchAudio);
+    previewError.value = "";
+    previewLoading.value = true;
+    try {
+        await preview.play(sweeper, previewLevel.value, () => { previewPlaying.value = false; });
+        previewPlaying.value = true;
+    } catch (exception) {
+        previewError.value = exception.message || "The preview could not be played.";
+    } finally {
+        previewLoading.value = false;
+    }
+}
+
+watch(() => settings.value.playlist_id, (playlist) => loadPreviewSweepers(playlist));
+watch(previewLevel, (level) => preview?.setLevel(level));
+watch(previewId, stopPreview);
+watch(current, stopPreview);
+onUnmounted(() => preview?.close());
 
 async function loadMedia() {
     try {

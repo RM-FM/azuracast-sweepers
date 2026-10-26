@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Plugin\AzuracastSweepers\Controller;
 
+use App\Entity\Station;
 use App\Http\Response;
+use App\Http\RouterInterface;
 use App\Http\ServerRequest;
 use InvalidArgumentException;
+use Plugin\AzuracastSweepers\Service\Arranger;
 use Plugin\AzuracastSweepers\Service\Media;
 use Plugin\AzuracastSweepers\Service\Module;
 use Plugin\AzuracastSweepers\Service\Planner;
@@ -145,8 +148,13 @@ final readonly class PanelController
     public function mediaAction(ServerRequest $request, Response $response, array $params): ResponseInterface
     {
         $station = $request->getStation();
-        $search = substr((string)$request->getQueryParam('search', ''), 0, 200);
         $router = $request->getRouter();
+        $playlist = $request->getQueryParam('playlist');
+        if ($playlist !== null) {
+            return $response->withHeader('Cache-Control', 'no-store')
+                ->withJson(['rows' => $this->sweepers($station, $router, (string)$playlist)]);
+        }
+        $search = substr((string)$request->getQueryParam('search', ''), 0, 200);
         $rows = [];
 
         foreach ($this->media->list($station, $search) as $media) {
@@ -168,6 +176,35 @@ final readonly class PanelController
         }
 
         return $response->withHeader('Cache-Control', 'no-store')->withJson(['rows' => $rows, 'limit' => 100]);
+    }
+
+    /**
+     * Sweepers of an Advanced playlist with the cue range Liquidsoap plays, for the reverb preview.
+     */
+    private function sweepers(Station $station, RouterInterface $router, string $playlist): array
+    {
+        if (!preg_match('/^[1-9]\d{0,9}$/D', $playlist)) {
+            throw new InvalidArgumentException('Choose an Advanced playlist.');
+        }
+        $rows = [];
+        foreach ($this->media->jingles($station, (int)$playlist) as $jingle) {
+            [$cueIn, $cueOut] = Arranger::window($this->media->uri($station, $jingle), $jingle->length);
+            $rows[] = [
+                'id' => $jingle->id,
+                'title' => $jingle->title,
+                'artist' => $jingle->artist,
+                'path' => $jingle->path,
+                'cue_in' => $cueIn,
+                'cue_out' => $cueOut,
+                'audio_url' => (string)$router->fromHere('api:stations:files:play', [
+                    'station_id' => $station->id,
+                    'id' => $jingle->id,
+                ]),
+            ];
+        }
+        usort($rows, static fn(array $a, array $b): int => strcmp((string)$a['path'], (string)$b['path']));
+
+        return $rows;
     }
 
     public function importAction(ServerRequest $request, Response $response, array $params): ResponseInterface

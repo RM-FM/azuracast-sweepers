@@ -40,6 +40,11 @@ song's cue-in, or `null`), `moved` (the song was moved forward for this sweeper)
 and `moved_before` (the overtaken song, or `null`). Only sweepers that actually
 started playing are recorded.
 
+The reverb preview reads `GET /sweepers/{station_id}/media?playlist={playlist_id}`
+(same permissions). For an Advanced playlist of the station it returns `rows` with
+`id`, `title`, `artist`, `path`, `cue_in`/`cue_out` (the AutoCue range Liquidsoap
+plays) and `audio_url`. The browser applies the reflections itself; nothing is saved.
+
 ## Using the native media API
 
 AzuraCast also supports `GET` and `PUT /api/station/{station_id}/file/{media_id}`.
