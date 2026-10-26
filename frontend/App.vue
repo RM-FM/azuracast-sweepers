@@ -198,7 +198,7 @@
                                 Reverb intensity (%)
                                 <input v-model.number="settings.reverb_intensity" class="form-control" type="number" min="0" max="100" step="5" required>
                             </label>
-                            <div class="form-text">How much reverb is mixed in. Low values are barely noticeable; even 100% stays moderate.</div>
+                            <div class="form-text">How much reverb is mixed in.</div>
                         </div>
                     </div>
                     <div class="sweepers-preview mt-3">
