@@ -157,7 +157,7 @@ final readonly class Media
     }
 
     /**
-     * @return array<int, array{title: ?string, artist: ?string, path: string}> Station files by ID.
+     * @return array<int, array{title: ?string, artist: ?string, path: string}>
      */
     public function describe(Station $station, array $ids): array
     {

@@ -26,8 +26,7 @@ let sweepers.previous_song = ref(false)
 let sweepers.previous_clear = ref(false)
 let sweepers.counted = ref("")
 
-# Like azuracast.api_call, but routine requests and responses are logged at debug level 4: the heartbeat
-# runs every five seconds. Failures are logged at level 2.
+# azuracast.api_call logs every request at the default level; the heartbeat runs every five seconds.
 def sweepers.api_call(~timeout, endpoint, payload) =
     log(level=4, label="sweepers", "API #{endpoint} - Sending: #{payload}")
     try
@@ -66,7 +65,7 @@ def sweepers.configure(s) =
     end
 end
 
-# Generated station configurations call this once. Invalid settings keep sweepers disabled; never fail startup.
+# Must never fail station startup; invalid settings keep sweepers disabled.
 def sweepers.load(~version, s) =
     sweepers.version := version
     try
@@ -81,7 +80,6 @@ def sweepers.current(token, revision) =
     s.enabled and revision == s.revision and not list.mem(token, sweepers.blocked())
 end
 
-# Why a reserved sweeper is no longer current (see sweepers.current).
 def sweepers.stale_reason(token) =
     if list.mem(token, sweepers.blocked()) then "jingle_follows"
     elsif not sweepers.settings().enabled then "disabled"
@@ -95,7 +93,6 @@ def sweepers.event(event, token, detail, m) =
     }, ...sweepers.events()])
 end
 
-# detail: why a reserved sweeper was released without playing; shown in the playback timeline.
 def sweepers.notify(~detail="", event, token) =
     if token != "" then
         if event == "played" then
@@ -115,7 +112,7 @@ def sweepers.is_jingle(m) =
         list.mem(int_of_string(default=0, m["playlist_id"]), s.jingle_playlists)
 end
 
-# Counts a starting track for the spacing rules; "" if it may carry a sweeper, otherwise why not.
+# Also advances the spacing counters; "" means the track may carry a sweeper.
 def sweepers.track_reason(m) =
     token = m["sq_id"]
     sweepers.counted := token
@@ -200,8 +197,7 @@ end
 
 let sweepers.jingles = source.dynamic(id="sweepers", self_sync=false, track_sensitive=false, sweepers.next_overlay)
 
-# AzuraCast supplied no cue values (AutoCue off, no manual cue points): use Liquidsoap's built-in AutoCue,
-# which honours the station's settings.autocue.* tuning. Results stay in memory and never enter AzuraCast's cache.
+# Only used when AzuraCast supplies no cue values; never written to AzuraCast's cache.
 def sweepers.compute_autocue(m, filename) =
     computed = autocue.internal.implementation(request_metadata=m, file_metadata=m, filename)
     if null.defined(computed) then
@@ -223,7 +219,7 @@ end
 
 def sweepers.refresh_catalog() =
     try
-        # Settings changes reset catalog_at, so a newly selected playlist is read at once.
+        # Settings changes reset catalog_at.
         if time() - sweepers.catalog_at() >= 60. then
             sweepers.catalog_at := time()
             result = sweepers.api_call(timeout=2., "sweepers/catalog", "{}")
@@ -314,18 +310,14 @@ end
 
 let sweepers.original_next_song = azuracast.autodj_next_song
 
-# A gentle, warm "space" around the voice, like a produced jingle. Only a copy of the voice is processed:
-# band-limited to 250 Hz–3 kHz (warm, no boom or sizzle), then 16 irregularly spaced reflections between
-# 37 and 419 ms with an exponential decay (smooth, not metallic), mixed under the unchanged voice. The
-# overlay continues with 0.6 s of silence so the tail can fade out (it may overlap the next song).
-# Liquidsoap's own echo/comb add no tail here, and sequence() would skip a request that is not yet ready.
-# frontend/reverb.js plays the same chain for the browser preview. level: 0–1; length: sweeper seconds.
+# Must match frontend/reverb.js. FFmpeg filters: Liquidsoap's own echo and comb add no tail here.
 let sweepers.reverb_delays = [37, 53, 67, 79, 97, 113, 131, 149, 173, 199, 227, 257, 293, 331, 373, 419]
 let sweepers.reverb_decays = [
     0.203, 0.177, 0.157, 0.141, 0.121, 0.106, 0.09, 0.077, 0.063, 0.05, 0.039, 0.031, 0.022, 0.016, 0.011, 0.008
 ]
 
 def sweepers.reverb(level, length, s) =
+    # Pads the tail with silence; sequence() would skip a request that is not ready yet.
     padded = max_duration(length + 0.6, add(normalize=false, [s, blank()]))
     def graph(g) =
         let {audio} = source.tracks(ffmpeg.raw.encode.audio(%ffmpeg(%audio.raw), padded))
@@ -344,8 +336,7 @@ def sweepers.reverb(level, length, s) =
     ffmpeg.raw.decode.audio(ffmpeg.filter.create(graph))
 end
 
-# Runs right before AzuraCast sends its next queued song, so no other sender can race the reordering.
-# The plugin decides from the saved settings whether a song with an intro moves forward.
+# Runs right before AzuraCast sends its next song, so nothing else can reorder the queue meanwhile.
 def sweepers.arrange() =
     if sweepers.settings().enabled and sweepers.counted() != "" and not azuracast.live_enabled() then
         try
@@ -459,9 +450,7 @@ def sweepers.enable_autodj(s) =
         sweepers.next_song
     )
 
-# Mirrors the station's own azuracast.enable_autodj, with sweepers.next_song as the request function.
-# AzuraCast with Liquidsoap 2.5 waits for the first song with azuracast.wait_for_next_song; fallback
-# no longer takes track_sensitive there. Older releases use the second variant.
+# AzuraCast's Liquidsoap 2.5 runtime has wait_for_next_song, and its fallback takes no track_sensitive.
 %ifdef azuracast.wait_for_next_song
     dynamic_startup = fallback(
         id = "dynamic_startup",
@@ -521,7 +510,7 @@ def sweepers.mix(music) =
             sweepers.reset := true
             sweepers.duck_end := -1.
             planned = list.assoc.mem(token, sweepers.plans())
-            # Reported for the playback timeline; "none" means the plugin decided at planning time.
+            # "none": the plugin already decided when planning.
             outcome =
                 if reason != "" then reason
                 elsif not sweepers.settings().enabled then "disabled"

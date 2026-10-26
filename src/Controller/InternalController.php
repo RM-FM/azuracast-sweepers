@@ -115,7 +115,7 @@ final readonly class InternalController
     }
 
     /**
-     * @return array<int, Timing> Sweeper timings measured by the module, by media ID.
+     * @return array<int, Timing>
      */
     private function measurements(Station $station, Settings $settings, mixed $rows): array
     {

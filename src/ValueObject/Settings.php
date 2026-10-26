@@ -37,7 +37,7 @@ final readonly class Settings
             }
         }
 
-        // Enabled without a playlist is valid: no sweeper plays until a playlist is chosen.
+        // Enabled without a playlist is valid; nothing plays until one is chosen.
         if (
             $maxWait < 0 || $maxWait > 3600 || $margin < 0 || $margin > 5
             || $duckDb > 0 || $duckDb < -20 || $jingleGain < 0 || $jingleGain > 2
@@ -192,9 +192,6 @@ final readonly class Settings
         ];
     }
 
-    /**
-     * Reverb level sent with each plan: 0 (off) to 1 (strongest).
-     */
     public function reverbLevel(): float
     {
         return $this->reverb && $this->reverbIntensity > 0 ? $this->reverbIntensity / 100 : 0.0;

@@ -11,9 +11,6 @@ use Plugin\AzuracastSweepers\ValueObject\Selection;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
 use Plugin\AzuracastSweepers\ValueObject\Timing;
 
-/**
- * Moves a queued song with a usable intro forward when a sweeper is due on a song without one.
- */
 final readonly class Arranger
 {
     public function __construct(
@@ -24,8 +21,8 @@ final readonly class Arranger
     }
 
     /**
-     * @param array<int, Timing> $measurements Sweeper timings by media ID.
-     * @return array{moved: string, before: string} Queue IDs; empty when nothing changed.
+     * @param array<int, Timing> $measurements
+     * @return array{moved: string, before: string}
      */
     public function arrange(Station $station, array $gap, string $counted, array $measurements): array
     {
@@ -67,7 +64,6 @@ final readonly class Arranger
         }
         $media = array_column($rows, 'media_id', 'id');
         $this->state->update($station->getRadioConfigDir(), static function (array $data) use ($choice, $media): array {
-            // Shown in the playback timeline if the moved song actually plays with a sweeper.
             $moved = array_filter(
                 $data['moved'] ?? [],
                 static fn(array $entry): bool => $entry['at'] > time() - 7200
@@ -95,7 +91,6 @@ final readonly class Arranger
         if ($intro === null) {
             return false;
         }
-        // AzuraCast's cue values for this file, as Liquidsoap will receive them; the file start without AutoCue.
         [$cueIn, $cueOut] = self::window($this->media->uri($station, $media), $media->length);
         if ($intro <= $cueIn) {
             return false;
@@ -110,7 +105,7 @@ final readonly class Arranger
     }
 
     /**
-     * @return array{0: float, 1: float} Cue-in and the end of the planning window, as the module computes them.
+     * @return array{0: float, 1: float} Cue-in and end of the planning window, as computed by the module.
      */
     public static function window(string $uri, float $duration): array
     {

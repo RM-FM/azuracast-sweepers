@@ -435,7 +435,6 @@ const validDraft = computed(() => draft.value === "" || (
     && Number(draft.value) >= 0
     && Number(draft.value) <= (selected.value?.duration ?? 0)
 ));
-// Stored as a factor (1.0); shown and entered as a percentage.
 const jingleGainPercent = computed({
     get: () => Math.round((settings.value.jingle_gain ?? 1) * 100),
     set: (percent) => { settings.value.jingle_gain = Number(percent) / 100; },
@@ -467,7 +466,6 @@ function describe(file) {
     return name || file.path;
 }
 
-// Like AzuraCast's playback timeline: title first, artist below; untagged files show their path.
 function fileTitle(file) {
     if (!file) return "Deleted file";
     return file.title || file.path;
@@ -549,7 +547,6 @@ async function api(path, data) {
     return result;
 }
 
-// Reverb preview: plays a sweeper of the selected playlist in the browser with the current, unsaved settings.
 const AudioContextClass = typeof window === "undefined" ? undefined : (window.AudioContext ?? window.webkitAudioContext);
 const previewSupported = Boolean(AudioContextClass);
 const previewSweepers = ref([]);

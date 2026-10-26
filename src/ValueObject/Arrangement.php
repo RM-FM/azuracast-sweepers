@@ -4,20 +4,15 @@ declare(strict_types=1);
 
 namespace Plugin\AzuracastSweepers\ValueObject;
 
-/**
- * Decides whether a queued song with a usable intro should change places with the next song,
- * because a sweeper is due on a song that cannot carry one.
- */
 final class Arrangement
 {
     /**
      * @param list<array{id: int, sent: bool, media_id: ?int, request_id: ?int, playlist_id: ?int,
      *     is_jingle: bool, playlist_order: ?string, planned: bool, excluded?: bool}> $rows
-     *     Upcoming queue rows not yet counted by the module, in AzuraCast's play order.
+     *     In AzuraCast's play order.
      * @param array{songs_since_jingle: int, songs_since_sweeper: int, previous_song: bool, previous_clear: bool} $gap
-     *     The module's song spacing counters after its last counted track.
-     * @param callable(int): bool $usable Whether a media file has an intro that fits a sweeper.
-     * @return array{0: int, 1: int}|null Queue IDs of the next song and the song to exchange it with.
+     * @param callable(int): bool $usable
+     * @return array{0: int, 1: int}|null
      */
     public static function choose(
         array $rows,
@@ -35,7 +30,7 @@ final class Arrangement
             || in_array($row['playlist_id'], $playlists, true);
         $isSong = static fn(array $row): bool => $row['media_id'] !== null && !$isJingle($row);
 
-        // Mirrors sweepers.track_allowed in the Liquidsoap module.
+        // Must match sweepers.track_reason in the Liquidsoap module.
         foreach ($rows as $index => $row) {
             $song = $isSong($row);
             if ($isJingle($row)) {
@@ -53,7 +48,7 @@ final class Arrangement
                 && $sinceSweeper >= $settings->songsAfterSweeper;
 
             if ($row['sent']) {
-                // Already in Liquidsoap: its saved plan decides whether it carries a sweeper.
+                // Already sent: its saved plan decides.
                 if ($allowed && $row['planned']) {
                     $sinceSweeper = 0;
                     $previousClear = false;
@@ -61,7 +56,6 @@ final class Arrangement
                 continue;
             }
 
-            // Only the next song to be sent is considered.
             if (!$allowed || !self::movable($row, $song, $settings) || $usable((int)$row['media_id'])) {
                 return null;
             }
@@ -92,10 +86,6 @@ final class Arrangement
         return null;
     }
 
-    /**
-     * Listener requests and playlist songs move, except songs from playlists without sweepers and, unless
-     * enabled, from sequential playlists. Jingles never move (same recognition as the sweeper spacing).
-     */
     private static function movable(array $row, bool $song, Settings $settings): bool
     {
         if (!$song || ($row['excluded'] ?? false)) {

@@ -91,7 +91,7 @@ final readonly class Timing
         $available = $introEnd - $songCueIn - $settings->margin;
         $offset = $available - $body;
         if ($settings->limitDelay && $offset > $settings->maxWait) {
-            // Too long a wait: start early, but never later than the aligned start, so the body still fits.
+            // Never later than the aligned start, so the body still fits.
             $offset = min($settings->earlyStart, $offset);
         }
         if (

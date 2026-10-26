@@ -158,7 +158,6 @@ thread.run(delay=7., {{shutdown()}})
     assert (124 if spacing else 123) in metadata, 'Song metadata lost'
     reported = [event for path, body, _ in calls if path == '/sweepers/heartbeat'
                 for event in body.get('events', [])]
-    # Reservation events as before; track starts feed the playback timeline.
     events = [{'event': e['event'], 'token': e['token']} for e in reported if e['event'] != 'start']
     starts = {e['token']: e['detail'] for e in reported if e['event'] == 'start'}
     releases = {e['token']: e['detail'] for e in reported if e['event'] == 'release' and e['detail']}

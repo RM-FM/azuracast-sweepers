@@ -1,21 +1,16 @@
-// Same chain as sweepers.reverb in liquidsoap/sweepers.liq (FFmpeg); tests keep both in sync.
+// Must match sweepers.reverb in liquidsoap/sweepers.liq.
 export const REVERB_DELAYS_MS = [37, 53, 67, 79, 97, 113, 131, 149, 173, 199, 227, 257, 293, 331, 373, 419];
 export const REVERB_DECAYS = [
     0.203, 0.177, 0.157, 0.141, 0.121, 0.106, 0.09, 0.077, 0.063, 0.05, 0.039, 0.031, 0.022, 0.016, 0.011, 0.008,
 ];
-// Only the reverb copy is band-limited; the voice itself stays unchanged.
 export const REVERB_HIGHPASS_HZ = 250;
 export const REVERB_LOWPASS_HZ = 3000;
 
-// The module sends intensity / 100 as the level; off means no reflections.
 export function reverbLevel(enabled, intensity) {
     const value = Number(intensity);
     return enabled && Number.isFinite(value) ? Math.min(Math.max(value, 0), 100) / 100 : 0;
 }
 
-/**
- * Plays one sweeper between its cue points with the reverb; the level can change while it plays.
- */
 export function createReverbPreview(AudioContextClass, fetchAudio) {
     let context = null;
     let current = null;
@@ -56,7 +51,7 @@ export function createReverbPreview(AudioContextClass, fetchAudio) {
         const source = context.createBufferSource();
         source.buffer = audio;
         source.connect(context.destination);
-        // FFmpeg highpass/lowpass default to two poles with Q 0.707, like Web Audio biquads.
+        // FFmpeg's default two-pole filters.
         const highpass = context.createBiquadFilter();
         highpass.type = "highpass";
         highpass.frequency.value = REVERB_HIGHPASS_HZ;

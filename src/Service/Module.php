@@ -6,9 +6,6 @@ namespace Plugin\AzuracastSweepers\Service;
 
 use Plugin\AzuracastSweepers\ValueObject\Settings;
 
-/**
- * Lines the plugin adds to a generated station configuration, their exact rollback, and the load status.
- */
 final class Module
 {
     public const string AUTODJ = 'radio = azuracast.enable_autodj(radio)';
@@ -52,10 +49,8 @@ final class Module
     }
 
     /**
-     * Restores every line the plugin changed; returns null when nothing was changed.
-     *
      * @param list<string> $lines
-     * @return array<int, string>|null Replacement lines by index.
+     * @return array<int, string>|null Replacement lines by index; null when nothing changed.
      */
     public static function rollback(array $lines): ?array
     {

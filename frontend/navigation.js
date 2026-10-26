@@ -21,7 +21,7 @@ export function stationContext(pathname, basePath) {
     };
 }
 
-// "1" is the former single-page link and opens the settings.
+// "1" is the former single-page link.
 export function currentView(search) {
     const value = new URLSearchParams(search).get("sweepers");
     if (value === "1") {
@@ -116,7 +116,7 @@ export function mountNavigation(document, window, basePath = "") {
         } else {
             removePanel();
         }
-        // Rebuild only when station or page changes, so a user's own open/close of the group is kept.
+        // Rebuilding would reset the user's own open/close of the group.
         const signature = `${context.stationPath}|${view ?? ""}`;
         if (existing?.parentElement === stationMenu && existing.previousElementSibling === mediaItem
             && existing.dataset.signature === signature) {

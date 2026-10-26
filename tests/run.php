@@ -248,7 +248,6 @@ foreach ([-1, 301, NAN, 'vocals', true, '30s+'] as $invalid) {
     rejects(static fn() => Media::parseIntro($invalid, 300));
 }
 
-// Moving a song with an intro forward.
 $song = static fn(int $id, bool $sent = false, int $media = 0, array $extra = []): array => [
     'id' => $id, 'sent' => $sent, 'media_id' => $media ?: $id, 'request_id' => null, 'playlist_id' => 1,
     'is_jingle' => false, 'playlist_type' => 'default', 'playlist_order' => 'shuffle', 'planned' => false,
@@ -367,7 +366,6 @@ check(
 check(Arranger::window('/media/song.mp3', 210) === [0.0, 210.0], 'Without cue values the whole file is used.');
 check(!Settings::fromArray([])->swapForIntro, 'Moving songs forward is off by default.');
 
-// Playback timeline: one entry per started track, with the sweeper outcome or the reason for none.
 $plan = static fn(int $jingle): array => ['jingle_id' => $jingle, 'song_id' => 7, 'played' => false, 'payload' => ['offset' => 3.5]];
 $start = static fn(string $token, string $detail, string $title = 'Song'): array
     => ['event' => 'start', 'token' => $token, 'detail' => $detail, 'media_id' => '7', 'title' => $title, 'artist' => 'Artist'];
@@ -426,6 +424,14 @@ check(Selection::unavailable($history, 1, 4) === [5], 'The last played sweeper w
 check(Selection::unavailable($history, 2, 4) === [5, 6], 'A gap of two blocks the last two sweepers.');
 check(Selection::unavailable($history, 1, 1) === [], 'A single sweeper can always repeat.');
 check(Selection::unavailable($history, 5, 3) === [5, 6], 'The gap never exceeds the number of other sweepers.');
+$timeline = ['log' => [
+    ['jingle_id' => null, 'result' => 'no_intro'], ['jingle_id' => 44, 'result' => 'skipped'],
+    ['jingle_id' => 5, 'result' => 'played'], ['jingle_id' => 6],
+]];
+check(
+    Selection::unavailable($timeline, 2, 4) === [5, 6],
+    'Only sweepers that actually played count; tracks without one do not.'
+);
 $pending = ['plans' => ['9' => ['jingle_id' => 8, 'played' => false], '10' => ['jingle_id' => 5, 'played' => true]]] + $history;
 check(
     Selection::unavailable($pending, 1, 4) === [8] && Selection::unavailable($pending, 2, 4) === [8, 5],

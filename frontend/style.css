@@ -201,7 +201,6 @@
     margin-right: .25rem;
 }
 
-/* Songs with a sweeper stand out; other tracks stay quiet. Uses theme variables for light and dark mode. */
 .sweepers-timeline tr.timeline-sweeper > td {
     background-color: rgba(var(--bs-success-rgb), .12);
 }

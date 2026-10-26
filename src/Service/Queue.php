@@ -25,7 +25,7 @@ final readonly class Queue
     }
 
     /**
-     * @return list<string> Queue tokens followed by a jingle within the configured number of tracks.
+     * @return list<string>
      */
     public function blocked(Station $station, array $tokens, Settings $settings): array
     {
@@ -59,7 +59,7 @@ final readonly class Queue
     }
 
     /**
-     * @param array<array<string, mixed>> $rows Queue rows in AzuraCast's upcoming order.
+     * @param array<array<string, mixed>> $rows In AzuraCast's upcoming order.
      * @param list<int> $ids
      * @return list<string>
      */
@@ -104,11 +104,8 @@ final readonly class Queue
     }
 
     /**
-     * Excluded when the row's own playlist is selected, or a selected playlist (group) appears in its
-     * playlist chain; AzuraCast records the chain by playlist name.
-     *
      * @param list<int> $ids
-     * @param list<string> $names
+     * @param list<string> $names Playlist names; AzuraCast records the playlist chain by name.
      */
     public static function isExcluded(?int $playlistId, ?array $chain, array $ids, array $names): bool
     {
@@ -117,7 +114,7 @@ final readonly class Queue
     }
 
     /**
-     * @return list<string> Names of the station's playlists without sweepers.
+     * @return list<string>
      */
     public function excludedNames(Station $station, Settings $settings): array
     {
@@ -135,9 +132,6 @@ final readonly class Queue
             ->getSingleColumnResult());
     }
 
-    /**
-     * Whether a queued track comes from a playlist without sweepers.
-     */
     public function excluded(Station $station, string $token, Settings $settings): bool
     {
         if ($settings->excludedPlaylistIds === [] || !preg_match('/^\d{1,20}$/D', $token)) {
@@ -166,8 +160,6 @@ final readonly class Queue
     }
 
     /**
-     * Queue rows after the module's last counted track, in AzuraCast's play order.
-     *
      * @return list<array<string, mixed>>|null Null when the counted track is unknown.
      */
     public function upcoming(Station $station, string $counted): ?array
@@ -226,10 +218,7 @@ final readonly class Queue
         return $result;
     }
 
-    /**
-     * Exchanges the play order of two rows not yet sent to Liquidsoap. AzuraCast orders by cue time
-     * and recalculates the following times on its next queue build.
-     */
+    // AzuraCast orders by cue time and recalculates the following times on its next queue build.
     public function exchange(Station $station, int $first, int $second): bool
     {
         // A plain connection transaction: a lost race must not close the shared entity manager.

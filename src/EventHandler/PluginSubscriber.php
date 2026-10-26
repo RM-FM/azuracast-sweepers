@@ -87,10 +87,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
             ->add(Middleware\InjectSession::class);
     }
 
-    /**
-     * Loads the module on every station, regardless of the Enable switch, so that enabling needs no restart.
-     * Nothing here may prevent a station from starting.
-     */
+    // Loaded even while disabled, so enabling needs no restart. Must never prevent a station from starting.
     public function header(WriteLiquidsoapConfiguration $event): void
     {
         if ($event->isForEditing()) {
@@ -131,9 +128,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
         $event->replaceLine($crossfades[0], Module::WRAPPED_CROSSFADE);
     }
 
-    /**
-     * Last listener: if Liquidsoap rejects the configuration only because of the module, start without it.
-     */
+    // Runs last: if Liquidsoap rejects the configuration only because of the module, start without it.
     public function verify(WriteLiquidsoapConfiguration $event): void
     {
         $config = $event->buildConfiguration();
@@ -225,7 +220,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
 
     private function settings(WriteLiquidsoapConfiguration $event): Settings
     {
-        // No saved settings means a new installation and its defaults; damaged settings load the module disabled.
+        // Damaged settings load the module disabled; missing settings mean a new installation.
         $data = $this->read($event);
         try {
             return $data === null ? new Settings(enabled: false) : Settings::fromArray($data['settings'] ?? []);

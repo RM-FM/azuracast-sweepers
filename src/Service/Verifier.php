@@ -15,9 +15,6 @@ final readonly class Verifier
     ) {
     }
 
-    /**
-     * Type-checks a configuration with the station's Liquidsoap binary; returns the error, if any.
-     */
     public function check(string $config): ?string
     {
         try {
@@ -32,10 +29,7 @@ final readonly class Verifier
         }
     }
 
-    /**
-     * Identifies everything a check depends on: the configuration, the code it includes and the Liquidsoap
-     * binary. An AzuraCast upgrade can change included runtime code while the configuration text stays the same.
-     */
+    // An AzuraCast upgrade can change included runtime code while the configuration text stays the same.
     public function fingerprint(string $config): string
     {
         $parts = [$config, Module::version()];

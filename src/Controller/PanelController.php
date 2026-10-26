@@ -137,7 +137,7 @@ final readonly class PanelController
         ]);
         $rows = array_map(static fn(array $entry): array => [
             'at' => (float)$entry['at'],
-            // Tracks outside the media library (live, remote) keep the title the module reported.
+            // Live and remote tracks are not in the media library.
             'song' => $files[(int)($entry['song_id'] ?? 0)] ?? (($entry['title'] ?? '') !== '' ? [
                 'title' => $entry['title'],
                 'artist' => ($entry['artist'] ?? '') !== '' ? $entry['artist'] : null,
@@ -145,7 +145,7 @@ final readonly class PanelController
             ] : null),
             'sweeper' => $files[(int)($entry['jingle_id'] ?? 0)] ?? null,
             'offset' => isset($entry['offset']) ? (float)$entry['offset'] : null,
-            // Entries from before the timeline listed all tracks are played sweepers.
+            // Older entries only recorded played sweepers.
             'result' => (string)($entry['result'] ?? 'played'),
             'moved' => array_key_exists('moved_before', $entry),
             'moved_before' => $files[(int)($entry['moved_before'] ?? 0)] ?? null,
@@ -188,9 +188,6 @@ final readonly class PanelController
         return $response->withHeader('Cache-Control', 'no-store')->withJson(['rows' => $rows, 'limit' => 100]);
     }
 
-    /**
-     * Sweepers of an Advanced playlist with the cue range Liquidsoap plays, for the reverb preview.
-     */
     private function sweepers(Station $station, RouterInterface $router, string $playlist): array
     {
         if (!preg_match('/^[1-9]\d{0,9}$/D', $playlist)) {

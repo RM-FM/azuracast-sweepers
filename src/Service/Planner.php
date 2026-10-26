@@ -56,7 +56,6 @@ final readonly class Planner
             $fingerprint = hash('sha256', json_encode([
                 Media::identity($song), $intro, $settings->toArray(), $measurements,
             ], JSON_THROW_ON_ERROR));
-            // Why this song got no sweeper, for the playback timeline; the module reports the track start.
             $decide = static function (string $reason) use (&$data, $token): array {
                 $decisions = $data['decisions'] ?? [];
                 unset($decisions[$token]);
@@ -147,7 +146,6 @@ final readonly class Planner
                     'gain' => 10 ** ($timing->gainDb / 20) * $settings->jingleGain,
                     'duck_gain' => 10 ** ($settings->duckDb / 20),
                     'reverb' => $settings->reverbLevel(),
-                    // Playable sweeper length; the module extends the overlay by the reverb tail.
                     'length' => $timing->cueOut - $timing->cueIn,
                 ];
                 $data['plans'][$token] = [
@@ -232,10 +230,6 @@ final readonly class Planner
         ];
     }
 
-    /**
-     * Applies one module event. The playback timeline (log, newest first) gets one entry per started
-     * track; its result is a sweeper outcome or the reason why the track got no sweeper.
-     */
     public static function apply(array $data, array $event): array
     {
         $type = (string)($event['event'] ?? '');
@@ -244,7 +238,7 @@ final readonly class Planner
         $plan = $token === '' ? null : ($data['plans'][$token] ?? null);
         $log = $data['log'] ?? [];
         $index = null;
-        // Events are re-sent until acknowledged; recent entries identify a track by its queue token.
+        // Events are re-sent until acknowledged.
         foreach (array_slice($log, 0, 20, true) as $key => $entry) {
             if ($token !== '' && ($entry['token'] ?? null) === $token) {
                 $index = $key;
@@ -260,7 +254,7 @@ final readonly class Planner
                 '', 'none' => $data['decisions'][$token] ?? 'not_planned',
                 default => $detail,
             };
-            // The module had no reservation for a song the plugin planned: the sweeper could not be loaded.
+            // Planned, but the module held no reservation: loading the sweeper failed.
             $result = $result === 'planned' ? 'unavailable' : $result;
             $moved = $data['moved'][$token] ?? null;
             unset($data['moved'][$token], $data['decisions'][$token]);
@@ -280,7 +274,7 @@ final readonly class Planner
         }
         if ($type === 'release' && $detail !== '' && $token !== '') {
             if ($index === null) {
-                // Released before the track started: the start then reports "none" and uses this reason.
+                // The track has not started yet; its start event reports "none".
                 $data['decisions'][$token] = $detail;
             } elseif (($log[$index]['result'] ?? '') === 'scheduled') {
                 $data['log'][$index]['result'] = $detail;
@@ -304,7 +298,7 @@ final readonly class Planner
 
                 return $data;
             }
-            // Modules loaded before the timeline listed all tracks only report played sweepers.
+            // Older modules send no start events.
             $moved = $data['moved'][$token] ?? null;
             unset($data['moved'][$token]);
             $data['log'] = array_slice([[
