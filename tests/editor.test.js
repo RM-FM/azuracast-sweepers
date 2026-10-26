@@ -307,7 +307,7 @@ test("playback timeline lists all tracks, highlights songs with a sweeper and ex
             ["Played", "text-bg-success"], ["Missed", "text-bg-danger"], ["Played", "text-bg-success"],
         ], "Green for played, red when a due sweeper could not play, no tag for intended skips");
         assert.deepEqual(parts(all[0], 3), ["Sweeper coming up"], "The current song's sweeper is still pending");
-        assert.deepEqual(parts(all[1], 3), ["No intro set"]);
+        assert.deepEqual(parts(all[1], 3), ["No intro end set"]);
         assert.deepEqual(parts(all[2], 1), ["Dropin 01", "RadioMonster.FM"]);
         assert.deepEqual(parts(all[2], 3), ["Jingle"]);
         assert.deepEqual(parts(all[3], 1), ["Voulez-Vous", "ABBA", "↑ Moved ahead of Bohemian Rhapsody"]);

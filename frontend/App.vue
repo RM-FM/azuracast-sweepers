@@ -482,26 +482,26 @@ const timeline = computed(() => (onlySweepers.value
     : history.value));
 
 const reasons = {
-    no_intro: "No intro set",
-    intro_zero: "No intro (intro end 0 s)",
-    intro_before_cue: "Intro ends before the song's audio starts",
-    no_fit: "Intro too short for the sweepers",
-    repeat: "Only recently played sweepers fit",
-    no_sweepers: "No sweepers available",
-    jingle_follows: "A jingle follows",
-    excluded: "Playlist without sweepers",
+    no_intro: "No intro end set",
+    intro_zero: "No intro (vocals start immediately)",
+    intro_before_cue: "Intro ends in the silence before the song starts",
+    no_fit: "Intro too short for every sweeper",
+    repeat: "Only fitting sweeper played too recently",
+    no_sweepers: "No sweepers ready (empty playlist or not measured yet)",
+    jingle_follows: "A jingle follows soon",
+    excluded: "Playlist excluded from sweepers",
     after_jingle: "Too soon after a jingle",
     after_sweeper: "Too soon after a sweeper",
     jingle: "Jingle",
-    other: "Not an AutoDJ song",
-    live: "Live broadcast",
-    disabled: "Sweepers disabled",
-    late: "Started too late",
-    skipped: "Song ended before the sweeper",
-    settings: "Settings changed",
+    other: "Not from the AutoDJ queue",
+    live: "Live DJ on air",
+    disabled: "Sweepers switched off",
+    late: "Sweeper start missed (too late)",
+    skipped: "Song ended or was skipped before the sweeper",
+    settings: "Cancelled by a settings change",
     unavailable: "Sweeper could not be loaded",
-    error: "Planning failed",
-    not_planned: "Not planned",
+    error: "Planning error",
+    not_planned: "Not planned (station just started)",
 };
 
 function reasonText(entry) {
@@ -517,7 +517,7 @@ function isUpcoming(entry) {
 
 // Spacing rules and track types skip a sweeper by design; any other reason means a due sweeper could not play.
 const intendedSkips = new Set([
-    "jingle", "after_jingle", "after_sweeper", "jingle_follows", "excluded", "other", "live", "disabled",
+    "jingle", "after_jingle", "after_sweeper", "jingle_follows", "excluded", "other", "live", "disabled", "intro_zero",
 ]);
 
 function status(entry) {

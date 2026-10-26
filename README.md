@@ -114,11 +114,12 @@ after AzuraCast upgrades.
 The Playback Timeline lists every track the station actually played, as reported by
 the sweeper module when the track starts. **Sweeper Status** shows a green
 "Played" tag when a sweeper started (with the sweeper and its start offset), a red
-"Missed" tag when a sweeper was due but could not play (for example "No intro set",
-"Intro too short for the sweepers", "Only recently played sweepers fit" or "Song
-ended before the sweeper"), and no tag when the rules skip a sweeper by design
-("Too soon after a jingle", "A jingle follows", "Playlist without sweepers",
-jingles). The current song's pending sweeper is tagged "Upcoming". **Intro** shows the song's current intro end next to the sweeper's start time. **Only songs
+"Missed" tag when a sweeper was due but could not play (for example "No intro end
+set", "Intro too short for every sweeper", "Only fitting sweeper played too
+recently" or "Song ended or was skipped before the sweeper"), and no tag when the
+rules skip a sweeper by design ("Too soon after a jingle", "A jingle follows soon",
+"Playlist excluded from sweepers", "No intro (vocals start immediately)", jingles).
+The current song's pending sweeper is tagged "Upcoming". **Intro** shows the song's current intro end next to the sweeper's start time. **Only songs
 with a sweeper** filters the list. A song that **Move a song with an intro forward**
 brought ahead shows "Moved ahead of" the song it overtook. The newest 300
 tracks per station are kept in the plugin's station state file (`sweepers.json`);
