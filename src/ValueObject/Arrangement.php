@@ -12,6 +12,8 @@ final class Arrangement
      *     In AzuraCast's play order.
      * @param array{songs_since_jingle: int, songs_since_sweeper: int, previous_song: bool, previous_clear: bool} $gap
      * @param callable(int): bool $usable
+     * @param ?string $blocked Set when the next song needs a swap that is impossible: move_sequential,
+     *     move_jingle or move_none.
      * @return array{0: int, 1: int}|null
      */
     public static function choose(
@@ -19,8 +21,10 @@ final class Arrangement
         array $gap,
         Settings $settings,
         int $queueLength,
-        callable $usable
+        callable $usable,
+        ?string &$blocked = null
     ): ?array {
+        $blocked = null;
         $sinceJingle = $gap['songs_since_jingle'];
         $sinceSweeper = $gap['songs_since_sweeper'];
         $previousSong = $gap['previous_song'];
@@ -56,16 +60,27 @@ final class Arrangement
                 continue;
             }
 
-            if (!$allowed || !self::movable($row, $song, $settings) || $usable((int)$row['media_id'])) {
+            if (!$allowed || ($row['excluded'] ?? false) || $usable((int)$row['media_id'])) {
+                return null;
+            }
+            if (!self::movable($row, $song, $settings)) {
+                $blocked = $row['playlist_order'] === 'sequential' ? 'move_sequential' : null;
+
                 return null;
             }
             $count = count($rows);
             for ($next = $index + 1; $next < $count; $next++) {
                 $candidate = $rows[$next];
                 if (
-                    $candidate['sent'] || !self::movable($candidate, $isSong($candidate), $settings)
+                    $candidate['sent'] || !$isSong($candidate) || ($candidate['excluded'] ?? false)
                     || !$usable((int)$candidate['media_id'])
                 ) {
+                    continue;
+                }
+                if (!self::movable($candidate, true, $settings)) {
+                    if ($candidate['playlist_order'] === 'sequential') {
+                        $blocked ??= 'move_sequential';
+                    }
                     continue;
                 }
                 $order = $rows;
@@ -74,11 +89,14 @@ final class Arrangement
                 $lookahead = min($settings->songsBeforeJingle, $queueLength);
                 $following = $lookahead > 0 ? array_slice($order, $index + 1, $lookahead) : [];
                 if (array_filter($following, $isJingle) !== []) {
+                    $blocked ??= 'move_jingle';
                     continue;
                 }
+                $blocked = null;
 
                 return [$row['id'], $candidate['id']];
             }
+            $blocked ??= 'move_none';
 
             return null;
         }

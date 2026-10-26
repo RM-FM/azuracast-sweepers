@@ -118,10 +118,13 @@ the sweeper module when the track starts. **Sweeper Status** shows a green
 set", "Intro too short for every sweeper", "Only fitting sweeper played too
 recently" or "Song ended or was skipped before the sweeper"), and no tag when the
 rules skip a sweeper by design ("Too soon after a jingle", "A jingle follows soon",
-"Playlist excluded from sweepers", "No intro (vocals start immediately)", jingles).
-The current song's pending sweeper is tagged "Upcoming". **Intro** shows the song's current intro end next to the sweeper's start time. **Only songs
+"Playlist excluded from sweepers", "No intro" for a 0 s intro end, jingles).
+The current song's pending sweeper is tagged "Upcoming". **Intro** shows the song's current intro end next to the sweeper's start time;
+click it (or **Set** when none is known) to open the intro editor on that song. **Only songs
 with a sweeper** filters the list. A song that **Move a song with an intro forward**
-brought ahead shows "Moved ahead of" the song it overtook. The newest 300
+brought ahead shows "Moved ahead of" the song it overtook. When a song needed a swap
+that was not possible, the reason follows: no queued song has a fitting intro, a
+jingle would follow too soon, or a sequential playlist keeps its order. The newest 300
 tracks per station are kept in the plugin's station state file (`sweepers.json`);
 deleted files remain listed as "Deleted file". Stations still running a module
 loaded before this version list only songs with a sweeper until broadcasting

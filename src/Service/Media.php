@@ -157,7 +157,7 @@ final readonly class Media
     }
 
     /**
-     * @return array<int, array{title: ?string, artist: ?string, path: string, intro: ?float}>
+     * @return array<int, array{id: int, title: ?string, artist: ?string, path: string, intro: ?float}>
      */
     public function describe(Station $station, array $ids): array
     {
@@ -178,6 +178,7 @@ final readonly class Media
         $result = [];
         foreach ($rows as $row) {
             $result[(int)$row['id']] = [
+                'id' => (int)$row['id'],
                 'title' => $row['title'],
                 'artist' => $row['artist'],
                 'path' => $row['path'],

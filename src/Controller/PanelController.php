@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Plugin\AzuracastSweepers\Controller;
 
 use App\Entity\Station;
+use App\Entity\StationMedia;
 use App\Http\Response;
 use App\Http\RouterInterface;
 use App\Http\ServerRequest;
@@ -150,6 +151,7 @@ final readonly class PanelController
             'result' => (string)($entry['result'] ?? 'played'),
             'moved' => array_key_exists('moved_before', $entry),
             'moved_before' => $files[(int)($entry['moved_before'] ?? 0)] ?? null,
+            'unmoved' => $entry['unmoved'] ?? null,
         ], $log);
 
         return $response->withHeader('Cache-Control', 'no-store')
@@ -165,28 +167,42 @@ final readonly class PanelController
             return $response->withHeader('Cache-Control', 'no-store')
                 ->withJson(['rows' => $this->sweepers($station, $router, (string)$playlist)]);
         }
-        $search = substr((string)$request->getQueryParam('search', ''), 0, 200);
-        $rows = [];
+        $id = $request->getQueryParam('id');
+        if ($id !== null) {
+            if (!preg_match('/^[1-9]\d{0,9}$/D', (string)$id)) {
+                throw new InvalidArgumentException('Invalid media ID.');
+            }
+            $media = $this->media->get($station, (int)$id);
 
-        foreach ($this->media->list($station, $search) as $media) {
-            $rows[] = [
-                'id' => $media->id,
-                'path' => $media->path,
-                'duration' => $media->length,
-                'intro_end' => $this->media->intro($media),
-                'audio_url' => $router->fromHere('api:stations:files:play', [
-                    'station_id' => $station->id,
-                    'id' => $media->id,
-                ]),
-                'waveform_url' => $router->fromHere('api:stations:media:waveform', [
-                    'station_id' => $station->id,
-                    'media_id' => $media->unique_id,
-                    'timestamp' => $media->art_updated_at,
-                ]),
-            ];
+            return $response->withHeader('Cache-Control', 'no-store')
+                ->withJson(['rows' => [$this->mediaRow($station, $router, $media)]]);
         }
+        $search = substr((string)$request->getQueryParam('search', ''), 0, 200);
+        $rows = array_map(
+            fn(StationMedia $media): array => $this->mediaRow($station, $router, $media),
+            $this->media->list($station, $search)
+        );
 
         return $response->withHeader('Cache-Control', 'no-store')->withJson(['rows' => $rows, 'limit' => 100]);
+    }
+
+    private function mediaRow(Station $station, RouterInterface $router, StationMedia $media): array
+    {
+        return [
+            'id' => $media->id,
+            'path' => $media->path,
+            'duration' => $media->length,
+            'intro_end' => $this->media->intro($media),
+            'audio_url' => $router->fromHere('api:stations:files:play', [
+                'station_id' => $station->id,
+                'id' => $media->id,
+            ]),
+            'waveform_url' => $router->fromHere('api:stations:media:waveform', [
+                'station_id' => $station->id,
+                'media_id' => $media->unique_id,
+                'timestamp' => $media->art_updated_at,
+            ]),
+        ];
     }
 
     private function sweepers(Station $station, RouterInterface $router, string $playlist): array

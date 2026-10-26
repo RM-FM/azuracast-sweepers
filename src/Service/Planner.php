@@ -261,7 +261,8 @@ final readonly class Planner
             // Planned, but the module held no reservation: loading the sweeper failed.
             $result = $result === 'planned' ? 'unavailable' : $result;
             $moved = $data['moved'][$token] ?? null;
-            unset($data['moved'][$token], $data['decisions'][$token]);
+            $unmoved = $data['unmoved'][$token]['reason'] ?? null;
+            unset($data['moved'][$token], $data['unmoved'][$token], $data['decisions'][$token]);
             $mediaId = (string)($event['media_id'] ?? '');
             $data['log'] = array_slice([[
                 'at' => microtime(true),
@@ -272,6 +273,7 @@ final readonly class Planner
                 'result' => $result,
                 'jingle_id' => $result === 'scheduled' ? ($plan['jingle_id'] ?? null) : null,
                 ...($moved === null ? [] : ['moved_before' => $moved['before'] ?? null]),
+                ...($unmoved === null ? [] : ['unmoved' => $unmoved]),
             ], ...$log], 0, self::LOG_LIMIT);
 
             return $data;

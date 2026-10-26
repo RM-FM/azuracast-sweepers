@@ -379,9 +379,15 @@
                                     <div class="timeline-title">{{ fileTitle(entry.sweeper) }}</div>
                                     <small v-if="fileArtist(entry.sweeper)" class="text-muted timeline-artist">{{ fileArtist(entry.sweeper) }}</small>
                                 </template>
-                                <span v-else class="text-muted timeline-reason">{{ reasonText(entry) }}</span>
+                                <template v-else>
+                                    <div class="text-muted timeline-reason">{{ reasonText(entry) }}</div>
+                                    <small v-if="unmovedReasons[entry.unmoved]" class="timeline-unmoved">{{ unmovedReasons[entry.unmoved] }}</small>
+                                </template>
                             </td>
-                            <td class="text-nowrap text-end text-muted">{{ seconds(entry.song?.intro) }}</td>
+                            <td class="text-nowrap text-end">
+                                <button v-if="entry.song?.id && entry.result !== 'jingle'" type="button" class="btn btn-sm btn-link timeline-intro" :aria-label="'Edit intro: ' + describe(entry.song)" title="Edit intro" @click="editIntro(entry.song.id)">{{ seconds(entry.song.intro) || 'Set' }} ✎</button>
+                                <span v-else class="text-muted">{{ seconds(entry.song?.intro) }}</span>
+                            </td>
                             <td class="text-nowrap text-end">{{ entry.result === 'played' ? seconds(entry.offset) : '' }}</td>
                         </tr>
                     </tbody>
@@ -483,7 +489,7 @@ const timeline = computed(() => (onlySweepers.value
 
 const reasons = {
     no_intro: "No intro end set",
-    intro_zero: "No intro (vocals start immediately)",
+    intro_zero: "No intro",
     intro_before_cue: "Intro ends in the silence before the song starts",
     no_fit: "Intro too short for every sweeper",
     repeat: "Only fitting sweeper played too recently",
@@ -508,8 +514,19 @@ function reasonText(entry) {
     if (entry.result === "scheduled") {
         return isUpcoming(entry) ? "Sweeper coming up" : "Sweeper did not start";
     }
-    return reasons[entry.result] ?? "No sweeper";
+    return reasons[result(entry)] ?? "No sweeper";
 }
+
+// Entries logged before intro_zero existed reported a 0 s intro as intro_before_cue.
+function result(entry) {
+    return entry.result === "intro_before_cue" && entry.song?.intro === 0 ? "intro_zero" : entry.result;
+}
+
+const unmovedReasons = {
+    move_none: "Not moved forward: no queued song has a fitting intro",
+    move_jingle: "Not moved forward: a jingle would follow too soon",
+    move_sequential: "Not moved forward: sequential playlist order",
+};
 
 function isUpcoming(entry) {
     return entry.result === "scheduled" && entry === history.value[0];
@@ -523,7 +540,7 @@ const intendedSkips = new Set([
 function status(entry) {
     if (entry.result === "played") return { label: "Played", class: "text-bg-success" };
     if (isUpcoming(entry)) return { label: "Upcoming", class: "text-bg-info" };
-    if (intendedSkips.has(entry.result)) return null;
+    if (intendedSkips.has(result(entry))) return null;
     return { label: "Missed", class: "text-bg-danger" };
 }
 
@@ -639,6 +656,21 @@ async function loadMedia() {
         const updated = rows.value.find((row) => row.id === selected.value?.id);
         if (updated) select(updated);
         else selected.value = null;
+    } catch (exception) {
+        error.value = exception.message;
+    }
+}
+
+async function editIntro(id) {
+    current.value = "intros";
+    notice.value = "";
+    try {
+        const [row] = (await api(`media?id=${encodeURIComponent(id)}`)).rows;
+        search.value = row.path;
+        rows.value = [row];
+        mediaLoaded.value = true;
+        page.value = 1;
+        select(row);
     } catch (exception) {
         error.value = exception.message;
     }

@@ -53,6 +53,11 @@ globalThis.fetch = async (url, options) => {
             { id: 31, title: "male", artist: "radiomonster.fm", path: "male.mp3", cue_in: 0.2, cue_out: 2.3, audio_url: "/play/31" },
             { id: 32, title: null, artist: null, path: "female.mp3", cue_in: 0, cue_out: 3, audio_url: "/play/32" },
         ] };
+    } else if (url.includes("/media?id=")) {
+        mediaLookups.push(url);
+        data = { rows: [
+            { id: 5, path: "queen.mp3", duration: 354, intro_end: null, audio_url: "/queen", waveform_url: "/wave/queen" },
+        ] };
     } else if (url.includes("/media?")) {
         data = { rows: [
             { id: 1, path: "First song", duration: 180, intro_end: 10, audio_url: "/first", waveform_url: "/wave/first" },
@@ -62,17 +67,20 @@ globalThis.fetch = async (url, options) => {
         data = { limit: 300, rows: [
             { at: 1792949000, offset: null, result: "scheduled", song: { artist: "Toto", title: "Africa", path: "africa.mp3" },
                 sweeper: null, moved: false, moved_before: null },
-            { at: 1792948500, offset: null, result: "no_intro", song: { artist: "Queen", title: "Bohemian Rhapsody", path: "queen.mp3" },
+            { at: 1792948500, offset: null, result: "no_intro", unmoved: "move_none",
+                song: { id: 5, artist: "Queen", title: "Bohemian Rhapsody", path: "queen.mp3", intro: null },
                 sweeper: null, moved: false, moved_before: null },
-            { at: 1792948200, offset: null, result: "jingle", song: { artist: "RadioMonster.FM", title: "Dropin 01", path: "dropin-01.mp3" },
+            { at: 1792948200, offset: null, result: "jingle", song: { id: 42, artist: "RadioMonster.FM", title: "Dropin 01", path: "dropin-01.mp3" },
                 sweeper: null, moved: false, moved_before: null },
-            { at: 1792948000, offset: 9.66, result: "played", song: { artist: "ABBA", title: "Voulez-Vous", path: "abba.mp3", intro: 12.25 },
+            { at: 1792948000, offset: 9.66, result: "played", song: { id: 7, artist: "ABBA", title: "Voulez-Vous", path: "abba.mp3", intro: 12.25 },
                 sweeper: { artist: "RadioMonster.FM", title: "Dropin 03 (no ads)", path: "dropin-03.mp3" },
                 moved: true, moved_before: { artist: "Queen", title: "Bohemian Rhapsody", path: "queen.mp3" } },
             { at: 1792947500, offset: null, result: "scheduled", song: { artist: "Wham!", title: "I'm Your Man", path: "wham.mp3" },
                 sweeper: null, moved: false, moved_before: null },
             { at: 1792947000, offset: 2, result: "played", song: { artist: null, title: null, path: "untagged.mp3" }, sweeper: null,
                 moved: false, moved_before: null },
+            { at: 1792946000, offset: null, result: "intro_before_cue", song: { id: 8, artist: "Sting", title: "Fragile", path: "sting.mp3", intro: 0 },
+                sweeper: null, moved: false, moved_before: null },
         ] };
     } else {
         writes.push({ url, options, body: JSON.parse(options.body) });
@@ -82,6 +90,7 @@ globalThis.fetch = async (url, options) => {
     return { ok: true, json: async () => data, arrayBuffer: async () => new ArrayBuffer(8) };
 };
 const previewRequests = [];
+const mediaLookups = [];
 const settle = async () => {
     await new Promise((resolve) => setImmediate(resolve));
     await nextTick();
@@ -292,34 +301,37 @@ test("playback timeline lists all tracks, highlights songs with a sweeper and ex
         assert.equal(document.querySelector("#sweepers-history-heading").textContent, "Sweeper Playback Timeline");
         const rows = () => [...document.querySelectorAll("#app tbody tr")];
         const cell = (row, column) => row.querySelectorAll("td")[column];
-        const parts = (row, column) => [...cell(row, column).querySelectorAll(".timeline-title, .timeline-artist, .timeline-moved, .timeline-reason")]
+        const parts = (row, column) => [...cell(row, column).querySelectorAll(".timeline-title, .timeline-artist, .timeline-moved, .timeline-reason, .timeline-unmoved")]
             .map((node) => node.textContent.replace(/\s+/g, " ").trim());
         const all = rows();
-        assert.equal(all.length, 6, "All played tracks are listed");
+        assert.equal(all.length, 7, "All played tracks are listed");
         assert.deepEqual(all.map((row) => row.className),
-            ["timeline-plain", "timeline-missed", "timeline-jingle", "timeline-played", "timeline-missed", "timeline-played"]);
+            ["timeline-plain", "timeline-missed", "timeline-jingle", "timeline-played", "timeline-missed", "timeline-played", "timeline-plain"]);
         const tag = (row) => {
             const badge = cell(row, 2).querySelector(".badge");
             return badge ? [badge.textContent.trim(), [...badge.classList].find((name) => name.startsWith("text-bg-"))] : null;
         };
         assert.deepEqual(all.map(tag), [
             ["Upcoming", "text-bg-info"], ["Missed", "text-bg-danger"], null,
-            ["Played", "text-bg-success"], ["Missed", "text-bg-danger"], ["Played", "text-bg-success"],
+            ["Played", "text-bg-success"], ["Missed", "text-bg-danger"], ["Played", "text-bg-success"], null,
         ], "Green for played, red when a due sweeper could not play, no tag for intended skips");
         assert.deepEqual(parts(all[0], 3), ["Sweeper coming up"], "The current song's sweeper is still pending");
-        assert.deepEqual(parts(all[1], 3), ["No intro end set"]);
+        assert.deepEqual(parts(all[1], 3), ["No intro end set", "Not moved forward: no queued song has a fitting intro"]);
         assert.deepEqual(parts(all[2], 1), ["Dropin 01", "RadioMonster.FM"]);
         assert.deepEqual(parts(all[2], 3), ["Jingle"]);
         assert.deepEqual(parts(all[3], 1), ["Voulez-Vous", "ABBA", "↑ Moved ahead of Bohemian Rhapsody"]);
         assert.equal(cell(all[3], 1).querySelector(".timeline-moved").getAttribute("title"), "Queen – Bohemian Rhapsody");
         assert.deepEqual(parts(all[3], 3), ["Dropin 03 (no ads)", "RadioMonster.FM"]);
-        assert.equal(cell(all[3], 4).textContent.trim(), "12.3 s", "The song's intro end is shown");
+        assert.equal(cell(all[3], 4).textContent.trim(), "12.3 s ✎", "The song's intro end is shown");
         assert.equal(cell(all[3], 5).textContent.trim(), "9.7 s");
-        assert.equal(cell(all[1], 4).textContent.trim(), "", "No intro end without an intro");
+        assert.equal(cell(all[1], 4).textContent.trim(), "Set ✎", "A missing intro end can be set");
+        assert.equal(cell(all[2], 4).querySelector("button"), null, "Jingles have no intro to edit");
         assert.equal(cell(all[1], 5).textContent.trim(), "", "No start time without a sweeper");
         assert.deepEqual(parts(all[4], 3), ["Sweeper did not start"]);
         assert.deepEqual(parts(all[5], 1), ["untagged.mp3"]);
         assert.deepEqual(parts(all[5], 3), ["Deleted file"]);
+        assert.deepEqual(parts(all[6], 3), ["No intro"], "A 0 s intro means no intro, also in older entries");
+        assert.equal(cell(all[6], 4).textContent.trim(), "0.0 s ✎");
         assert.equal(all[5].querySelector(".timeline-moved"), null, "Songs in their planned order are not marked");
         assert.deepEqual([...document.querySelectorAll("#app thead th")].map((th) => th.textContent.trim()),
             ["Time", "Track", "Sweeper Status", "Sweeper or reason", "Intro", "Started after"]);
@@ -332,6 +344,15 @@ test("playback timeline lists all tracks, highlights songs with a sweeper and ex
         await settle();
         assert.equal(rows().length, 2, "The filter shows only songs with a sweeper");
         assert.ok(rows().every((row) => row.className === "timeline-played"));
+        only.checked = false;
+        only.dispatchEvent(new Event("change", { bubbles: true }));
+        await settle();
+        cell(rows()[1], 4).querySelector("button").dispatchEvent(new Event("click", { bubbles: true }));
+        await settle();
+        assert.deepEqual(mediaLookups, ["/sweepers/1/media?id=5"]);
+        assert.equal(document.querySelector("article h2").textContent, "queen.mp3", "The intro editor opens on that song");
+        assert.equal(document.querySelector("#search").value, "queen.mp3");
+        assert.equal(input().value, "");
     } finally {
         app.unmount();
     }

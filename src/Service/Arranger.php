@@ -58,23 +58,32 @@ final readonly class Arranger
         $usable = function (int $mediaId) use ($station, $settings, $timings, &$known): bool {
             return $known[$mediaId] ??= $this->usable($station, $mediaId, $settings, $timings);
         };
-        $choice = Arrangement::choose($rows, $gap, $settings, Queue::length($station), $usable);
+        $choice = Arrangement::choose($rows, $gap, $settings, Queue::length($station), $usable, $blocked);
+        if ($blocked !== null) {
+            $next = current(array_filter($rows, static fn(array $row): bool => !$row['sent']));
+            $this->remember($station, 'unmoved', (string)$next['id'], ['reason' => $blocked]);
+        }
         if ($choice === null || !$this->queue->exchange($station, $choice[0], $choice[1])) {
             return $none;
         }
         $media = array_column($rows, 'media_id', 'id');
-        $this->state->update($station->getRadioConfigDir(), static function (array $data) use ($choice, $media): array {
-            $moved = array_filter(
-                $data['moved'] ?? [],
-                static fn(array $entry): bool => $entry['at'] > time() - 7200
+        $this->remember($station, 'moved', (string)$choice[1], ['before' => $media[$choice[0]] ?? null]);
+
+        return ['moved' => (string)$choice[1], 'before' => (string)$choice[0]];
+    }
+
+    private function remember(Station $station, string $key, string $token, array $entry): void
+    {
+        $this->state->update($station->getRadioConfigDir(), static function (array $data) use ($key, $token, $entry) {
+            $entries = array_filter(
+                $data[$key] ?? [],
+                static fn(array $old): bool => $old['at'] > time() - 7200
             );
-            $moved[(string)$choice[1]] = ['at' => time(), 'before' => $media[$choice[0]] ?? null];
-            $data['moved'] = array_slice($moved, -50, preserve_keys: true);
+            $entries[$token] = ['at' => time(), ...$entry];
+            $data[$key] = array_slice($entries, -50, preserve_keys: true);
 
             return $data;
         });
-
-        return ['moved' => (string)$choice[1], 'before' => (string)$choice[0]];
     }
 
     /**

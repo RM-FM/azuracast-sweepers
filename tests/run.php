@@ -265,8 +265,20 @@ check(
     'Nothing moves when the next song has a usable intro.'
 );
 check(
-    Arrangement::choose([$song(21), $song(22)], $due, $gapSettings, 3, $intros()) === null,
-    'Nothing moves when no queued song has an intro.'
+    Arrangement::choose([$song(21), $song(22)], $due, $gapSettings, 3, $intros(), $blocked) === null
+        && $blocked === 'move_none',
+    'Nothing moves when no queued song has an intro, and the reason is reported.'
+);
+check(
+    Arrangement::choose([$song(21), $song(22)], $due, $gapSettings, 3, $intros(21, 22), $blocked) === null
+        && $blocked === null,
+    'No reason is reported when no move is needed.'
+);
+$sequential = ['playlist_order' => 'sequential'];
+check(
+    Arrangement::choose([$song(21), $song(23, extra: $sequential)], $due, $gapSettings, 3, $intros(23), $blocked) === null
+        && $blocked === 'move_sequential',
+    'A sequential song with an intro is reported as the reason.'
 );
 $fresh = ['songs_since_jingle' => 0, 'songs_since_sweeper' => 5, 'previous_song' => false, 'previous_clear' => true];
 check(
@@ -282,7 +294,6 @@ check(
     Arrangement::choose([$song(20, true), $song(21), $song(22)], $due, $gapSettings, 3, $intros(22)) === [21, 22],
     'A sent song without sweeper keeps the sweeper due.'
 );
-$sequential = ['playlist_order' => 'sequential'];
 $withSequential = new Settings(playlistId: 9, songsAfterJingle: 1, songsAfterSweeper: 1, swapSequential: true);
 check(
     Arrangement::choose(
@@ -349,8 +360,9 @@ check(
         $due,
         new Settings(playlistId: 9, songsAfterJingle: 1, songsAfterSweeper: 1, songsBeforeJingle: 2),
         4,
-        $intros(22, 24)
-    ) === null,
+        $intros(22, 24),
+        $blocked
+    ) === null && $blocked === 'move_jingle',
     'A moved song must still respect the songs-before-a-jingle rule.'
 );
 check(
@@ -414,6 +426,11 @@ check(
 );
 $moved = Planner::apply(['moved' => ['13' => ['at' => 1, 'before' => 9]]], $start('13', 'none'));
 check($moved['log'][0]['moved_before'] === 9 && !isset($moved['moved']['13']), 'A moved song is marked when it starts.');
+$unmoved = Planner::apply(['unmoved' => ['14' => ['at' => 1, 'reason' => 'move_none']]], $start('14', 'none'));
+check(
+    $unmoved['log'][0]['unmoved'] === 'move_none' && !isset($unmoved['unmoved']['14']),
+    'A song that could not be moved forward records why.'
+);
 check(Settings::fromArray([])->sweeperGap === 1, 'At least one other sweeper plays before a repeat by default.');
 check(Settings::fromArray(['sweeper_gap' => 0])->sweeperGap === 0, 'Repeats can be allowed.');
 rejects(static fn() => Settings::fromArray(['sweeper_gap' => -1]));

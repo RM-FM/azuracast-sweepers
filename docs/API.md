@@ -36,9 +36,11 @@ The Playback Timeline page reads `GET /sweepers/{station_id}/history` (signed-in
 station Media permission). It returns `limit` (300) and `rows`, newest first, one per
 played track, each with `at` (Unix time when the track started; for entries recorded
 before all tracks were listed, when the sweeper started), `song` and `sweeper`
-(`title`, `artist`, `path`, `intro` with the current intro end in seconds or `null`; `null` for a deleted file), `result`, `offset`
+(`id`, `title`, `artist`, `path`, `intro` with the current intro end in seconds or `null`; `null` for a deleted file), `result`, `offset`
 (seconds after the song's cue-in when a sweeper played, otherwise `null`), `moved`
-(the song was moved forward) and `moved_before` (the overtaken song, or `null`).
+(the song was moved forward), `moved_before` (the overtaken song, or `null`) and
+`unmoved` (why a needed move was not possible: `move_none`, `move_jingle`,
+`move_sequential`, or `null`).
 `result` is `played`, `scheduled` (sweeper not started yet) or the reason for no
 sweeper: `no_intro`, `intro_zero`, `intro_before_cue`, `no_fit`, `repeat`, `no_sweepers`,
 `jingle_follows`, `excluded`, `after_jingle`, `after_sweeper`, `jingle`, `other`,
@@ -49,6 +51,8 @@ The reverb preview reads `GET /sweepers/{station_id}/media?playlist={playlist_id
 (same permissions). For an Advanced playlist of the station it returns `rows` with
 `id`, `title`, `artist`, `path`, `cue_in`/`cue_out` (the AutoCue range Liquidsoap
 plays) and `audio_url`. The browser applies the reflections itself; nothing is saved.
+`GET /sweepers/{station_id}/media?id={media_id}` returns that single library file in
+the Intros row format, so the timeline can open the intro editor on it.
 
 ## Using the native media API
 

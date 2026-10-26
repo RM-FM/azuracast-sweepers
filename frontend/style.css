@@ -179,7 +179,7 @@
 :root[data-bs-theme="dark"] .sweepers-page:not(.embedded) .card,
 :root[data-bs-theme="dark"] .sweepers-page:not(.embedded) .form-control,
 :root[data-bs-theme="dark"] .sweepers-page:not(.embedded) .form-select,
-:root[data-bs-theme="dark"] .sweepers-page:not(.embedded) .btn:not(.btn-primary) {
+:root[data-bs-theme="dark"] .sweepers-page:not(.embedded) .btn:not(.btn-primary):not(.btn-link) {
     color: #e2e6ec;
     background: #303540;
     border-color: #596273;
@@ -190,12 +190,23 @@
 }
 
 .sweepers-timeline .timeline-artist,
-.sweepers-timeline .timeline-moved {
+.sweepers-timeline .timeline-moved,
+.sweepers-timeline .timeline-unmoved {
     display: block;
 }
 
 .sweepers-timeline .timeline-moved {
     color: var(--bs-info-text-emphasis);
+}
+
+.sweepers-timeline .timeline-unmoved {
+    color: var(--bs-secondary-color);
+    font-style: italic;
+}
+
+.sweepers-timeline .timeline-intro {
+    padding: 0;
+    text-decoration: none;
 }
 
 .sweepers-timeline tr.timeline-played > td {
