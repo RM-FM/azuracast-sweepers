@@ -142,6 +142,7 @@ final readonly class PanelController
                 'title' => $entry['title'],
                 'artist' => ($entry['artist'] ?? '') !== '' ? $entry['artist'] : null,
                 'path' => '',
+                'intro' => null,
             ] : null),
             'sweeper' => $files[(int)($entry['jingle_id'] ?? 0)] ?? null,
             'offset' => isset($entry['offset']) ? (float)$entry['offset'] : null,

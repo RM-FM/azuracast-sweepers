@@ -66,7 +66,7 @@ globalThis.fetch = async (url, options) => {
                 sweeper: null, moved: false, moved_before: null },
             { at: 1792948200, offset: null, result: "jingle", song: { artist: "RadioMonster.FM", title: "Dropin 01", path: "dropin-01.mp3" },
                 sweeper: null, moved: false, moved_before: null },
-            { at: 1792948000, offset: 9.66, result: "played", song: { artist: "ABBA", title: "Voulez-Vous", path: "abba.mp3" },
+            { at: 1792948000, offset: 9.66, result: "played", song: { artist: "ABBA", title: "Voulez-Vous", path: "abba.mp3", intro: 12.25 },
                 sweeper: { artist: "RadioMonster.FM", title: "Dropin 03 (no ads)", path: "dropin-03.mp3" },
                 moved: true, moved_before: { artist: "Queen", title: "Bohemian Rhapsody", path: "queen.mp3" } },
             { at: 1792947500, offset: null, result: "scheduled", song: { artist: "Wham!", title: "I'm Your Man", path: "wham.mp3" },
@@ -291,14 +291,15 @@ test("playback timeline lists all tracks, highlights songs with a sweeper and ex
         assert.equal(document.querySelector("form.sweepers-settings"), null);
         assert.equal(document.querySelector("#sweepers-history-heading").textContent, "Sweeper Playback Timeline");
         const rows = () => [...document.querySelectorAll("#app tbody tr")];
-        const parts = (row, column) => [...row.querySelectorAll("td")[column].querySelectorAll(".timeline-title, .timeline-artist, .badge, .timeline-moved small, .timeline-reason")]
+        const cell = (row, column) => row.querySelectorAll("td")[column];
+        const parts = (row, column) => [...cell(row, column).querySelectorAll(".timeline-title, .timeline-artist, .timeline-moved, .timeline-reason")]
             .map((node) => node.textContent.replace(/\s+/g, " ").trim());
         const all = rows();
         assert.equal(all.length, 6, "All played tracks are listed");
         assert.deepEqual(all.map((row) => row.className),
-            ["timeline-plain", "timeline-plain", "timeline-jingle", "timeline-sweeper", "timeline-plain", "timeline-sweeper"]);
+            ["timeline-plain", "timeline-missed", "timeline-jingle", "timeline-played", "timeline-missed", "timeline-played"]);
         const tag = (row) => {
-            const badge = row.querySelectorAll("td")[2].querySelector(".badge");
+            const badge = cell(row, 2).querySelector(".badge");
             return badge ? [badge.textContent.trim(), [...badge.classList].find((name) => name.startsWith("text-bg-"))] : null;
         };
         assert.deepEqual(all.map(tag), [
@@ -307,26 +308,30 @@ test("playback timeline lists all tracks, highlights songs with a sweeper and ex
         ], "Green for played, red when a due sweeper could not play, no tag for intended skips");
         assert.deepEqual(parts(all[0], 3), ["Sweeper coming up"], "The current song's sweeper is still pending");
         assert.deepEqual(parts(all[1], 3), ["No intro set"]);
-        assert.deepEqual(parts(all[2], 1), ["Dropin 01 Jingle", "Jingle", "RadioMonster.FM"]);
+        assert.deepEqual(parts(all[2], 1), ["Dropin 01", "RadioMonster.FM"]);
         assert.deepEqual(parts(all[2], 3), ["Jingle"]);
-        assert.deepEqual(parts(all[3], 1), ["Voulez-Vous", "ABBA", "Moved forward", "ahead of Queen – Bohemian Rhapsody"]);
+        assert.deepEqual(parts(all[3], 1), ["Voulez-Vous", "ABBA", "↑ Moved ahead of Bohemian Rhapsody"]);
+        assert.equal(cell(all[3], 1).querySelector(".timeline-moved").getAttribute("title"), "Queen – Bohemian Rhapsody");
         assert.deepEqual(parts(all[3], 3), ["Dropin 03 (no ads)", "RadioMonster.FM"]);
-        assert.equal(all[3].querySelectorAll("td")[4].textContent.trim(), "9.7 s");
-        assert.equal(all[1].querySelectorAll("td")[4].textContent.trim(), "", "No start time without a sweeper");
+        assert.equal(cell(all[3], 4).textContent.trim(), "12.3 s", "The song's intro end is shown");
+        assert.equal(cell(all[3], 5).textContent.trim(), "9.7 s");
+        assert.equal(cell(all[1], 4).textContent.trim(), "", "No intro end without an intro");
+        assert.equal(cell(all[1], 5).textContent.trim(), "", "No start time without a sweeper");
         assert.deepEqual(parts(all[4], 3), ["Sweeper did not start"]);
         assert.deepEqual(parts(all[5], 1), ["untagged.mp3"]);
         assert.deepEqual(parts(all[5], 3), ["Deleted file"]);
         assert.equal(all[5].querySelector(".timeline-moved"), null, "Songs in their planned order are not marked");
         assert.deepEqual([...document.querySelectorAll("#app thead th")].map((th) => th.textContent.trim()),
-            ["Date/Time", "Track", "Sweeper Status", "Sweeper or reason", "Started after"]);
+            ["Time", "Track", "Sweeper Status", "Sweeper or reason", "Intro", "Started after"]);
         const text = document.querySelector("#app").textContent;
         assert.doesNotMatch(text, /All played tracks|newest first|last 300/);
         const only = document.getElementById("sweepers-only-played");
+        assert.ok(only.closest(".card-header"), "The filter sits in the header");
         only.checked = true;
         only.dispatchEvent(new Event("change", { bubbles: true }));
         await settle();
         assert.equal(rows().length, 2, "The filter shows only songs with a sweeper");
-        assert.ok(rows().every((row) => row.className === "timeline-sweeper"));
+        assert.ok(rows().every((row) => row.className === "timeline-played"));
     } finally {
         app.unmount();
     }

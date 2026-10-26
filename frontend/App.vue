@@ -336,55 +336,53 @@
         </section>
 
         <section v-if="!loading && current === 'history'" class="card mb-3" role="region" aria-labelledby="sweepers-history-heading">
-            <div class="card-header text-bg-primary d-flex justify-content-between align-items-center">
+            <div class="card-header text-bg-primary d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <h2 id="sweepers-history-heading" class="card-title mb-0">Sweeper Playback Timeline</h2>
-                <button class="btn btn-sm btn-outline-light" type="button" @click="loadHistory">Refresh</button>
-            </div>
-            <div class="card-body d-flex justify-content-end">
-                <div class="form-check form-switch mb-0">
-                    <input id="sweepers-only-played" v-model="onlySweepers" class="form-check-input" type="checkbox" role="switch">
-                    <label class="form-check-label" for="sweepers-only-played">Only songs with a sweeper</label>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="form-check form-switch mb-0">
+                        <input id="sweepers-only-played" v-model="onlySweepers" class="form-check-input" type="checkbox" role="switch">
+                        <label class="form-check-label" for="sweepers-only-played">Only songs with a sweeper</label>
+                    </div>
+                    <button class="btn btn-sm btn-outline-light" type="button" @click="loadHistory">Refresh</button>
                 </div>
             </div>
             <div class="table-responsive">
                 <table class="table align-middle table-hover mb-0 sweepers-timeline">
                     <thead>
                         <tr>
-                            <th scope="col">Date/Time</th>
+                            <th scope="col">Time</th>
                             <th scope="col">Track</th>
                             <th scope="col">Sweeper Status</th>
                             <th scope="col">Sweeper or reason</th>
+                            <th scope="col" class="text-end">Intro</th>
                             <th scope="col" class="text-end">Started after</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-for="entry in timeline" :key="entry.at" :class="rowClass(entry)">
                             <td class="text-nowrap">
-                                <div>{{ formatDate(entry.at) }}</div>
-                                <small class="text-muted">{{ formatClock(entry.at) }}</small>
+                                <div>{{ formatClock(entry.at) }}</div>
+                                <small class="text-muted">{{ formatDate(entry.at) }}</small>
                             </td>
                             <td class="file-name">
-                                <div class="timeline-title">
-                                    {{ fileTitle(entry.song) }}
-                                    <span v-if="entry.result === 'jingle'" class="badge text-bg-secondary ms-1">Jingle</span>
-                                </div>
+                                <div class="timeline-title">{{ fileTitle(entry.song) }}</div>
                                 <small v-if="fileArtist(entry.song)" class="text-muted timeline-artist">{{ fileArtist(entry.song) }}</small>
-                                <div v-if="entry.moved" class="timeline-moved">
-                                    <span class="badge text-bg-info">Moved forward</span>
-                                    <small class="text-muted">{{ entry.moved_before ? 'ahead of ' + describe(entry.moved_before) : 'ahead of a song without intro' }}</small>
-                                </div>
+                                <small v-if="entry.moved" class="timeline-moved" :title="entry.moved_before ? describe(entry.moved_before) : ''">
+                                    ↑ Moved ahead of {{ entry.moved_before ? fileTitle(entry.moved_before) : 'a song without intro' }}
+                                </small>
                             </td>
-                            <td class="text-nowrap timeline-status">
-                                <span v-if="status(entry)" class="badge" :class="status(entry).class">{{ status(entry).label }}</span>
+                            <td class="text-nowrap">
+                                <span v-if="status(entry)" class="badge rounded-pill" :class="status(entry).class">{{ status(entry).label }}</span>
                             </td>
                             <td class="file-name">
                                 <template v-if="entry.result === 'played'">
                                     <div class="timeline-title">{{ fileTitle(entry.sweeper) }}</div>
                                     <small v-if="fileArtist(entry.sweeper)" class="text-muted timeline-artist">{{ fileArtist(entry.sweeper) }}</small>
                                 </template>
-                                <small v-else class="text-muted timeline-reason">{{ reasonText(entry) }}</small>
+                                <span v-else class="text-muted timeline-reason">{{ reasonText(entry) }}</span>
                             </td>
-                            <td class="text-nowrap text-end">{{ entry.result === 'played' && entry.offset !== null ? entry.offset.toFixed(1) + ' s' : '' }}</td>
+                            <td class="text-nowrap text-end text-muted">{{ seconds(entry.song?.intro) }}</td>
+                            <td class="text-nowrap text-end">{{ entry.result === 'played' ? seconds(entry.offset) : '' }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -529,8 +527,13 @@ function status(entry) {
 }
 
 function rowClass(entry) {
-    if (entry.result === "played") return "timeline-sweeper";
-    return entry.result === "jingle" ? "timeline-jingle" : "timeline-plain";
+    if (entry.result === "played") return "timeline-played";
+    if (entry.result === "jingle") return "timeline-jingle";
+    return status(entry)?.label === "Missed" ? "timeline-missed" : "timeline-plain";
+}
+
+function seconds(value) {
+    return typeof value === "number" ? `${value.toFixed(1)} s` : "";
 }
 
 async function loadHistory() {

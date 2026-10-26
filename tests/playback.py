@@ -49,8 +49,10 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
     tone(root / 'sweeper.wav', 880, .5 if short_tracks else 2)
     # A sweeper file with leading and trailing silence, for AutoCue measurement.
     tone(root / 'cued.wav', 660, 2, silence_before=.5, silence_after=1.)
+    tone(root / 'warmup.wav', 440, 0, silence_after=.1)
     calls = []
     song_requests = 0
+    warmed_up = False
     heartbeat_requests = 0
     initial_settings = dict(enabled=args.scenario != 'hot-enable', revision='initial',
                             songs_after_jingle=1 if spacing else 0, songs_after_sweeper=1 if spacing else 0,
@@ -64,8 +66,12 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
         def do_POST(self):
             body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
             calls.append((self.path, json.loads(body) if body else None, time.monotonic()))
-            global song_requests, heartbeat_requests
-            if self.path == '/nextsong':
+            global song_requests, heartbeat_requests, warmed_up
+            if self.path == '/nextsong' and not warmed_up:
+                # Liquidsoap 2.4 may fetch twice at startup and drop the first request; it drops this one.
+                warmed_up = True
+                value = {'uri': f'annotate:liq_disable_autocue="true",liq_cue_in="0",liq_cue_out="0.1":{root}/warmup.wav'}
+            elif self.path == '/nextsong':
                 song_requests += 1
                 token = str(122 + song_requests) if short_tracks else ('123' if song_requests == 1 else '124')
                 jingle = ('jingle_mode="true",' if args.scenario == 'spacing' else 'playlist_id="7",') if spacing and song_requests <= 2 else ''

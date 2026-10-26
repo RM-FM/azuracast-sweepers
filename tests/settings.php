@@ -133,8 +133,8 @@ namespace Plugin\AzuracastSweepers\Service {
         public function describe(\App\Entity\Station $station, array $ids): array
         {
             $files = [
-                7 => ['title' => 'Voulez-Vous', 'artist' => 'ABBA', 'path' => 'abba.mp3'],
-                42 => ['title' => 'Dropin 03', 'artist' => 'RadioMonster.FM', 'path' => 'dropin.mp3'],
+                7 => ['title' => 'Voulez-Vous', 'artist' => 'ABBA', 'path' => 'abba.mp3', 'intro' => 12.5],
+                42 => ['title' => 'Dropin 03', 'artist' => 'RadioMonster.FM', 'path' => 'dropin.mp3', 'intro' => null],
             ];
 
             return array_intersect_key($files, array_flip(array_map('intval', $ids)));
@@ -401,10 +401,11 @@ namespace {
         )->getBody(), true, flags: JSON_THROW_ON_ERROR);
         expect($history['limit'] === 300 && count($history['rows']) === 3, 'History endpoint returns the log.');
         expect(
-            $history['rows'][0]['song'] === ['title' => 'Live show', 'artist' => null, 'path' => '']
+            $history['rows'][0]['song'] === ['title' => 'Live show', 'artist' => null, 'path' => '', 'intro' => null]
                 && $history['rows'][0]['result'] === 'other' && $history['rows'][0]['sweeper'] === null,
             'Tracks outside the library keep their reported title and reason.'
         );
+        expect($history['rows'][1]['song']['intro'] === 12.5, 'The song intro end is included.');
         expect($history['rows'][1]['song']['artist'] === 'ABBA' && $history['rows'][1]['offset'] === 9.66, 'Song and offset.');
         expect($history['rows'][1]['sweeper']['title'] === 'Dropin 03', 'Sweeper name.');
         expect($history['rows'][1]['result'] === 'played', 'Earlier entries are played sweepers.');

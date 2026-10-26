@@ -134,6 +134,14 @@ namespace {
             throw new RuntimeException('Cue updates created duplicate fields.');
         }
     }
+    $blank = new StationMedia();
+    $blank->id = 2;
+    $em->persist($blank);
+    $em->flush();
+    $mediaService->saveIntro($blank, null);
+    if ($mediaService->intros([1, 2, 3]) !== [1 => 14.0] || $mediaService->intros([]) !== []) {
+        throw new RuntimeException('Intro lookup returned ' . json_encode($mediaService->intros([1, 2, 3])));
+    }
     try {
         $mediaService->saveIntro($recording, 999.0);
         throw new RuntimeException('An out-of-file cue was accepted.');
@@ -144,5 +152,5 @@ namespace {
     if ($value !== '14') {
         throw new RuntimeException('Invalid cue changed the saved value.');
     }
-    echo "Single-field intro updates preserve other custom fields.\n";
+    echo "Single-field intro updates preserve other custom fields; intro lookup lists only songs with one.\n";
 }

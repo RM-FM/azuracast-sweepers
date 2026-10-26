@@ -36,7 +36,7 @@ The Playback Timeline page reads `GET /sweepers/{station_id}/history` (signed-in
 station Media permission). It returns `limit` (300) and `rows`, newest first, one per
 played track, each with `at` (Unix time when the track started; for entries recorded
 before all tracks were listed, when the sweeper started), `song` and `sweeper`
-(`title`, `artist`, `path`, or `null` for a deleted file), `result`, `offset`
+(`title`, `artist`, `path`, `intro` with the current intro end in seconds or `null`; `null` for a deleted file), `result`, `offset`
 (seconds after the song's cue-in when a sweeper played, otherwise `null`), `moved`
 (the song was moved forward) and `moved_before` (the overtaken song, or `null`).
 `result` is `played`, `scheduled` (sweeper not started yet) or the reason for no

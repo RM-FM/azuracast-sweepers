@@ -157,7 +157,7 @@ final readonly class Media
     }
 
     /**
-     * @return array<int, array{title: ?string, artist: ?string, path: string}>
+     * @return array<int, array{title: ?string, artist: ?string, path: string, intro: ?float}>
      */
     public function describe(Station $station, array $ids): array
     {
@@ -174,12 +174,49 @@ final readonly class Media
             ->setParameter('ids', $ids)
             ->getQuery()
             ->getArrayResult();
+        $intros = $this->intros($ids);
         $result = [];
         foreach ($rows as $row) {
-            $result[(int)$row['id']] = ['title' => $row['title'], 'artist' => $row['artist'], 'path' => $row['path']];
+            $result[(int)$row['id']] = [
+                'title' => $row['title'],
+                'artist' => $row['artist'],
+                'path' => $row['path'],
+                'intro' => $intros[(int)$row['id']] ?? null,
+            ];
         }
 
         return $result;
+    }
+
+    /**
+     * @param list<int> $ids
+     * @return array<int, float>
+     */
+    public function intros(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+        $rows = $this->em->createQuery(
+            <<<'DQL'
+                SELECT m.id, m.length, v.value FROM App\Entity\StationMediaCustomField v
+                JOIN v.field f JOIN v.media m
+                WHERE f.short_name = 'intro_end' AND m.id IN (:ids)
+            DQL
+        )->setParameter('ids', $ids)->getArrayResult();
+        $intros = [];
+        foreach ($rows as $row) {
+            try {
+                $intro = self::parseIntro($row['value'], (float)$row['length']);
+            } catch (InvalidArgumentException) {
+                $intro = null;
+            }
+            if ($intro !== null) {
+                $intros[(int)$row['id']] = $intro;
+            }
+        }
+
+        return $intros;
     }
 
     public function list(Station $station, string $search): array

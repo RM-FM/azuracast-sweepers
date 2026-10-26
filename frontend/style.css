@@ -189,35 +189,33 @@
     font-weight: 600;
 }
 
-.sweepers-timeline .timeline-artist {
+.sweepers-timeline .timeline-artist,
+.sweepers-timeline .timeline-moved {
     display: block;
 }
 
 .sweepers-timeline .timeline-moved {
-    margin-top: .25rem;
+    color: var(--bs-info-text-emphasis);
 }
 
-.sweepers-timeline .timeline-moved .badge {
-    margin-right: .25rem;
+.sweepers-timeline tr.timeline-played > td {
+    background-color: rgba(var(--bs-success-rgb), .1);
 }
 
-.sweepers-timeline tr.timeline-sweeper > td {
-    background-color: rgba(var(--bs-success-rgb), .12);
-}
-
-.sweepers-timeline tr.timeline-sweeper > td:first-child {
+.sweepers-timeline tr.timeline-played > td:first-child {
     box-shadow: inset 4px 0 0 var(--bs-success);
 }
 
+.sweepers-timeline tr.timeline-missed > td:first-child {
+    box-shadow: inset 4px 0 0 var(--bs-danger);
+}
+
 .sweepers-timeline tr.timeline-plain .timeline-title,
+.sweepers-timeline tr.timeline-missed .timeline-title,
 .sweepers-timeline tr.timeline-jingle .timeline-title {
     font-weight: 400;
 }
 
 .sweepers-timeline tr.timeline-jingle > td {
-    opacity: .7;
-}
-
-.sweepers-timeline .timeline-reason {
-    font-style: italic;
+    opacity: .6;
 }

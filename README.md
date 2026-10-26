@@ -77,7 +77,7 @@ pages that open inside the station dashboard:
 | --- | --- |
 | **Settings** | All sweeper settings, the module status and per-setting help |
 | **Intros** | Search songs and set their intro end on a waveform |
-| **Playback Timeline** | All played tracks with a sweeper status (played, missed with reason, or skipped by the rules), start offset and moved songs |
+| **Playback Timeline** | All played tracks with a sweeper status (played, missed with reason, or skipped by the rules), intro end, start offset and moved songs |
 
 The group appears for users with station Media permission, even when Media is collapsed.
 Direct standalone access at `/sweepers/1` (replace `1` with the station ID) remains
@@ -118,9 +118,9 @@ the sweeper module when the track starts. **Sweeper Status** shows a green
 "Intro too short for the sweepers", "Only recently played sweepers fit" or "Song
 ended before the sweeper"), and no tag when the rules skip a sweeper by design
 ("Too soon after a jingle", "A jingle follows", "Playlist without sweepers",
-jingles). The current song's pending sweeper is tagged "Upcoming". **Only songs
+jingles). The current song's pending sweeper is tagged "Upcoming". **Intro** shows the song's current intro end next to the sweeper's start time. **Only songs
 with a sweeper** filters the list. A song that **Move a song with an intro forward**
-brought ahead is marked "Moved forward", with the song it overtook. The newest 300
+brought ahead shows "Moved ahead of" the song it overtook. The newest 300
 tracks per station are kept in the plugin's station state file (`sweepers.json`);
 deleted files remain listed as "Deleted file". Stations still running a module
 loaded before this version list only songs with a sweeper until broadcasting
