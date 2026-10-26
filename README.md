@@ -44,17 +44,18 @@ services:
       - ./plugins/azuracast-sweepers:/var/azuracast/www/plugins/azuracast-sweepers:ro
 ```
 
-Then run `docker compose up -d` in `/var/azuracast`; this briefly interrupts broadcasting.
+Then run `docker compose up -d` in `/var/azuracast`. This briefly interrupts broadcasting
+and loads the plugin's Liquidsoap module on all stations.
 
 ## Setup
 
 1. Create an **Advanced** playlist with your sweepers (Advanced keeps them out of the
    normal rotation).
 2. Open **Sweepers → Settings** in the station sidebar (below Media), select the
-   playlist and save.
-3. Restart broadcasting once per station. This loads the plugin's Liquidsoap module; the
-   Settings page shows whether it runs. Later settings changes need no restart.
-4. Set the intro ends (see [Intro end](#intro-end)).
+   playlist and save. The page also shows whether the module runs on the station.
+3. Set the intro ends (see [Intro end](#intro-end)).
+
+Settings apply live; no restart is needed.
 
 The pages need station Media permission; changing settings also needs Broadcasting
 permission.
@@ -211,9 +212,10 @@ Rename the file back and restart `web` to enable it again.
 
 ## Removal
 
-Disable sweepers, remove the plugin and its Compose override entries, then restart
-broadcasting on each station. The plugin creates no database tables; `intro_end` and
-the station file `sweepers.json` stay in place until you delete them.
+Disable sweepers, remove the plugin's entries from the Compose override and run
+`docker compose up -d`; the stations then start without the module. Afterwards delete
+the plugin directory. The plugin creates no database tables; `intro_end` and the
+station file `sweepers.json` stay in place until you delete them.
 
 ## Development
 
