@@ -340,27 +340,34 @@
                 <h2 id="sweepers-history-heading" class="card-title mb-0">Sweeper Playback Timeline</h2>
                 <button class="btn btn-sm btn-outline-light" type="button" @click="loadHistory">Refresh</button>
             </div>
-            <div class="card-body">
-                <p class="text-muted mb-0">Songs that played with a sweeper.</p>
+            <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <p class="text-muted mb-0">All played tracks. Songs with a sweeper are highlighted; for the others the reason is shown.</p>
+                <div class="form-check form-switch mb-0">
+                    <input id="sweepers-only-played" v-model="onlySweepers" class="form-check-input" type="checkbox" role="switch">
+                    <label class="form-check-label" for="sweepers-only-played">Only songs with a sweeper</label>
+                </div>
             </div>
             <div class="table-responsive">
-                <table class="table align-middle table-striped table-hover mb-0 sweepers-timeline">
+                <table class="table align-middle table-hover mb-0 sweepers-timeline">
                     <thead>
                         <tr>
                             <th scope="col">Date/Time</th>
-                            <th scope="col">Song</th>
+                            <th scope="col">Track</th>
                             <th scope="col">Sweeper</th>
                             <th scope="col" class="text-end">Started after</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="entry in history" :key="entry.at">
+                        <tr v-for="entry in timeline" :key="entry.at" :class="rowClass(entry)">
                             <td class="text-nowrap">
                                 <div>{{ formatDate(entry.at) }}</div>
                                 <small class="text-muted">{{ formatClock(entry.at) }}</small>
                             </td>
                             <td class="file-name">
-                                <div class="timeline-title">{{ fileTitle(entry.song) }}</div>
+                                <div class="timeline-title">
+                                    {{ fileTitle(entry.song) }}
+                                    <span v-if="entry.result === 'jingle'" class="badge text-bg-secondary ms-1">Jingle</span>
+                                </div>
                                 <small v-if="fileArtist(entry.song)" class="text-muted timeline-artist">{{ fileArtist(entry.song) }}</small>
                                 <div v-if="entry.moved" class="timeline-moved">
                                     <span class="badge text-bg-info">Moved forward</span>
@@ -368,15 +375,18 @@
                                 </div>
                             </td>
                             <td class="file-name">
-                                <div class="timeline-title">{{ fileTitle(entry.sweeper) }}</div>
-                                <small v-if="fileArtist(entry.sweeper)" class="text-muted timeline-artist">{{ fileArtist(entry.sweeper) }}</small>
+                                <template v-if="entry.result === 'played'">
+                                    <div class="timeline-title"><span class="badge text-bg-success">Sweeper</span> {{ fileTitle(entry.sweeper) }}</div>
+                                    <small v-if="fileArtist(entry.sweeper)" class="text-muted timeline-artist">{{ fileArtist(entry.sweeper) }}</small>
+                                </template>
+                                <small v-else class="text-muted timeline-reason">{{ reasonText(entry) }}</small>
                             </td>
-                            <td class="text-nowrap text-end">{{ entry.offset === null ? '–' : entry.offset.toFixed(1) + ' s' }}</td>
+                            <td class="text-nowrap text-end">{{ entry.result === 'played' && entry.offset !== null ? entry.offset.toFixed(1) + ' s' : '' }}</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-            <div v-if="!history.length" class="card-body text-muted">No sweeper has played yet.</div>
+            <div v-if="!timeline.length" class="card-body text-muted">{{ onlySweepers ? 'No sweeper has played yet.' : 'No track has been recorded yet.' }}</div>
         </section>
     </div>
 </template>
@@ -465,6 +475,45 @@ function fileTitle(file) {
 
 function fileArtist(file) {
     return file?.title ? file.artist || "" : "";
+}
+
+const onlySweepers = ref(false);
+const timeline = computed(() => (onlySweepers.value
+    ? history.value.filter((entry) => entry.result === "played")
+    : history.value));
+
+const reasons = {
+    no_intro: "No intro set",
+    intro_before_cue: "Intro ends before the song starts",
+    no_fit: "Intro too short for the sweepers",
+    repeat: "Only recently played sweepers fit",
+    no_sweepers: "No sweepers available",
+    jingle_follows: "A jingle follows",
+    excluded: "Playlist without sweepers",
+    after_jingle: "Too soon after a jingle",
+    after_sweeper: "Too soon after a sweeper",
+    jingle: "Jingle",
+    other: "Not an AutoDJ song",
+    live: "Live broadcast",
+    disabled: "Sweepers disabled",
+    late: "Started too late",
+    skipped: "Song ended before the sweeper",
+    settings: "Settings changed",
+    unavailable: "Sweeper could not be loaded",
+    error: "Planning failed",
+    not_planned: "Not planned",
+};
+
+function reasonText(entry) {
+    if (entry.result === "scheduled") {
+        return entry === history.value[0] ? "Sweeper coming up" : "Sweeper did not start";
+    }
+    return reasons[entry.result] ?? "No sweeper";
+}
+
+function rowClass(entry) {
+    if (entry.result === "played") return "timeline-sweeper";
+    return entry.result === "jingle" ? "timeline-jingle" : "timeline-plain";
 }
 
 async function loadHistory() {

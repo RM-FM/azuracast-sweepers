@@ -33,12 +33,17 @@ single-field body. This route requires a signed-in session, station Media permis
 and the `sweepers` CSRF token in `X-CSRF-Token`. It calls the same save operation.
 
 The Playback Timeline page reads `GET /sweepers/{station_id}/history` (signed-in session,
-station Media permission). It returns `limit` (200) and `rows`, newest first, each
-with `at` (Unix time when the sweeper started), `song` and `sweeper` (`title`,
-`artist`, `path`, or `null` for a deleted file), `offset` (seconds after the
-song's cue-in, or `null`), `moved` (the song was moved forward for this sweeper)
-and `moved_before` (the overtaken song, or `null`). Only sweepers that actually
-started playing are recorded.
+station Media permission). It returns `limit` (300) and `rows`, newest first, one per
+played track, each with `at` (Unix time when the track started; for entries recorded
+before all tracks were listed, when the sweeper started), `song` and `sweeper`
+(`title`, `artist`, `path`, or `null` for a deleted file), `result`, `offset`
+(seconds after the song's cue-in when a sweeper played, otherwise `null`), `moved`
+(the song was moved forward) and `moved_before` (the overtaken song, or `null`).
+`result` is `played`, `scheduled` (sweeper not started yet) or the reason for no
+sweeper: `no_intro`, `intro_before_cue`, `no_fit`, `repeat`, `no_sweepers`,
+`jingle_follows`, `excluded`, `after_jingle`, `after_sweeper`, `jingle`, `other`,
+`live`, `disabled`, `late`, `skipped`, `settings`, `unavailable`, `error` or
+`not_planned`.
 
 The reverb preview reads `GET /sweepers/{station_id}/media?playlist={playlist_id}`
 (same permissions). For an Advanced playlist of the station it returns `rows` with
@@ -90,6 +95,12 @@ and still report actual playback. Heartbeats continue while sweepers are disable
 Each heartbeat request includes the running module `version`; the plugin records it
 at most every 30 seconds so the panel can tell whether the module runs, is outdated
 or still needs the one-time restart after installation or update.
+
+Heartbeat `events` carry `event`, `token`, `detail`, `media_id`, `title` and
+`artist`. `start` is sent once per started track with the module's outcome in
+`detail` (`scheduled`, a reason such as `after_jingle`, or `none` when the plugin
+decided at planning time); `played` marks an actual sweeper start; `release` frees
+a reservation, with the reason in `detail` when the sweeper did not play.
 
 ## Panel rotation settings
 

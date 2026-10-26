@@ -81,14 +81,29 @@ def sweepers.current(token, revision) =
     s.enabled and revision == s.revision and not list.mem(token, sweepers.blocked())
 end
 
-def sweepers.notify(event, token) =
+# Why a reserved sweeper is no longer current (see sweepers.current).
+def sweepers.stale_reason(token) =
+    if list.mem(token, sweepers.blocked()) then "jingle_follows"
+    elsif not sweepers.settings().enabled then "disabled"
+    else "settings" end
+end
+
+def sweepers.event(event, token, detail, m) =
+    sweepers.events := list.prefix(128, [{
+        event=event, token=token, detail=detail,
+        media_id=m["media_id"], title=m["title"], artist=m["artist"]
+    }, ...sweepers.events()])
+end
+
+# detail: why a reserved sweeper was released without playing; shown in the playback timeline.
+def sweepers.notify(~detail="", event, token) =
     if token != "" then
         if event == "played" then
             log(label="sweepers", "Sweeper started for queue #{token}")
             sweepers.songs_since_sweeper := 0
             sweepers.previous_clear := false
         end
-        sweepers.events := list.prefix(128, [{event=event, token=token}, ...sweepers.events()])
+        sweepers.event(event, token, detail, [])
         sweepers.plans := list.assoc.remove(token, sweepers.plans())
     end
 end
@@ -100,7 +115,8 @@ def sweepers.is_jingle(m) =
         list.mem(int_of_string(default=0, m["playlist_id"]), s.jingle_playlists)
 end
 
-def sweepers.track_allowed(m) =
+# Counts a starting track for the spacing rules; "" if it may carry a sweeper, otherwise why not.
+def sweepers.track_reason(m) =
     token = m["sq_id"]
     sweepers.counted := token
     is_jingle = sweepers.is_jingle(m)
@@ -121,8 +137,15 @@ def sweepers.track_allowed(m) =
     sweepers.previous_song := is_song
     sweepers.previous_clear := is_song
     s = sweepers.settings()
-    is_song and sweepers.songs_since_jingle() >= s.songs_after_jingle and
-        sweepers.songs_since_sweeper() >= s.songs_after_sweeper
+    if is_jingle then "jingle"
+    elsif not is_song then "other"
+    elsif sweepers.songs_since_jingle() < s.songs_after_jingle then "after_jingle"
+    elsif sweepers.songs_since_sweeper() < s.songs_after_sweeper then "after_sweeper"
+    else "" end
+end
+
+def sweepers.track_allowed(m) =
+    sweepers.track_reason(m) == ""
 end
 
 def sweepers.next_overlay() =
@@ -130,7 +153,7 @@ def sweepers.next_overlay() =
     now = music_clock()
     list.iter(fun (entry) -> begin
         if not sweepers.current(fst(entry), snd(entry).revision) then
-            sweepers.notify("release", fst(entry))
+            sweepers.notify(detail=sweepers.stale_reason(fst(entry)), "release", fst(entry))
         end
     end, sweepers.plans())
     if azuracast.live_enabled() and sweepers.active() != "" then
@@ -142,14 +165,17 @@ def sweepers.next_overlay() =
     elsif null.defined(sweepers.pending()) then
         p = null.get(sweepers.pending())
         if azuracast.live_enabled() or not sweepers.current(p.token, p.revision) then
-            sweepers.notify("release", p.token)
+            sweepers.notify(
+                detail=if azuracast.live_enabled() then "live" else sweepers.stale_reason(p.token) end,
+                "release", p.token
+            )
             sweepers.pending := null
             (source.fail() : source)
         elsif now >= p.due then
             sweepers.pending := null
             sweepers.reset := false
             if now > p.due + 0.1 then
-                sweepers.notify("release", p.token)
+                sweepers.notify(detail="late", "release", p.token)
                 log(label="sweepers", "Late activation skipped: #{p.token}")
                 (source.fail() : source)
             else
@@ -388,11 +414,11 @@ def sweepers.next_song() =
                                     if reverb > 0. and length > 0. then sweepers.reverb(reverb, length, s) else s end
                                 else
                                     request.destroy(jr)
-                                    sweepers.notify("release", p.token)
+                                    sweepers.notify(detail="unavailable", "release", p.token)
                                     overlay
                                 end
                             elsif p.uri != "" then
-                                sweepers.notify("release", p.token)
+                                sweepers.notify(detail=sweepers.stale_reason(p.token), "release", p.token)
                                 overlay
                             else
                                 overlay
@@ -405,13 +431,13 @@ def sweepers.next_song() =
                                 duration=p.duck_duration, duck_gain=p.duck_gain, revision=p.revision
                             }), ...list.assoc.remove(token, sweepers.plans())]
                         elsif ready() then
-                            sweepers.notify("release", p.token)
+                            sweepers.notify(detail=sweepers.stale_reason(p.token), "release", p.token)
                         end
                     end
                 end
             end
         catch err do
-            sweepers.notify("release", list.assoc(default="", "sq_id", request.metadata(r)))
+            sweepers.notify(detail="error", "release", list.assoc(default="", "sq_id", request.metadata(r)))
             log(label="sweepers", "Planning skipped: #{error.message(err)}")
         end
         r
@@ -464,19 +490,32 @@ def sweepers.mix(music) =
             if token != "" then
                 sweepers.seen := list.prefix(64, [token, ...sweepers.seen()])
             end
-            allowed = sweepers.track_allowed(m)
+            reason = sweepers.track_reason(m)
             if null.defined(sweepers.pending()) then
-                sweepers.notify("release", null.get(sweepers.pending()).token)
+                sweepers.notify(detail="skipped", "release", null.get(sweepers.pending()).token)
             end
             sweepers.notify("release", sweepers.active())
             sweepers.active := ""
             sweepers.pending := null
             sweepers.reset := true
             sweepers.duck_end := -1.
-            if list.assoc.mem(token, sweepers.plans()) then
+            planned = list.assoc.mem(token, sweepers.plans())
+            # Reported for the playback timeline; "none" means the plugin decided at planning time.
+            outcome =
+                if reason != "" then reason
+                elsif not sweepers.settings().enabled then "disabled"
+                elsif not planned then (if azuracast.live_enabled() then "live" else "none" end)
+                else
+                    p = list.assoc(token, sweepers.plans())
+                    if not p.ready then "unavailable"
+                    elsif sweepers.current(token, p.revision) then "scheduled"
+                    else sweepers.stale_reason(token) end
+                end
+            sweepers.event("start", token, outcome, m)
+            if planned then
                 p = list.assoc(token, sweepers.plans())
                 sweepers.duck_gain := p.duck_gain
-                if p.ready and allowed and sweepers.current(token, p.revision) then
+                if outcome == "scheduled" then
                     sweepers.pending := {
                         source=p.source,
                         due=now() + p.offset,
@@ -485,10 +524,10 @@ def sweepers.mix(music) =
                         revision=p.revision
                     }
                 else
-                    if p.ready and not allowed then
+                    if p.ready and reason != "" then
                         log(label="sweepers", "Sweeper skipped for queue #{token}: song spacing")
                     end
-                    sweepers.notify("release", token)
+                    sweepers.notify(detail=outcome, "release", token)
                 end
             end
         end

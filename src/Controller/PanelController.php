@@ -137,9 +137,16 @@ final readonly class PanelController
         ]);
         $rows = array_map(static fn(array $entry): array => [
             'at' => (float)$entry['at'],
-            'song' => $files[(int)($entry['song_id'] ?? 0)] ?? null,
+            // Tracks outside the media library (live, remote) keep the title the module reported.
+            'song' => $files[(int)($entry['song_id'] ?? 0)] ?? (($entry['title'] ?? '') !== '' ? [
+                'title' => $entry['title'],
+                'artist' => ($entry['artist'] ?? '') !== '' ? $entry['artist'] : null,
+                'path' => '',
+            ] : null),
             'sweeper' => $files[(int)($entry['jingle_id'] ?? 0)] ?? null,
             'offset' => isset($entry['offset']) ? (float)$entry['offset'] : null,
+            // Entries from before the timeline listed all tracks are played sweepers.
+            'result' => (string)($entry['result'] ?? 'played'),
             'moved' => array_key_exists('moved_before', $entry),
             'moved_before' => $files[(int)($entry['moved_before'] ?? 0)] ?? null,
         ], $log);

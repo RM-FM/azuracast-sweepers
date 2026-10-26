@@ -11,7 +11,8 @@ use Plugin\AzuracastSweepers\ValueObject\Settings;
 
 final readonly class Planner
 {
-    public const int LOG_LIMIT = 200;
+    public const int LOG_LIMIT = 300;
+    private const int DECISION_LIMIT = 64;
 
     public function __construct(
         private State $state,
@@ -55,18 +56,34 @@ final readonly class Planner
             $fingerprint = hash('sha256', json_encode([
                 Media::identity($song), $intro, $settings->toArray(), $measurements,
             ], JSON_THROW_ON_ERROR));
-            if (!$settings->enabled || $intro === null || $intro <= $cueIn) {
-                unset($data['plans'][$token]);
+            // Why this song got no sweeper, for the playback timeline; the module reports the track start.
+            $decide = static function (string $reason) use (&$data, $token): array {
+                $decisions = $data['decisions'] ?? [];
+                unset($decisions[$token]);
+                $decisions[$token] = $reason;
+                $data['decisions'] = array_slice($decisions, -self::DECISION_LIMIT, preserve_keys: true);
 
                 return $data;
+            };
+            if (!$settings->enabled) {
+                unset($data['plans'][$token]);
+
+                return $decide('disabled');
             }
-            if (
-                $this->queue->blocked($station, [$token], $settings) !== []
-                || $this->queue->excluded($station, $token, $settings)
-            ) {
+            if ($intro === null || $intro <= $cueIn) {
                 unset($data['plans'][$token]);
 
-                return $data;
+                return $decide($intro === null ? 'no_intro' : 'intro_before_cue');
+            }
+            if ($this->queue->excluded($station, $token, $settings)) {
+                unset($data['plans'][$token]);
+
+                return $decide('excluded');
+            }
+            if ($this->queue->blocked($station, [$token], $settings) !== []) {
+                unset($data['plans'][$token]);
+
+                return $decide('jingle_follows');
             }
             if (isset($data['plans'][$token])) {
                 $saved = $data['plans'][$token];
@@ -79,7 +96,7 @@ final readonly class Planner
                     $result = $saved['payload'];
                     $data['plans'][$token]['expires_at'] = time() + 30;
 
-                    return $data;
+                    return $decide('planned');
                 }
                 unset($data['plans'][$token]);
             }
@@ -87,14 +104,21 @@ final readonly class Planner
             $jingles = $this->media->jingles($station, $settings->playlistId);
             $reserved = Selection::unavailable($data, $settings->sweeperGap, count($jingles));
             $candidates = [];
+            $fitting = 0;
+            $measured = 0;
 
             foreach ($jingles as $jingle) {
-                if (in_array($jingle->id, $reserved, true) || $jingle->id === $song->id) {
+                if ($jingle->id === $song->id) {
                     continue;
                 }
                 $timing = $measurements[$jingle->id] ?? null;
+                $measured += $timing === null ? 0 : 1;
                 $fit = $timing?->fit($intro, $cueIn, $cueOut, $settings);
                 if ($fit === null) {
+                    continue;
+                }
+                $fitting++;
+                if (in_array($jingle->id, $reserved, true)) {
                     continue;
                 }
 
@@ -136,9 +160,15 @@ final readonly class Planner
                     'played' => false,
                     'payload' => $result,
                 ];
+
+                return $decide('planned');
             }
 
-            return $data;
+            return $decide(match (true) {
+                $measured === 0 => 'no_sweepers',
+                $fitting === 0 => 'no_fit',
+                default => 'repeat',
+            });
         });
 
         return $result;
@@ -171,27 +201,8 @@ final readonly class Planner
                 $data['heartbeat'] = ['at' => time(), 'version' => substr($version, 0, 64)];
             }
             foreach ($events as $event) {
-                $token = (string)($event['token'] ?? '');
-                $plan = $data['plans'][$token] ?? null;
-                if ($plan === null) {
-                    continue;
-                }
-                if (($event['event'] ?? '') === 'played' && !($plan['played'] ?? false)) {
-                    $now = microtime(true);
-                    $data['history'][$plan['jingle_id']] = $now;
-                    $data['plans'][$token]['played'] = true;
-                    $moved = $data['moved'][$token] ?? null;
-                    unset($data['moved'][$token]);
-                    // Newest first; only sweepers that actually started playing.
-                    $data['log'] = array_slice([[
-                        'at' => $now,
-                        'song_id' => $plan['song_id'] ?? null,
-                        'jingle_id' => $plan['jingle_id'],
-                        'offset' => $plan['payload']['offset'] ?? null,
-                        ...($moved === null ? [] : ['moved_before' => $moved['before'] ?? null]),
-                    ], ...($data['log'] ?? [])], 0, self::LOG_LIMIT);
-                } elseif (($event['event'] ?? '') === 'release') {
-                    unset($data['plans'][$token]);
+                if (is_array($event)) {
+                    $data = self::apply($data, $event);
                 }
             }
             foreach ($tokens as $token) {
@@ -219,6 +230,95 @@ final readonly class Planner
             'settings' => $settings,
             'blocked' => $settings->enabled ? $this->queue->blocked($station, $pending, $settings) : [],
         ];
+    }
+
+    /**
+     * Applies one module event. The playback timeline (log, newest first) gets one entry per started
+     * track; its result is a sweeper outcome or the reason why the track got no sweeper.
+     */
+    public static function apply(array $data, array $event): array
+    {
+        $type = (string)($event['event'] ?? '');
+        $token = (string)($event['token'] ?? '');
+        $detail = substr((string)($event['detail'] ?? ''), 0, 32);
+        $plan = $token === '' ? null : ($data['plans'][$token] ?? null);
+        $log = $data['log'] ?? [];
+        $index = null;
+        // Events are re-sent until acknowledged; recent entries identify a track by its queue token.
+        foreach (array_slice($log, 0, 20, true) as $key => $entry) {
+            if ($token !== '' && ($entry['token'] ?? null) === $token) {
+                $index = $key;
+                break;
+            }
+        }
+
+        if ($type === 'start') {
+            if ($index !== null) {
+                return $data;
+            }
+            $result = match ($detail) {
+                '', 'none' => $data['decisions'][$token] ?? 'not_planned',
+                default => $detail,
+            };
+            // The module had no reservation for a song the plugin planned: the sweeper could not be loaded.
+            $result = $result === 'planned' ? 'unavailable' : $result;
+            $moved = $data['moved'][$token] ?? null;
+            unset($data['moved'][$token], $data['decisions'][$token]);
+            $mediaId = (string)($event['media_id'] ?? '');
+            $data['log'] = array_slice([[
+                'at' => microtime(true),
+                'token' => $token,
+                'song_id' => preg_match('/^\d{1,10}$/D', $mediaId) ? (int)$mediaId : null,
+                'title' => mb_substr((string)($event['title'] ?? ''), 0, 200),
+                'artist' => mb_substr((string)($event['artist'] ?? ''), 0, 200),
+                'result' => $result,
+                'jingle_id' => $result === 'scheduled' ? ($plan['jingle_id'] ?? null) : null,
+                ...($moved === null ? [] : ['moved_before' => $moved['before'] ?? null]),
+            ], ...$log], 0, self::LOG_LIMIT);
+
+            return $data;
+        }
+        if ($type === 'release' && $detail !== '' && $token !== '') {
+            if ($index === null) {
+                // Released before the track started: the start then reports "none" and uses this reason.
+                $data['decisions'][$token] = $detail;
+            } elseif (($log[$index]['result'] ?? '') === 'scheduled') {
+                $data['log'][$index]['result'] = $detail;
+                $data['log'][$index]['jingle_id'] = null;
+            }
+        }
+        if ($plan === null) {
+            return $data;
+        }
+        if ($type === 'played' && !($plan['played'] ?? false)) {
+            $now = microtime(true);
+            $data['history'][$plan['jingle_id']] = $now;
+            $data['plans'][$token]['played'] = true;
+            $played = [
+                'result' => 'played',
+                'jingle_id' => $plan['jingle_id'],
+                'offset' => $plan['payload']['offset'] ?? null,
+            ];
+            if ($index !== null) {
+                $data['log'][$index] = [...$log[$index], ...$played];
+
+                return $data;
+            }
+            // Modules loaded before the timeline listed all tracks only report played sweepers.
+            $moved = $data['moved'][$token] ?? null;
+            unset($data['moved'][$token]);
+            $data['log'] = array_slice([[
+                'at' => $now,
+                'token' => $token,
+                'song_id' => $plan['song_id'] ?? null,
+                ...$played,
+                ...($moved === null ? [] : ['moved_before' => $moved['before'] ?? null]),
+            ], ...$log], 0, self::LOG_LIMIT);
+        } elseif ($type === 'release') {
+            unset($data['plans'][$token]);
+        }
+
+        return $data;
     }
 
     private static function emptyPlan(string $token, string $revision): array

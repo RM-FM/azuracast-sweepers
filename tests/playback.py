@@ -156,8 +156,13 @@ thread.run(delay=7., {{shutdown()}})
     metadata = [int(re.search(r'\("sq_id", "(\d+)"\)', line)[1])
                 for line in result.stdout.splitlines() if line.startswith('SONG_METADATA') and '("sq_id",' in line]
     assert (124 if spacing else 123) in metadata, 'Song metadata lost'
-    events = [event for path, body, _ in calls if path == '/sweepers/heartbeat'
-              for event in body.get('events', [])]
+    reported = [event for path, body, _ in calls if path == '/sweepers/heartbeat'
+                for event in body.get('events', [])]
+    # Reservation events as before; track starts feed the playback timeline.
+    events = [{'event': e['event'], 'token': e['token']} for e in reported if e['event'] != 'start']
+    starts = {e['token']: e['detail'] for e in reported if e['event'] == 'start'}
+    releases = {e['token']: e['detail'] for e in reported if e['event'] == 'release' and e['detail']}
+    assert all(set(e) == {'event', 'token', 'detail', 'media_id', 'title', 'artist'} for e in reported), reported[:3]
     assert all(body.get('version') == 'test' for path, body, _ in calls if path == '/sweepers/heartbeat'), \
         'Heartbeats must report the loaded module version'
     assert 'Queue arrangement skipped' not in result.stdout, ('Arrangement call failed', result.stdout[-2000:])
@@ -256,4 +261,14 @@ thread.run(delay=7., {{shutdown()}})
         assert sum(e == {'event': 'played', 'token': '123'} for e in events) >= 2, 'Unacknowledged event was not retried'
     elif args.scenario.startswith('hot-'):
         assert 'Live settings applied: changed' in result.stdout, 'Heartbeat did not apply live settings'
+    if spacing:
+        assert [starts.get(t) for t in ('123', '124', '125', '126', '127')] == \
+            ['jingle', 'jingle', 'after_jingle', 'scheduled', 'after_sweeper'], ('Track start reasons', starts)
+    if args.scenario == 'normal':
+        assert starts.get('123') == 'scheduled', ('Track start reasons', starts)
+    if args.scenario == 'unavailable':
+        assert starts.get('123') == 'none', ('Without a plan the plugin''s planning reason applies', starts)
+    if args.scenario in ('skip', 'before-jingle'):
+        expected = 'skipped' if args.scenario == 'skip' else 'jingle_follows'
+        assert releases.get('123') == expected, ('Release reason', releases)
     print(f'Native playback passed: {args.scenario}, onset={onset:.2f}s.')

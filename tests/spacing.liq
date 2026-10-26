@@ -129,6 +129,7 @@ ignore(sweepers.next_overlay())
 expect(not null.defined(sweepers.pending()), "Disabling discards a not-yet-started overlay")
 expect(sweepers.plans() == [], "Disabling frees prefetched reservations")
 expect(list.exists(fun (e) -> e.event == "release" and e.token == "31", sweepers.events()), "Cancelled plan reported as release")
+expect(list.exists(fun (e) -> e.token == "31" and e.detail == "disabled", sweepers.events()), "Release reason: sweepers disabled")
 sweepers.active := "playing"
 sweepers.duck_end := 10.
 sweepers.reset := false

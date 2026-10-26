@@ -390,6 +390,7 @@ namespace {
         }
 
         $state->update($directory, static fn(array $data) => ['log' => [
+            ['at' => 300.0, 'token' => '8', 'song_id' => null, 'title' => 'Live show', 'artist' => '', 'result' => 'other'],
             ['at' => 200.5, 'song_id' => 7, 'jingle_id' => 42, 'offset' => 9.66],
             ['at' => 100.0, 'song_id' => 99, 'jingle_id' => 42, 'offset' => null],
         ]] + $data);
@@ -398,10 +399,16 @@ namespace {
             new Response(),
             []
         )->getBody(), true, flags: JSON_THROW_ON_ERROR);
-        expect($history['limit'] === 200 && count($history['rows']) === 2, 'History endpoint returns the log.');
-        expect($history['rows'][0]['song']['artist'] === 'ABBA' && $history['rows'][0]['offset'] === 9.66, 'Song and offset.');
-        expect($history['rows'][0]['sweeper']['title'] === 'Dropin 03', 'Sweeper name.');
-        expect($history['rows'][1]['song'] === null && $history['rows'][1]['offset'] === null, 'Deleted files stay listed.');
+        expect($history['limit'] === 300 && count($history['rows']) === 3, 'History endpoint returns the log.');
+        expect(
+            $history['rows'][0]['song'] === ['title' => 'Live show', 'artist' => null, 'path' => '']
+                && $history['rows'][0]['result'] === 'other' && $history['rows'][0]['sweeper'] === null,
+            'Tracks outside the library keep their reported title and reason.'
+        );
+        expect($history['rows'][1]['song']['artist'] === 'ABBA' && $history['rows'][1]['offset'] === 9.66, 'Song and offset.');
+        expect($history['rows'][1]['sweeper']['title'] === 'Dropin 03', 'Sweeper name.');
+        expect($history['rows'][1]['result'] === 'played', 'Earlier entries are played sweepers.');
+        expect($history['rows'][2]['song'] === null && $history['rows'][2]['offset'] === null, 'Deleted files stay listed.');
 
         $now = 1_000_000;
         $heartbeat = static fn(int $at, string $version): array => ['heartbeat' => ['at' => $at, 'version' => $version]];

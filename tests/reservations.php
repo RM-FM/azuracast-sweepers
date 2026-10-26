@@ -53,18 +53,19 @@ namespace {
         $planner->heartbeat($station, [], [['event' => 'release', 'token' => '123']]);
         check(empty($state->read($directory)['history']), 'A skipped sweeper does not advance rotation.');
         check(!isset($state->read($directory)['log']), 'A released (never heard) sweeper is not recorded.');
-        $state->update($directory, static fn(array $data) => ['log' => array_fill(0, 200, ['at' => 1.0])] + $data);
+        $limit = \Plugin\AzuracastSweepers\Service\Planner::LOG_LIMIT;
+        $state->update($directory, static fn(array $data) => ['log' => array_fill(0, $limit, ['at' => 1.0])] + $data);
         $state->update($directory, static fn(array $data) => $seed(time() + 20) + $data);
         $planner->heartbeat($station, [], [['event' => 'played', 'token' => '123']]);
         $log = $state->read($directory)['log'];
-        check(count($log) === 200 && $log[0]['song_id'] === 7, 'History keeps the newest 200 entries.');
+        check(count($log) === $limit && $log[0]['song_id'] === 7, 'The timeline keeps the newest entries.');
         check(!array_key_exists('moved_before', $log[0]), 'A song in its planned order is not marked as moved.');
-        $state->update($directory, static fn(array $data) => ['moved' => ['123' => ['at' => time(), 'before' => 9]]]
-            + $seed(time() + 20) + $data);
-        $planner->heartbeat($station, [], [['event' => 'played', 'token' => '123']]);
+        $state->update($directory, static fn(array $data) => ['moved' => ['124' => ['at' => time(), 'before' => 9]]]
+            + ['plans' => ['124' => $seed(time() + 20)['plans']['123']]] + $data);
+        $planner->heartbeat($station, [], [['event' => 'played', 'token' => '124']]);
         $data = $state->read($directory);
         check(
-            $data['log'][0]['moved_before'] === 9 && !isset($data['moved']['123']),
+            $data['log'][0]['moved_before'] === 9 && !isset($data['moved']['124']),
             'A moved song that played with a sweeper records the song it moved ahead of.'
         );
         $liveSettings = new \Plugin\AzuracastSweepers\ValueObject\Settings(

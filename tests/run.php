@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Plugin\AzuracastSweepers\Service\Arranger;
 use Plugin\AzuracastSweepers\Service\Media;
+use Plugin\AzuracastSweepers\Service\Planner;
 use Plugin\AzuracastSweepers\Service\Queue;
 use Plugin\AzuracastSweepers\Service\State;
 use Plugin\AzuracastSweepers\ValueObject\Arrangement;
@@ -365,6 +366,56 @@ check(
 );
 check(Arranger::window('/media/song.mp3', 210) === [0.0, 210.0], 'Without cue values the whole file is used.');
 check(!Settings::fromArray([])->swapForIntro, 'Moving songs forward is off by default.');
+
+// Playback timeline: one entry per started track, with the sweeper outcome or the reason for none.
+$plan = static fn(int $jingle): array => ['jingle_id' => $jingle, 'song_id' => 7, 'played' => false, 'payload' => ['offset' => 3.5]];
+$start = static fn(string $token, string $detail, string $title = 'Song'): array
+    => ['event' => 'start', 'token' => $token, 'detail' => $detail, 'media_id' => '7', 'title' => $title, 'artist' => 'Artist'];
+$timeline = ['plans' => ['5' => $plan(42), '9' => $plan(43), '10' => $plan(44)], 'decisions' => ['6' => 'no_intro', '11' => 'planned']];
+$timeline = Planner::apply($timeline, $start('5', 'scheduled'));
+check(
+    $timeline['log'][0]['result'] === 'scheduled' && $timeline['log'][0]['jingle_id'] === 42
+        && $timeline['log'][0]['song_id'] === 7 && $timeline['log'][0]['title'] === 'Song',
+    'A song with a reserved sweeper is recorded when it starts.'
+);
+$timeline = Planner::apply($timeline, $start('5', 'scheduled'));
+check(count($timeline['log']) === 1, 'A re-sent start event is recorded once.');
+$timeline = Planner::apply($timeline, ['event' => 'played', 'token' => '5']);
+check(
+    count($timeline['log']) === 1 && $timeline['log'][0]['result'] === 'played' && $timeline['log'][0]['offset'] === 3.5
+        && isset($timeline['history'][42]),
+    'The sweeper start completes the song entry.'
+);
+$timeline = Planner::apply($timeline, $start('6', 'none'));
+check($timeline['log'][0]['result'] === 'no_intro' && !isset($timeline['decisions']['6']), 'Planning reasons are shown.');
+$timeline = Planner::apply($timeline, $start('7', 'after_jingle'));
+check($timeline['log'][0]['result'] === 'after_jingle', 'Module reasons are shown.');
+$timeline = Planner::apply($timeline, $start('8', 'none'));
+check($timeline['log'][0]['result'] === 'not_planned', 'A song the plugin never saw is marked as not planned.');
+$timeline = Planner::apply($timeline, $start('9', 'scheduled'));
+$timeline = Planner::apply($timeline, ['event' => 'release', 'token' => '9', 'detail' => 'skipped']);
+check(
+    $timeline['log'][0]['result'] === 'skipped' && $timeline['log'][0]['jingle_id'] === null && !isset($timeline['plans']['9']),
+    'A released sweeper shows why it did not play.'
+);
+$timeline = Planner::apply($timeline, ['event' => 'release', 'token' => '10', 'detail' => 'settings']);
+$timeline = Planner::apply($timeline, $start('10', 'none'));
+check($timeline['log'][0]['result'] === 'settings', 'A release before the song starts keeps its reason.');
+$timeline = Planner::apply($timeline, $start('11', 'none'));
+check($timeline['log'][0]['result'] === 'unavailable', 'A planned sweeper the module could not load is reported.');
+$timeline = Planner::apply($timeline, ['event' => 'start', 'token' => '', 'detail' => 'other', 'media_id' => '', 'title' => 'Live show', 'artist' => '']);
+check(
+    $timeline['log'][0]['result'] === 'other' && $timeline['log'][0]['song_id'] === null
+        && $timeline['log'][0]['title'] === 'Live show',
+    'Tracks outside the queue are listed with their title.'
+);
+$legacy = Planner::apply(['plans' => ['12' => $plan(45)]], ['event' => 'played', 'token' => '12']);
+check(
+    $legacy['log'][0]['result'] === 'played' && $legacy['log'][0]['jingle_id'] === 45,
+    'Modules without start events still record played sweepers.'
+);
+$moved = Planner::apply(['moved' => ['13' => ['at' => 1, 'before' => 9]]], $start('13', 'none'));
+check($moved['log'][0]['moved_before'] === 9 && !isset($moved['moved']['13']), 'A moved song is marked when it starts.');
 check(Settings::fromArray([])->sweeperGap === 1, 'At least one other sweeper plays before a repeat by default.');
 check(Settings::fromArray(['sweeper_gap' => 0])->sweeperGap === 0, 'Repeats can be allowed.');
 rejects(static fn() => Settings::fromArray(['sweeper_gap' => -1]));

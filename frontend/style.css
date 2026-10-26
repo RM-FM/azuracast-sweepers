@@ -200,3 +200,25 @@
 .sweepers-timeline .timeline-moved .badge {
     margin-right: .25rem;
 }
+
+/* Songs with a sweeper stand out; other tracks stay quiet. Uses theme variables for light and dark mode. */
+.sweepers-timeline tr.timeline-sweeper > td {
+    background-color: rgba(var(--bs-success-rgb), .12);
+}
+
+.sweepers-timeline tr.timeline-sweeper > td:first-child {
+    box-shadow: inset 4px 0 0 var(--bs-success);
+}
+
+.sweepers-timeline tr.timeline-plain .timeline-title,
+.sweepers-timeline tr.timeline-jingle .timeline-title {
+    font-weight: 400;
+}
+
+.sweepers-timeline tr.timeline-jingle > td {
+    opacity: .7;
+}
+
+.sweepers-timeline .timeline-reason {
+    font-style: italic;
+}
