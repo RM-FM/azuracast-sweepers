@@ -51,31 +51,51 @@ jobs:
 
   liquidsoap:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Earlier AzuraCast release with Liquidsoap 2.4.5.
+          - name: liquidsoap-2.4.5
+            image: savonet/liquidsoap:v2.4.5
+            binary: liquidsoap
+            runtime: 19d68c47b1e4d569885ca7cf4c40609cbabefda7
+          # AzuraCast's own image (Liquidsoap 2.5.0) with its matching runtime, as running in production.
+          - name: azuracast-liquidsoap-2.5.0
+            image: ghcr.io/azuracast/azuracast@sha256:00514c7e5f96e4142a162955905591108750594c849730e3ab1485ef26a292a1
+            binary: /usr/bin/liquidsoap
+            runtime: aafac693c6b065432ebfb751c92d4bfe9ef3d770
+    name: ${{ matrix.name }}
+    env:
+      LIQUIDSOAP_IMAGE: ${{ matrix.image }}
+      LIQUIDSOAP_BIN: ${{ matrix.binary }}
     steps:
       - uses: actions/checkout@v4
-      - name: Fetch the reference AzuraCast runtime
+      - name: Fetch the matching AzuraCast runtime
         run: |
           mkdir -p /tmp/azuracast-runtime
           for file in azuracast crossfade utilities; do
             curl --fail --silent --show-error --location \
-              "https://raw.githubusercontent.com/AzuraCast/AzuraCast/19d68c47b1e4d569885ca7cf4c40609cbabefda7/util/docker/stations/liquidsoap/$file.liq" \
+              "https://raw.githubusercontent.com/AzuraCast/AzuraCast/${{ matrix.runtime }}/util/docker/stations/liquidsoap/$file.liq" \
               --output "/tmp/azuracast-runtime/$file.liq"
           done
+      - name: Pull the Liquidsoap image
+        run: docker pull --quiet "$LIQUIDSOAP_IMAGE"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Check the native Liquidsoap source types
         run: |
-          docker run --rm --entrypoint liquidsoap \
+          docker run --rm --entrypoint "$LIQUIDSOAP_BIN" \
             -v "$PWD:/plugin:ro" \
             -v /tmp/azuracast-runtime:/azuracast:ro \
-            savonet/liquidsoap:v2.4.5 --check /plugin/tests/liquidsoap.liq
+            "$LIQUIDSOAP_IMAGE" --check /plugin/tests/liquidsoap.liq
       - name: Check song spacing policy
         run: |
-          docker run --rm --entrypoint liquidsoap \
+          docker run --rm --entrypoint "$LIQUIDSOAP_BIN" \
             -v "$PWD:/plugin:ro" \
             -v /tmp/azuracast-runtime:/azuracast:ro \
-            savonet/liquidsoap:v2.4.5 /plugin/tests/spacing.liq
+            "$LIQUIDSOAP_IMAGE" /plugin/tests/spacing.liq
       - name: Verify fail-safe rollback with the real Liquidsoap check
         run: bash tests/failsafe.sh /tmp/azuracast-runtime
       - name: Render playback and cancellation with AzuraCast's AutoDJ factory
@@ -84,6 +104,6 @@ jobs:
             python3 tests/playback.py --scenario "$scenario" \
               --runtime /tmp/azuracast-runtime \
               --liquidsoap "docker run --rm --network host --user $(id -u):$(id -g) \
-                --entrypoint liquidsoap -v $PWD:$PWD:ro -v /tmp:/tmp \
-                savonet/liquidsoap:v2.4.5"
+                --entrypoint $LIQUIDSOAP_BIN -v $PWD:$PWD:ro -v /tmp:/tmp \
+                $LIQUIDSOAP_IMAGE"
           done

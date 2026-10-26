@@ -3,8 +3,10 @@
 Intro-aware jingle overlays for AzuraCast AutoDJ.
 
 **Alpha preparation.** Playback integration requires validation on a disposable
-AzuraCast station before use on air. The reference source is AzuraCast
-`19d68c47b1e4d569885ca7cf4c40609cbabefda7` with Liquidsoap 2.4.5 and PHP 8.4.
+AzuraCast station before use on air. Tested against AzuraCast
+`19d68c47b1e4d569885ca7cf4c40609cbabefda7` with Liquidsoap 2.4.5 and AzuraCast
+`aafac693c6b065432ebfb751c92d4bfe9ef3d770` with its Liquidsoap 2.5.0, PHP 8.4. The
+module selects the matching AutoDJ setup for the station's AzuraCast release.
 
 The plugin provides:
 

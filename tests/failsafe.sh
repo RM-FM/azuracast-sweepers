@@ -12,9 +12,12 @@ cp "$runtime"/*.liq "$work/upgraded/"
 sed -i 's/autodj_next_song/autodj_next_song_renamed/g' "$work/upgraded/azuracast.liq"
 grep -q 'autodj_next_song_renamed' "$work/upgraded/azuracast.liq"
 
+image=${LIQUIDSOAP_IMAGE:-savonet/liquidsoap:v2.4.5}
+binary=${LIQUIDSOAP_BIN:-liquidsoap}
+
 check() {
-    docker run --rm -i --entrypoint liquidsoap -v "$plugin:/plugin:ro" -v "$1:/azuracast:ro" \
-        savonet/liquidsoap:v2.4.5 --check - <"$2" >"$work/check.log" 2>&1
+    docker run --rm -i --entrypoint "$binary" -v "$plugin:/plugin:ro" -v "$1:/azuracast:ro" \
+        "$image" --check - <"$2" >"$work/check.log" 2>&1
 }
 
 docker run --rm -i --entrypoint php -v "$plugin:/plugin:ro" php:8.4-cli /plugin/tests/rollback.php \

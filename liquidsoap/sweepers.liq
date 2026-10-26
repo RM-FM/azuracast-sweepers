@@ -329,8 +329,8 @@ def sweepers.reverb(level, length, s) =
     padded = max_duration(length + 0.6, add(normalize=false, [s, blank()]))
     def graph(g) =
         let {audio} = source.tracks(ffmpeg.raw.encode.audio(%ffmpeg(%audio.raw), padded))
-        input = ffmpeg.filter.audio.input(g, audio)
-        let (parts, _) = ffmpeg.filter.asplit(outputs=2, g, input)
+        voice = ffmpeg.filter.audio.input(g, audio)
+        let (parts, _) = ffmpeg.filter.asplit(outputs=2, g, voice)
         wet = ffmpeg.filter.highpass(g, list.nth(parts, 1), frequency=250.)
         wet = ffmpeg.filter.lowpass(g, wet, frequency=3000.)
         wet = ffmpeg.filter.aecho(
@@ -459,6 +459,26 @@ def sweepers.enable_autodj(s) =
         sweepers.next_song
     )
 
+# Mirrors the station's own azuracast.enable_autodj, with sweepers.next_song as the request function.
+# AzuraCast with Liquidsoap 2.5 waits for the first song with azuracast.wait_for_next_song; fallback
+# no longer takes track_sensitive there. Older releases use the second variant.
+%ifdef azuracast.wait_for_next_song
+    dynamic_startup = fallback(
+        id = "dynamic_startup",
+        [
+            dynamic,
+            source.available(
+                blank(id = "autodj_startup_blank", duration = 120.),
+                predicate.activates({azuracast.autodj_is_loading()})
+            )
+        ]
+    )
+
+    s = fallback(id="autodj_fallback", [dynamic_startup, s])
+
+    ref_dynamic = ref(dynamic)
+    thread.run.recurrent(delay=0.25, { azuracast.wait_for_next_song(ref_dynamic()) })
+%else
     dynamic_startup = fallback(
         id = "dynamic_startup",
         track_sensitive = false,
@@ -475,6 +495,7 @@ def sweepers.enable_autodj(s) =
 
     dynamic.on_track(synchronous=true, fun (_) -> azuracast.autodj_is_loading := false)
     thread.run(delay=120., { azuracast.autodj_is_loading := false })
+%endif
 
     s
 end
