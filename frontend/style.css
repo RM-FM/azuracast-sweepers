@@ -210,6 +210,10 @@
 
 .sweepers-timeline .timeline-intro {
     padding: 0;
+    border: 0;
+    font: inherit;
+    letter-spacing: inherit;
+    vertical-align: baseline;
     text-decoration: none;
     text-transform: none;
 }
