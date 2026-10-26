@@ -97,10 +97,12 @@ Ways to set it:
   Import/Export) contains the column `custom_field_intro_end`. Export, fill in the values
   and import the file again to set many intros at once.
 - **API**: `POST /api/station/{station_id}/sweepers/intro/{media_id}` with body
-  `{"intro_end": 14.5}` and an AzuraCast API key changes only this field, for example
-  from an external intro detector. See [docs/API.md](docs/API.md).
+  `{"intro_end": 14.5}` and an AzuraCast API key, for example from an external intro
+  detector. See [docs/API.md](docs/API.md).
 
-The plugin changes no other custom field.
+> **Do not delete the `Intro End` custom field.** AzuraCast then deletes all intro values
+> of all stations, and no sweepers play until they are set again. Export the media CSV
+> regularly as a backup.
 
 ## Settings
 
