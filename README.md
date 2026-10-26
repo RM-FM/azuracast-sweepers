@@ -6,6 +6,9 @@ ends right where the vocals start, and the music ducks under the voice.
 In use on all RadioMonster.FM stations. Works with AzuraCast stable (0.24, Liquidsoap 2.4)
 and rolling releases with Liquidsoap 2.5.
 
+> [!TIP]
+> Hear it in action on any [RadioMonster.FM](https://www.radiomonster.fm) station.
+
 ## Features
 
 - Sweepers placed on the song intro, using AutoCue for cue points, loudness and handover
@@ -41,7 +44,10 @@ services:
       - ./plugins/azuracast-sweepers:/var/azuracast/www/plugins/azuracast-sweepers:ro
 ```
 
-Then run `docker compose up -d` in `/var/azuracast` (this briefly interrupts broadcasting).
+Then run `docker compose up -d` in `/var/azuracast`.
+
+> [!NOTE]
+> This recreates the web container and briefly interrupts broadcasting.
 
 ## Setup
 
@@ -49,9 +55,12 @@ Then run `docker compose up -d` in `/var/azuracast` (this briefly interrupts bro
    normal rotation).
 2. Open **Sweepers → Settings** in the station sidebar (below Media), select the
    playlist and save.
-3. Restart broadcasting once per station to load the plugin's Liquidsoap module. The
-   Settings page shows whether the module is running.
+3. Restart broadcasting once per station.
 4. Set the intro ends (see [Intro end](#intro-end)).
+
+> [!IMPORTANT]
+> The restart loads the plugin's Liquidsoap module; without it no sweeper plays. The
+> Settings page shows whether the module is running. Later settings changes need no restart.
 
 The pages need station Media permission; changing settings also needs Broadcasting
 permission.
@@ -100,9 +109,10 @@ Ways to set it:
   `{"intro_end": 14.5}` and an AzuraCast API key, for example from an external intro
   detector. See [docs/API.md](docs/API.md).
 
-> The plugin blocks deleting the `Intro End` custom field and changing its programmatic
-> name: AzuraCast would delete all intro values of all stations with it. Still export the
-> media CSV regularly as a backup.
+> [!WARNING]
+> Deleting a custom field in AzuraCast deletes all its values on all stations. The plugin
+> therefore blocks deleting `Intro End` and changing its programmatic name. Still export
+> the media CSV regularly as a backup.
 
 ## Settings
 
@@ -186,9 +196,12 @@ The station's Liquidsoap log shows the decisions under the `sweepers` label.
 )
 ```
 
-This does not interrupt broadcasting. Keep the order: delete the route cache only after
-all PHP processes run the new code. If the Liquidsoap module changed, the Settings page
+This does not interrupt broadcasting. If the Liquidsoap module changed, the Settings page
 asks for one broadcasting restart per station. Settings, media and intro ends are kept.
+
+> [!IMPORTANT]
+> Keep the order: delete the route cache only after all PHP processes run the new code.
+> Otherwise an old process can rebuild it and plugin routes stop working.
 
 ## Troubleshooting
 
