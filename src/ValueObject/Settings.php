@@ -29,7 +29,9 @@ final readonly class Settings
         public bool $limitDelay = false,
         public bool $swapForIntro = false,
         public bool $reverb = false,
-        public float $reverbIntensity = 50.0
+        public float $reverbIntensity = 50.0,
+        public bool $swapSequential = false,
+        public array $excludedPlaylistIds = []
     ) {
         foreach ([$maxWait, $margin, $duckDb, $jingleGain, $lengthTolerance, $earlyStart, $reverbIntensity] as $value) {
             if (!is_finite($value)) {
@@ -48,9 +50,9 @@ final readonly class Settings
         ) {
             throw new InvalidArgumentException('Invalid sweeper settings.');
         }
-        foreach ($jinglePlaylistIds as $id) {
+        foreach ([...$jinglePlaylistIds, ...$excludedPlaylistIds] as $id) {
             if (!is_int($id) || $id < 1) {
-                throw new InvalidArgumentException('Invalid jingle playlist ID.');
+                throw new InvalidArgumentException('Invalid playlist ID.');
             }
         }
     }
@@ -60,7 +62,7 @@ final readonly class Settings
         $booleans = [];
         $flags = [
             'enabled' => true, 'count_jingle_mode' => true, 'longest_fit' => false, 'swap_for_intro' => false,
-            'reverb' => false,
+            'reverb' => false, 'swap_sequential' => false,
         ];
         foreach ($flags as $key => $default) {
             $value = $data[$key] ?? $default;
@@ -86,6 +88,10 @@ final readonly class Settings
         $playlistIds = $data['jingle_playlist_ids'] ?? [];
         if (!is_array($playlistIds) || !array_is_list($playlistIds)) {
             throw new InvalidArgumentException('Invalid song spacing or jingle playlists.');
+        }
+        $excludedIds = $data['excluded_playlist_ids'] ?? [];
+        if (!is_array($excludedIds) || !array_is_list($excludedIds)) {
+            throw new InvalidArgumentException('Invalid playlists without sweepers.');
         }
 
         // Earlier versions stored a disabled delay limit as max_wait null and an enabled one as a number.
@@ -130,7 +136,9 @@ final readonly class Settings
             limitDelay: $limitDelay,
             swapForIntro: $booleans['swap_for_intro'],
             reverb: $booleans['reverb'],
-            reverbIntensity: $values['reverb_intensity']
+            reverbIntensity: $values['reverb_intensity'],
+            swapSequential: $booleans['swap_sequential'],
+            excludedPlaylistIds: $excludedIds
         );
     }
 
@@ -175,6 +183,8 @@ final readonly class Settings
             'swap_for_intro' => $this->swapForIntro,
             'reverb' => $this->reverb,
             'reverb_intensity' => $this->reverbIntensity,
+            'swap_sequential' => $this->swapSequential,
+            'excluded_playlist_ids' => $this->excludedPlaylistIds,
         ];
     }
 

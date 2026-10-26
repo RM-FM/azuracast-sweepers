@@ -60,7 +60,10 @@ final readonly class Planner
 
                 return $data;
             }
-            if ($this->queue->blocked($station, [$token], $settings) !== []) {
+            if (
+                $this->queue->blocked($station, [$token], $settings) !== []
+                || $this->queue->excluded($station, $token, $settings)
+            ) {
                 unset($data['plans'][$token]);
 
                 return $data;

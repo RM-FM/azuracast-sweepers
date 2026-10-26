@@ -182,7 +182,8 @@ their values:
 | Songs without sweeper after a jingle / after a sweeper / before a jingle | 1 / 1 / 0 |
 | Count Jingle Mode playlists | On |
 | Prefer the longest fitting sweepers | Off (tolerance 20%) |
-| Move a song with an intro forward | Off |
+| Move a song with an intro forward | Off (sequential playlists: off) |
+| Playlists without sweepers | None |
 | Handover margin | 0.5 s |
 | Limit start delay | Off (maximum start delay 10 s, early start 2 s) |
 | Reverb on the sweeper voice | Off (intensity 50%) |
@@ -214,6 +215,11 @@ their values:
   Recognition follows the playing track's playlist annotation, like AzuraCast's
   Jingle Mode, not every playlist the file belongs to. The sweeper playlist itself
   always counts. Recognized jingles never receive an overlay.
+- **Playlists without sweepers** (none by default): tracks from these playlists,
+  for example news or pre-recorded shows, never receive a sweeper and are never
+  moved. Selecting a playlist group covers every playlist it plays through
+  (AzuraCast records the group chain of each queued track). These tracks still
+  count as songs for the spacing rules.
 - **Limit start delay** is off by default: align the sweeper handover to the
   intro boundary minus the safety margin. When switched on, retain that timing if
   the wait after the song's cue-in does not exceed **Maximum start delay**;
@@ -246,9 +252,11 @@ their values:
   allow a sweeper but the next queued song has no intro that fits one, that song
   changes places with the first later queued song that has a fitting intro. The
   check runs right before Liquidsoap fetches the next song, so a song that was
-  already sent to Liquidsoap never moves. Listener requests and songs from standard
-  playlists with random or shuffled order can move; jingles and songs from
-  sequential, "once per x" and other timed playlists keep their place. A moved
+  already sent to Liquidsoap never moves. Listener requests and playlist songs can
+  move; jingles (recognized exactly as for the spacing rules) and tracks from
+  **Playlists without sweepers** keep their place. Songs from sequential
+  playlists (for example a sequential playlist inside a playlist group) move only
+  with **Also move songs from sequential playlists** (off by default). A moved
   request plays one position later or earlier than AzuraCast planned.
   The exchanged song must still respect **Songs without sweeper before a jingle**.
   If nothing fits, the order stays unchanged. Intro fit uses AzuraCast's cue

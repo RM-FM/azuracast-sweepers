@@ -23,6 +23,12 @@ namespace App\Entity {
         #[ORM\Column]
         public bool $is_jingle = false;
 
+        #[ORM\ManyToOne]
+        public ?Station $station = null;
+
+        #[ORM\Column]
+        public string $name = '';
+
         #[ORM\Column]
         public string $type = 'default';
 
@@ -73,6 +79,9 @@ namespace App\Entity {
 
         #[ORM\Column(type: 'datetime_immutable', precision: 6)]
         public \DateTimeImmutable $timestamp_played;
+
+        #[ORM\Column(type: 'json', nullable: true)]
+        public ?array $playlist_chain = null;
     }
 }
 
@@ -130,7 +139,8 @@ namespace {
         int $cued,
         bool $played = false,
         ?StationMedia $media = null,
-        ?StationRequest $request = null
+        ?StationRequest $request = null,
+        ?array $chain = null
     ) use ($em): void {
         $row = new StationQueue();
         $row->id = $id;
@@ -138,6 +148,7 @@ namespace {
         $row->playlist = $playlist;
         $row->media = $media;
         $row->request = $request;
+        $row->playlist_chain = $chain;
         $row->sent_to_autodj = $sent;
         $row->is_played = $played;
         $row->timestamp_cued = new DateTimeImmutable('@' . $cued);
@@ -183,12 +194,16 @@ namespace {
     $songB->id = 2;
     $request = new StationRequest();
     $request->id = 4;
-    foreach ([$mover, $songA, $songB, $request] as $entity) {
+    $group = new StationPlaylist();
+    $group->id = 9;
+    $group->name = '00 - Rotation';
+    $group->station = $mover;
+    foreach ([$mover, $songA, $songB, $request, $group] as $entity) {
         $em->persist($entity);
     }
     $add(30, $mover, $music, true, 1000, true, $songA);
     $add(31, $mover, $music, true, 1100, false, $songB);
-    $add(32, $mover, $music, false, 1200, false, $songA);
+    $add(32, $mover, $music, false, 1200, false, $songA, null, ['00 - Rotation', 'Full Day Mix']);
     $add(33, $mover, $jingles, false, 1300, false, $songB);
     $add(34, $mover, null, false, 1400, false, $songA, $request);
     $em->flush();
@@ -204,6 +219,15 @@ namespace {
         'Queue rows carry what the decision needs.'
     );
     $expect([$queue->upcoming($mover, '99'), $queue->upcoming($mover, '')], [null, null], 'Unknown counted song.');
+    $expect([$rows[32]['playlist_chain'], $rows[31]['playlist_chain']], [['00 - Rotation', 'Full Day Mix'], []], 'Chain.');
+    $withoutGroup = new Settings(excludedPlaylistIds: [9]);
+    $expect($queue->excludedNames($mover, $withoutGroup), ['00 - Rotation'], 'Excluded names of this station only.');
+    $expect(
+        [$queue->excluded($mover, '32', $withoutGroup), $queue->excluded($mover, '31', $withoutGroup),
+            $queue->excluded($mover, '32', new Settings()), $queue->excluded($station, '32', $withoutGroup)],
+        [true, false, false, false],
+        'A selected group excludes the songs it played through.'
+    );
     $expect($ids($queue->upcoming($mover, '31')), [32, 33, 34], 'A counted later song hides earlier rows.');
 
     if (!$queue->exchange($mover, 32, 34)) {

@@ -124,7 +124,7 @@ final readonly class Media
         foreach ($ids as $id) {
             $playlist = $this->em->find(StationPlaylist::class, $id);
             if ($playlist === null || $playlist->station_id !== $station->id) {
-                throw new InvalidArgumentException('Jingle playlists must belong to this station.');
+                throw new InvalidArgumentException('Selected playlists must belong to this station.');
             }
         }
     }

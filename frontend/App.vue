@@ -86,6 +86,17 @@
                 </fieldset>
 
                 <fieldset>
+                    <legend>Playlists without sweepers</legend>
+                    <label class="form-label d-block mb-0">
+                        Exclude these playlists
+                        <select v-model="settings.excluded_playlist_ids" class="form-select" multiple size="5">
+                            <option v-for="playlist in jinglePlaylists" :key="playlist.id" :value="playlist.id">{{ playlist.name }}</option>
+                        </select>
+                    </label>
+                    <div class="form-text">Tracks from these playlists never get a sweeper and are never moved, for example news or pre-recorded shows. Selecting a playlist group covers all playlists in it. Hold <kbd>Ctrl</kbd> (<kbd>Cmd</kbd> on Mac) to select several.</div>
+                </fieldset>
+
+                <fieldset>
                     <legend>Sweeper selection</legend>
                     <div class="form-check form-switch">
                         <input id="sweepers-longest-fit" v-model="settings.longest_fit" class="form-check-input" type="checkbox" role="switch">
@@ -108,9 +119,16 @@
                     </div>
                     <div class="form-text">
                         When a sweeper is due but the next song has no usable intro, it changes places with a later queued song that has one.
-                        Listener requests and songs from random or shuffled playlists can move; jingles and songs from sequential or timed playlists keep their place.
+                        Listener requests and playlist songs can move; jingles (recognized as above) and songs from playlists without sweepers keep their place.
                         This changes the order AzuraCast planned.
                     </div>
+                    <template v-if="settings.swap_for_intro">
+                        <div class="form-check form-switch mt-2">
+                            <input id="sweepers-swap-sequential" v-model="settings.swap_sequential" class="form-check-input" type="checkbox" role="switch">
+                            <label class="form-check-label" for="sweepers-swap-sequential">Also move songs from sequential playlists</label>
+                        </div>
+                        <div class="form-text">Off: songs from playlists played in sequential order keep their place. On: they may move one step within the queue as well.</div>
+                    </template>
                 </fieldset>
 
                 <fieldset>

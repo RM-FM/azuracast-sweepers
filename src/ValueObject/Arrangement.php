@@ -12,7 +12,7 @@ final class Arrangement
 {
     /**
      * @param list<array{id: int, sent: bool, media_id: ?int, request_id: ?int, playlist_id: ?int,
-     *     is_jingle: bool, playlist_type: ?string, playlist_order: ?string, planned: bool}> $rows
+     *     is_jingle: bool, playlist_order: ?string, planned: bool, excluded?: bool}> $rows
      *     Upcoming queue rows not yet counted by the module, in AzuraCast's play order.
      * @param array{songs_since_jingle: int, songs_since_sweeper: int, previous_song: bool, previous_clear: bool} $gap
      *     The module's song spacing counters after its last counted track.
@@ -62,14 +62,14 @@ final class Arrangement
             }
 
             // Only the next song to be sent is considered.
-            if (!$allowed || !self::movable($row, $song) || $usable((int)$row['media_id'])) {
+            if (!$allowed || !self::movable($row, $song, $settings) || $usable((int)$row['media_id'])) {
                 return null;
             }
             $count = count($rows);
             for ($next = $index + 1; $next < $count; $next++) {
                 $candidate = $rows[$next];
                 if (
-                    $candidate['sent'] || !self::movable($candidate, $isSong($candidate))
+                    $candidate['sent'] || !self::movable($candidate, $isSong($candidate), $settings)
                     || !$usable((int)$candidate['media_id'])
                 ) {
                     continue;
@@ -93,12 +93,12 @@ final class Arrangement
     }
 
     /**
-     * Listener requests and songs from standard random/shuffle playlists move; jingles, sequential
-     * and interval playlists keep their place.
+     * Listener requests and playlist songs move, except songs from playlists without sweepers and, unless
+     * enabled, from sequential playlists. Jingles never move (same recognition as the sweeper spacing).
      */
-    private static function movable(array $row, bool $song): bool
+    private static function movable(array $row, bool $song, Settings $settings): bool
     {
-        if (!$song) {
+        if (!$song || ($row['excluded'] ?? false)) {
             return false;
         }
         if ($row['request_id'] !== null) {
@@ -106,6 +106,6 @@ final class Arrangement
         }
 
         return $row['playlist_id'] !== null
-            && $row['playlist_type'] === 'default' && $row['playlist_order'] !== 'sequential';
+            && ($settings->swapSequential || $row['playlist_order'] !== 'sequential');
     }
 }

@@ -113,6 +113,8 @@ Broadcasting permission. It accepts the existing settings plus:
 | `longest_fit` | `false` | Prefer bodies closest to the available intro length |
 | `length_tolerance` | `20` | Eligible range below the intro length, percent 0–100 |
 | `swap_for_intro` | `false` | Move a later queued song with a fitting intro forward when a sweeper is due |
+| `swap_sequential` | `false` | Also move songs from sequential playlists |
+| `excluded_playlist_ids` | `[]` | Station playlists (or groups) whose tracks never receive a sweeper and never move |
 | `reverb` | `false` | Add a gentle reverb to the sweeper voice |
 | `reverb_intensity` | `50` | Reverb level, percent 0–100; sent to the module as `reverb` (0–1) in each plan |
 

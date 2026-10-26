@@ -133,7 +133,8 @@ foreach ([
     'songs_before_jingle' => 1, 'count_jingle_mode' => false,
     'jingle_playlist_ids' => [4, 5], 'max_wait' => 0, 'limit_delay' => true, 'margin' => 1.2, 'duck_db' => -10,
     'jingle_gain' => 0.5, 'longest_fit' => true, 'length_tolerance' => 50, 'early_start' => 4,
-    'swap_for_intro' => true, 'reverb' => true, 'reverb_intensity' => 70,
+    'swap_for_intro' => true, 'reverb' => true, 'reverb_intensity' => 70, 'swap_sequential' => true,
+    'excluded_playlist_ids' => [6],
 ] as $key => $value) {
     check(
         Settings::fromArray([$key => $value] + $settings->toArray())->revision() !== $settings->revision(),
@@ -281,17 +282,51 @@ check(
     Arrangement::choose([$song(20, true), $song(21), $song(22)], $due, $gapSettings, 3, $intros(22)) === [21, 22],
     'A sent song without sweeper keeps the sweeper due.'
 );
+$sequential = ['playlist_order' => 'sequential'];
+$withSequential = new Settings(playlistId: 9, songsAfterJingle: 1, songsAfterSweeper: 1, swapSequential: true);
 check(
     Arrangement::choose(
-        [$song(21), $song(23, extra: ['playlist_order' => 'sequential']),
-            $song(24, extra: ['playlist_type' => 'once_per_x_songs']), $song(25, extra: ['is_jingle' => true]),
+        [$song(21), $song(23, extra: $sequential), $song(25, extra: ['is_jingle' => true]),
+            $song(26, extra: ['playlist_id' => 8]), $song(27, extra: ['excluded' => true]),
             $song(22, extra: ['request_id' => 4, 'playlist_id' => null, 'playlist_type' => null])],
         $due,
-        $gapSettings,
+        new Settings(playlistId: 9, songsAfterJingle: 1, songsAfterSweeper: 1, jinglePlaylistIds: [8]),
         6,
-        $intros(22, 23, 24, 25)
+        $intros(22, 23, 25, 26, 27)
     ) === [21, 22],
-    'Sequential and interval playlists and jingles never move; a listener request with an intro may.'
+    'Sequential songs (by default), jingles, additional jingle playlists and excluded playlists never move; '
+        . 'a listener request with an intro may.'
+);
+check(
+    Arrangement::choose([$song(21), $song(23, extra: $sequential)], $due, $withSequential, 3, $intros(23)) === [21, 23],
+    'Sequential songs move when allowed.'
+);
+check(
+    Arrangement::choose([$song(21, extra: $sequential), $song(22)], $due, $gapSettings, 3, $intros(22)) === null
+        && Arrangement::choose([$song(21, extra: $sequential), $song(22)], $due, $withSequential, 3, $intros(22))
+            === [21, 22],
+    'A sequential next song keeps its place unless sequential songs may move.'
+);
+check(
+    Arrangement::choose(
+        [$song(21), $song(24, extra: ['playlist_type' => 'once_per_x_songs'])],
+        $due,
+        $gapSettings,
+        3,
+        $intros(24)
+    ) === [21, 24],
+    'Songs from interval playlists that are not jingles may move.'
+);
+check(
+    Arrangement::choose([$song(21, extra: ['excluded' => true]), $song(22)], $due, $gapSettings, 3, $intros(22)) === null,
+    'A song from a playlist without sweepers keeps its place.'
+);
+check(
+    Queue::isExcluded(305, ['00 - Rotation', 'Full Day Mix'], [7], ['News'])
+        === false
+        && Queue::isExcluded(7, null, [7], ['News'])
+        && Queue::isExcluded(305, ['00 - Rotation', 'Full Day Mix'], [322], ['00 - Rotation']),
+    'Exclusion matches the playlist itself or a selected group in the playlist chain.'
 );
 check(
     Arrangement::choose(
@@ -303,6 +338,11 @@ check(
     ) === [21, 22],
     'A requested song without intro may change places with a later song.'
 );
+$moveDefaults = Settings::fromArray([]);
+check(!$moveDefaults->swapSequential && $moveDefaults->excludedPlaylistIds === [], 'New options are off and empty by default.');
+rejects(static fn() => Settings::fromArray(['excluded_playlist_ids' => [0]]));
+rejects(static fn() => Settings::fromArray(['excluded_playlist_ids' => 'news']));
+rejects(static fn() => Settings::fromArray(['swap_sequential' => 'yes']));
 check(
     Arrangement::choose(
         [$song(21), $song(22), $song(23, extra: ['is_jingle' => true]), $song(24)],

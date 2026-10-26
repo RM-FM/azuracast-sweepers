@@ -39,8 +39,15 @@ final readonly class Arranger
             return $none;
         }
         $plans = array_filter($data['plans'] ?? [], static fn(array $plan): bool => !($plan['played'] ?? false));
+        $excludedNames = $this->queue->excludedNames($station, $settings);
         foreach ($rows as &$row) {
             $row['planned'] = isset($plans[(string)$row['id']]);
+            $row['excluded'] = Queue::isExcluded(
+                $row['playlist_id'],
+                $row['playlist_chain'],
+                $settings->excludedPlaylistIds,
+                $excludedNames
+            );
         }
         unset($row);
         $timings = array_diff_key($measurements, array_flip(array_column($plans, 'jingle_id')));

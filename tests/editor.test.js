@@ -41,7 +41,7 @@ globalThis.fetch = async (url, options) => {
             enabled: true, playlist_id: null, limit_delay: false, max_wait: 10, margin: .5, duck_db: -7, jingle_gain: 1,
             songs_after_jingle: 1, songs_after_sweeper: 1, songs_before_jingle: 0, early_start: 2,
             count_jingle_mode: true, jingle_playlist_ids: [], longest_fit: false, length_tolerance: 20, swap_for_intro: false,
-            reverb: false, reverb_intensity: 50,
+            reverb: false, reverb_intensity: 50, swap_sequential: false, excluded_playlist_ids: [],
         }, playlists: [{ id: 10, name: "Sweepers" }], jingle_playlists: [
             { id: 20, name: "Station IDs", is_jingle: true }, { id: 21, name: "Promos", is_jingle: false },
         ] };
@@ -179,6 +179,8 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(first.jingle_gain, 1);
         assert.equal(field("Move a song with an intro forward").checked, false, "Moving songs forward is off by default");
         assert.equal(first.swap_for_intro, false);
+        assert.equal(first.swap_sequential, false);
+        assert.deepEqual(first.excluded_playlist_ids, []);
         assert.equal(first.reverb, false, "Reverb is off by default");
         assert.ok(![...document.querySelectorAll("section.card label")].some((node) => node.textContent.includes("Reverb intensity")),
             "Intensity appears only when reverb is on");
@@ -208,6 +210,15 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         await change("Early start", "3.5");
         await change("Jingle gain", "70");
         await change("Move a song with an intro forward", true, true);
+        await change("Also move songs from sequential playlists", true, true);
+        const excluded = field("Exclude these playlists");
+        assert.ok(excluded.hasAttribute("multiple"));
+        Object.defineProperty(excluded, "multiple", { value: true });
+        for (const option of excluded.options) {
+            Object.defineProperty(option, "selected", { configurable: true, writable: true, value: option.textContent.trim() === "Promos" });
+        }
+        excluded.dispatchEvent(new Event("change", { bubbles: true }));
+        await settle();
         await change("Add reverb to the sweeper voice", true, true);
         assert.equal(field("Reverb intensity").value, "50");
         await change("Reverb intensity", "40");
@@ -215,6 +226,8 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(settings.reverb, true);
         assert.equal(settings.reverb_intensity, 40);
         assert.equal(settings.swap_for_intro, true);
+        assert.equal(settings.swap_sequential, true);
+        assert.deepEqual(settings.excluded_playlist_ids, [21], "Playlists without sweepers are saved");
         assert.equal(settings.limit_delay, true);
         assert.equal(settings.max_wait, 10);
         assert.equal(settings.jingle_gain, 0.7, "70% is stored as the factor 0.7");

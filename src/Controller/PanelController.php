@@ -108,7 +108,10 @@ final readonly class PanelController
             $this->media->jingles($station, $settings->playlistId);
         }
 
-        $this->media->validateJinglePlaylists($station, $settings->jinglePlaylistIds);
+        $this->media->validateJinglePlaylists(
+            $station,
+            [...$settings->jinglePlaylistIds, ...$settings->excludedPlaylistIds]
+        );
         $directory = $station->getRadioConfigDir();
         $data = $this->state->update($directory, static function (array $data) use ($settings): array {
             $data['settings'] = $settings->toArray();

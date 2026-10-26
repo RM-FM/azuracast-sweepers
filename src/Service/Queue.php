@@ -104,6 +104,68 @@ final readonly class Queue
     }
 
     /**
+     * Excluded when the row's own playlist is selected, or a selected playlist (group) appears in its
+     * playlist chain; AzuraCast records the chain by playlist name.
+     *
+     * @param list<int> $ids
+     * @param list<string> $names
+     */
+    public static function isExcluded(?int $playlistId, ?array $chain, array $ids, array $names): bool
+    {
+        return ($playlistId !== null && in_array($playlistId, $ids, true))
+            || array_intersect(array_map('strval', $chain ?? []), $names) !== [];
+    }
+
+    /**
+     * @return list<string> Names of the station's playlists without sweepers.
+     */
+    public function excludedNames(Station $station, Settings $settings): array
+    {
+        if ($settings->excludedPlaylistIds === []) {
+            return [];
+        }
+
+        return array_map('strval', $this->em->createQuery(
+            <<<'DQL'
+                SELECT sp.name FROM App\Entity\StationPlaylist sp
+                WHERE sp.station = :station AND sp.id IN (:ids)
+            DQL
+        )->setParameter('station', $station)
+            ->setParameter('ids', $settings->excludedPlaylistIds)
+            ->getSingleColumnResult());
+    }
+
+    /**
+     * Whether a queued track comes from a playlist without sweepers.
+     */
+    public function excluded(Station $station, string $token, Settings $settings): bool
+    {
+        if ($settings->excludedPlaylistIds === [] || !preg_match('/^\d{1,20}$/D', $token)) {
+            return false;
+        }
+        $rows = $this->em->createQuery(
+            <<<'DQL'
+                SELECT IDENTITY(sq.playlist) AS playlist_id, sq.playlist_chain
+                FROM App\Entity\StationQueue sq
+                WHERE sq.station = :station AND sq.id = :id
+            DQL
+        )->setParameter('station', $station)
+            ->setParameter('id', (int)$token)
+            ->getArrayResult();
+        if ($rows === []) {
+            return false;
+        }
+        $playlistId = $rows[0]['playlist_id'] === null ? null : (int)$rows[0]['playlist_id'];
+
+        return self::isExcluded(
+            $playlistId,
+            $rows[0]['playlist_chain'],
+            $settings->excludedPlaylistIds,
+            $this->excludedNames($station, $settings)
+        );
+    }
+
+    /**
      * Queue rows after the module's last counted track, in AzuraCast's play order.
      *
      * @return list<array<string, mixed>>|null Null when the counted track is unknown.
@@ -127,7 +189,7 @@ final readonly class Queue
 
         $rows = $this->em->createQuery(
             <<<'DQL'
-                SELECT sq.id, sq.sent_to_autodj, sq.timestamp_cued,
+                SELECT sq.id, sq.sent_to_autodj, sq.timestamp_cued, sq.playlist_chain,
                     IDENTITY(sq.playlist) AS playlist_id, IDENTITY(sq.media) AS media_id,
                     IDENTITY(sq.request) AS request_id
                 FROM App\Entity\StationQueue sq
@@ -157,6 +219,7 @@ final readonly class Queue
                 'is_jingle' => (bool)($playlist?->is_jingle ?? false),
                 'playlist_type' => self::value($playlist?->type),
                 'playlist_order' => self::value($playlist?->order),
+                'playlist_chain' => array_map('strval', (array)($row['playlist_chain'] ?? [])),
             ];
         }
 
