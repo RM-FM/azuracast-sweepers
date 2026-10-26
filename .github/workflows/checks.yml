@@ -105,5 +105,6 @@ jobs:
               --runtime /tmp/azuracast-runtime \
               --liquidsoap "docker run --rm --network host --user $(id -u):$(id -g) \
                 --entrypoint $LIQUIDSOAP_BIN -v $PWD:$PWD:ro -v /tmp:/tmp \
-                $LIQUIDSOAP_IMAGE"
+                $LIQUIDSOAP_IMAGE" \
+              || { grep -vE 'Content type|decoder\.|startup:' ".checks/playback-$scenario.log" | tail -n 120; exit 1; }
           done
