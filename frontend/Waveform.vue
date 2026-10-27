@@ -100,5 +100,5 @@ onBeforeUnmount(() => {
     player?.destroy();
 });
 
-defineExpose({ playAt, ready });
+defineExpose({ playAt, ready, pause: () => player?.pause() });
 </script>

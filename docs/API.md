@@ -54,6 +54,12 @@ plays) and `audio_url`, each file once. The browser applies the reflections itse
 `GET /sweepers/{station_id}/media?id={media_id}` returns that single library file in
 the Intros row format, so the timeline can open the intro editor on it.
 
+`GET /sweepers/{station_id}/media?search={query}&page={page}` lists all matching
+library files in pages of 25 (one-based, default 1), ordered by path then media ID.
+It returns `rows`, `total` (all matching files), `page` and `limit` (25).
+Search matches filename/path, title or artist; there is no 100-result ceiling.
+These session-authenticated requests require station Media permission.
+
 ## Using the native media API
 
 AzuraCast also supports `GET` and `PUT /api/station/{station_id}/file/{media_id}`.

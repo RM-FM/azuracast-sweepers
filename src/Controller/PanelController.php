@@ -180,12 +180,22 @@ final readonly class PanelController
                 ->withJson(['rows' => [$this->mediaRow($station, $router, $media)]]);
         }
         $search = substr((string)$request->getQueryParam('search', ''), 0, 200);
+        $page = (string)$request->getQueryParam('page', '1');
+        if (!preg_match('/^[1-9]\d{0,7}$/D', $page)) {
+            throw new InvalidArgumentException('Invalid media page.');
+        }
+        $result = $this->media->list($station, $search, (int)$page);
         $rows = array_map(
             fn(StationMedia $media): array => $this->mediaRow($station, $router, $media),
-            $this->media->list($station, $search)
+            $result['rows']
         );
 
-        return $response->withHeader('Cache-Control', 'no-store')->withJson(['rows' => $rows, 'limit' => 100]);
+        return $response->withHeader('Cache-Control', 'no-store')->withJson([
+            'rows' => $rows,
+            'total' => $result['total'],
+            'page' => (int)$page,
+            'limit' => 25,
+        ]);
     }
 
     private function mediaRow(Station $station, RouterInterface $router, StationMedia $media): array
