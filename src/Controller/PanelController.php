@@ -83,6 +83,8 @@ final readonly class PanelController
             'playlists' => array_map(static fn($playlist): array => [
                 'id' => $playlist->id,
                 'name' => $playlist->name,
+                'enabled' => $playlist->is_enabled,
+                'scheduled' => $playlist->schedule_items->count() > 0,
             ], $this->media->playlists($station)),
             'jingle_playlists' => array_map(static fn($playlist): array => [
                 'id' => $playlist->id,
@@ -106,7 +108,7 @@ final readonly class PanelController
             if ($station->backend_config->use_manual_autodj) {
                 throw new InvalidArgumentException('Sweepers require AzuraCast AutoDJ queue management.');
             }
-            $this->media->jingles($station, $settings->playlistId);
+            $this->media->validateSweeperPlaylists($station, $settings->playlistIds);
         }
 
         $this->media->validateJinglePlaylists(
@@ -205,13 +207,13 @@ final readonly class PanelController
         ];
     }
 
-    private function sweepers(Station $station, RouterInterface $router, string $playlist): array
+    private function sweepers(Station $station, RouterInterface $router, string $playlists): array
     {
-        if (!preg_match('/^[1-9]\d{0,9}$/D', $playlist)) {
-            throw new InvalidArgumentException('Choose an Advanced playlist.');
+        if (!preg_match('/^[1-9]\d{0,9}(?:,[1-9]\d{0,9}){0,49}$/D', $playlists)) {
+            throw new InvalidArgumentException('Choose Advanced playlists.');
         }
         $rows = [];
-        foreach ($this->media->jingles($station, (int)$playlist) as $jingle) {
+        foreach ($this->media->jingles($station, array_map('intval', explode(',', $playlists))) as $jingle) {
             [$cueIn, $cueOut] = Arranger::window($this->media->uri($station, $jingle), $jingle->length);
             $rows[] = [
                 'id' => $jingle->id,

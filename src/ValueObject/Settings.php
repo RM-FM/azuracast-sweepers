@@ -10,7 +10,7 @@ final readonly class Settings
 {
     public function __construct(
         public bool $enabled = true,
-        public ?int $playlistId = null,
+        public array $playlistIds = [],
         public float $maxWait = 10.0,
         public float $margin = 0.5,
         public float $duckDb = -7.0,
@@ -44,12 +44,12 @@ final readonly class Settings
             || $songsAfterJingle < 0 || $songsAfterJingle > 1000 || $songsAfterSweeper < 0
             || $songsAfterSweeper > 1000 || $songsBeforeJingle < 0 || $songsBeforeJingle > 1000
             || $lengthTolerance < 0 || $lengthTolerance > 100 || $earlyStart < 0 || $earlyStart > 60
-            || ($playlistId !== null && $playlistId < 1) || $reverbIntensity < 0 || $reverbIntensity > 100
+            || $reverbIntensity < 0 || $reverbIntensity > 100
             || $sweeperGap < 0 || $sweeperGap > 100
         ) {
             throw new InvalidArgumentException('Invalid sweeper settings.');
         }
-        foreach ([...$jinglePlaylistIds, ...$excludedPlaylistIds] as $id) {
+        foreach ([...$playlistIds, ...$jinglePlaylistIds, ...$excludedPlaylistIds] as $id) {
             if (!is_int($id) || $id < 1) {
                 throw new InvalidArgumentException('Invalid playlist ID.');
             }
@@ -70,9 +70,11 @@ final readonly class Settings
             }
             $booleans[$key] = $value;
         }
-        $playlistId = $data['playlist_id'] ?? null;
-        if ($playlistId !== null && (!is_int($playlistId) || $playlistId < 1)) {
-            throw new InvalidArgumentException('Invalid playlist ID.');
+        // Earlier versions stored a single sweeper playlist.
+        $legacyPlaylist = $data['playlist_id'] ?? null;
+        $sweeperIds = $data['playlist_ids'] ?? ($legacyPlaylist === null ? [] : [$legacyPlaylist]);
+        if (!is_array($sweeperIds) || !array_is_list($sweeperIds)) {
+            throw new InvalidArgumentException('Invalid sweeper playlists.');
         }
         // Earlier versions stored one shared minimum_songs gap.
         $legacy = $data['minimum_songs'] ?? 1;
@@ -122,7 +124,7 @@ final readonly class Settings
 
         return new self(
             enabled: $booleans['enabled'],
-            playlistId: $playlistId,
+            playlistIds: array_values(array_unique($sweeperIds, SORT_REGULAR)),
             maxWait: $values['max_wait'],
             margin: $values['margin'],
             duckDb: $values['duck_db'],
@@ -158,10 +160,7 @@ final readonly class Settings
             'songs_after_jingle' => $this->songsAfterJingle,
             'songs_after_sweeper' => $this->songsAfterSweeper,
             'count_jingle_mode' => $this->countJingleMode,
-            'jingle_playlists' => array_values(array_unique([
-                ...($this->playlistId === null ? [] : [$this->playlistId]),
-                ...$this->jinglePlaylistIds,
-            ])),
+            'jingle_playlists' => array_values(array_unique([...$this->playlistIds, ...$this->jinglePlaylistIds])),
         ];
     }
 
@@ -169,7 +168,7 @@ final readonly class Settings
     {
         return [
             'enabled' => $this->enabled,
-            'playlist_id' => $this->playlistId,
+            'playlist_ids' => $this->playlistIds,
             'limit_delay' => $this->limitDelay,
             'max_wait' => $this->maxWait,
             'margin' => $this->margin,

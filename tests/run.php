@@ -6,6 +6,7 @@ use Plugin\AzuracastSweepers\Service\Arranger;
 use Plugin\AzuracastSweepers\Service\Media;
 use Plugin\AzuracastSweepers\Service\Planner;
 use Plugin\AzuracastSweepers\Service\Queue;
+use Plugin\AzuracastSweepers\Service\Schedule;
 use Plugin\AzuracastSweepers\Service\State;
 use Plugin\AzuracastSweepers\ValueObject\Arrangement;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
@@ -41,7 +42,7 @@ function rejects(callable $callback): void
     check(false, 'Invalid input was accepted.');
 }
 
-$settings = new Settings(enabled: true, playlistId: 1, margin: 0.8);
+$settings = new Settings(enabled: true, playlistIds: [1], margin: 0.8);
 $timing = Timing::fromArray(['cue_in' => 1, 'cue_out' => 10, 'cross_start_next' => 7], 12);
 check($timing !== null, 'Valid jingle timing.');
 $fit = $timing->fit(12, 2, 180, $settings);
@@ -65,7 +66,7 @@ check(
 );
 $defaults = Settings::fromArray([]);
 check(
-    $defaults->enabled && $defaults->playlistId === null && $defaults->songsAfterJingle === 1
+    $defaults->enabled && $defaults->playlistIds === [] && $defaults->songsAfterJingle === 1
         && $defaults->songsAfterSweeper === 1 && $defaults->songsBeforeJingle === 0 && $defaults->countJingleMode
         && !$defaults->longestFit && $defaults->margin === 0.5 && !$defaults->limitDelay
         && $defaults->maxWait === 10.0 && $defaults->earlyStart === 2.0 && $defaults->duckDb === -7.0
@@ -130,7 +131,7 @@ check(abs(Timing::fromMetadata($metadata, 12)->gainDb + 6.0206) < 0.001, 'Linear
 check(Settings::fromArray($settings->toArray())->toArray() === $settings->toArray(), 'Settings round trip.');
 check(Settings::fromArray($settings->toArray())->revision() === $settings->revision(), 'Stable settings revision.');
 foreach ([
-    'enabled' => false, 'playlist_id' => 2, 'songs_after_jingle' => 3, 'songs_after_sweeper' => 2,
+    'enabled' => false, 'playlist_ids' => [1, 2], 'songs_after_jingle' => 3, 'songs_after_sweeper' => 2,
     'songs_before_jingle' => 1, 'count_jingle_mode' => false,
     'jingle_playlist_ids' => [4, 5], 'max_wait' => 0, 'limit_delay' => true, 'margin' => 1.2, 'duck_db' => -10,
     'jingle_gain' => 0.5, 'longest_fit' => true, 'length_tolerance' => 50, 'early_start' => 4,
@@ -144,8 +145,27 @@ foreach ([
 }
 check((new Settings())->runtime()['jingle_playlists'] === [], 'No null playlist in disabled runtime settings.');
 check(
-    (new Settings(playlistId: 2, jinglePlaylistIds: [2, 4]))->runtime()['jingle_playlists'] === [2, 4],
-    'Runtime recognition includes the sweeper playlist once.'
+    (new Settings(playlistIds: [2, 3], jinglePlaylistIds: [2, 4]))->runtime()['jingle_playlists'] === [2, 3, 4],
+    'Runtime recognition includes every sweeper playlist once.'
+);
+check(Settings::fromArray(['playlist_id' => 7])->playlistIds === [7], 'A saved single sweeper playlist is kept.');
+check(Settings::fromArray(['playlist_id' => null])->playlistIds === [], 'No saved sweeper playlist stays empty.');
+check(
+    Settings::fromArray(['playlist_ids' => [3, 5, 3], 'playlist_id' => 9])->playlistIds === [3, 5],
+    'The playlist list replaces the legacy value and lists each playlist once.'
+);
+check(!array_key_exists('playlist_id', $settings->toArray()), 'Only the playlist list is stored.');
+rejects(static fn() => Settings::fromArray(['playlist_ids' => 7]));
+rejects(static fn() => Settings::fromArray(['playlist_ids' => ['7']]));
+rejects(static fn() => Settings::fromArray(['playlist_ids' => [0]]));
+$playlist = static fn(int $id, bool $enabled = true): object => (object)['id' => $id, 'is_enabled' => $enabled];
+$slots = [2 => true, 3 => false, 4 => true];
+check(
+    Schedule::filter(
+        [$playlist(1), $playlist(2), $playlist(3), $playlist(4, false)],
+        static fn(object $p): bool => $slots[$p->id] ?? true
+    ) === [1, 2],
+    'Playlists in their time slot and those without a schedule are active together; disabled ones are skipped.'
 );
 foreach ([['enabled' => 'false'], ['limit_delay' => 1], ['duck_db' => -21], ['max_wait' => -1], ['playlist_id' => 0]] as $invalid) {
     rejects(static fn() => Settings::fromArray($invalid));
@@ -211,7 +231,7 @@ $queueRow = static fn(int $id, bool $sent, int $cued, ?int $playlist = null, boo
         'id' => $id, 'is_played' => $played, 'sent_to_autodj' => $sent, 'timestamp_cued' => $at($cued),
         'playlist_id' => $playlist, 'is_jingle' => $playlist === null ? null : $jingle,
     ];
-$lookahead = new Settings(playlistId: 9, jinglePlaylistIds: [8], songsBeforeJingle: 2);
+$lookahead = new Settings(playlistIds: [9], jinglePlaylistIds: [8], songsBeforeJingle: 2);
 $queue = [
     $queueRow(10, true, 100, 1),
     $queueRow(11, true, 200, 1),
@@ -254,7 +274,7 @@ $song = static fn(int $id, bool $sent = false, int $media = 0, array $extra = []
     ...$extra,
 ];
 $due = ['songs_since_jingle' => 5, 'songs_since_sweeper' => 5, 'previous_song' => true, 'previous_clear' => true];
-$gapSettings = new Settings(playlistId: 9, songsAfterJingle: 1, songsAfterSweeper: 1);
+$gapSettings = new Settings(playlistIds: [9], songsAfterJingle: 1, songsAfterSweeper: 1);
 $intros = static fn(int ...$ids): Closure => static fn(int $media): bool => in_array($media, $ids, true);
 check(
     Arrangement::choose([$song(21), $song(22), $song(23)], $due, $gapSettings, 3, $intros(23)) === [21, 23],
@@ -294,14 +314,14 @@ check(
     Arrangement::choose([$song(20, true), $song(21), $song(22)], $due, $gapSettings, 3, $intros(22)) === [21, 22],
     'A sent song without sweeper keeps the sweeper due.'
 );
-$withSequential = new Settings(playlistId: 9, songsAfterJingle: 1, songsAfterSweeper: 1, swapSequential: true);
+$withSequential = new Settings(playlistIds: [9], songsAfterJingle: 1, songsAfterSweeper: 1, swapSequential: true);
 check(
     Arrangement::choose(
         [$song(21), $song(23, extra: $sequential), $song(25, extra: ['is_jingle' => true]),
             $song(26, extra: ['playlist_id' => 8]), $song(27, extra: ['excluded' => true]),
             $song(22, extra: ['request_id' => 4, 'playlist_id' => null, 'playlist_type' => null])],
         $due,
-        new Settings(playlistId: 9, songsAfterJingle: 1, songsAfterSweeper: 1, jinglePlaylistIds: [8]),
+        new Settings(playlistIds: [9], songsAfterJingle: 1, songsAfterSweeper: 1, jinglePlaylistIds: [8]),
         6,
         $intros(22, 23, 25, 26, 27)
     ) === [21, 22],
@@ -358,7 +378,7 @@ check(
     Arrangement::choose(
         [$song(21), $song(22), $song(23, extra: ['is_jingle' => true]), $song(24)],
         $due,
-        new Settings(playlistId: 9, songsAfterJingle: 1, songsAfterSweeper: 1, songsBeforeJingle: 2),
+        new Settings(playlistIds: [9], songsAfterJingle: 1, songsAfterSweeper: 1, songsBeforeJingle: 2),
         4,
         $intros(22, 24),
         $blocked

@@ -16,7 +16,8 @@ final readonly class Arranger
     public function __construct(
         private State $state,
         private Media $media,
-        private Queue $queue
+        private Queue $queue,
+        private Schedule $schedule
     ) {
     }
 
@@ -30,6 +31,10 @@ final readonly class Arranger
         $data = $this->state->read($station->getRadioConfigDir());
         $settings = Settings::fromArray($data['settings'] ?? []);
         if (!$settings->enabled || !$settings->swapForIntro || $measurements === []) {
+            return $none;
+        }
+        $active = $this->media->jingles($station, $this->schedule->active($station, $settings->playlistIds));
+        if ($active === []) {
             return $none;
         }
         $rows = $this->queue->upcoming($station, $counted);
@@ -48,10 +53,9 @@ final readonly class Arranger
             );
         }
         unset($row);
-        $sweepers = count($this->media->jingles($station, $settings->playlistId));
         $timings = array_diff_key(
-            $measurements,
-            array_flip(Selection::unavailable($data, $settings->sweeperGap, $sweepers))
+            array_intersect_key($measurements, array_flip(array_map(static fn($jingle): int => $jingle->id, $active))),
+            array_flip(Selection::unavailable($data, $settings->sweeperGap, count($active)))
         );
 
         $known = [];

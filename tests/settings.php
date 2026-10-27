@@ -111,16 +111,11 @@ namespace Plugin\AzuracastSweepers\Service {
             }
         }
 
-        public function jingles(\App\Entity\Station $station, ?int $playlistId): array
+        public function validateSweeperPlaylists(\App\Entity\Station $station, array $playlistIds): void
         {
-            if ($playlistId === null) {
-                return [];
+            if (array_diff($playlistIds, [7, 9]) !== []) {
+                throw new \InvalidArgumentException('Choose Advanced playlists.');
             }
-            if ($playlistId !== 7) {
-                throw new \InvalidArgumentException('Choose an Advanced playlist.');
-            }
-
-            return [];
         }
 
         public function validateJinglePlaylists(\App\Entity\Station $station, array $ids): void
@@ -284,7 +279,7 @@ namespace {
         $state->update($directory, static fn(array $data) => ['history' => ['42' => 123.5], 'plans' => ['123' => ['played' => true]]] + $data);
         $settings = (new Settings(
             enabled: true,
-            playlistId: 7,
+            playlistIds: [7],
             songsAfterJingle: 3,
             songsAfterSweeper: 2,
             songsBeforeJingle: 1
@@ -299,7 +294,7 @@ namespace {
         expect($save(['enabled' => false])['needs_restart'], 'An unrelated restart flag is preserved.');
         expect($station->needs_restart, 'Saving must not clear unrelated pending changes.');
 
-        $save(['enabled' => true, 'playlist_id' => 7, 'songs_after_jingle' => 3, 'songs_after_sweeper' => 2]);
+        $save(['enabled' => true, 'playlist_ids' => [7, 9], 'songs_after_jingle' => 3, 'songs_after_sweeper' => 2]);
         [$config, $checks] = $generate();
         expect($loaded($config) && $checks === 1, 'Changed settings are checked once.');
         expect(str_contains($config, '{enabled=true, revision="'
@@ -331,6 +326,7 @@ namespace {
         // Liquidsoap rejects the station regardless of the module: removing it would not help.
         Liquidsoap::$rejectAll = true;
         $save(['enabled' => true, 'playlist_id' => 7, 'margin' => 1.0]);
+        expect($state->read($directory)['settings']['playlist_ids'] === [7], 'A legacy single playlist is saved as a list.');
         [$config, $checks] = $generate();
         expect($loaded($config) && $checks === 2, 'An unrelated configuration error keeps the module.');
         Liquidsoap::$rejectAll = false;

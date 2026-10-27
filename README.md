@@ -13,6 +13,7 @@ and rolling releases with Liquidsoap 2.5.
 
 - Sweepers placed on the song intro, using AutoCue for cue points, loudness and handover
 - Music ducking that follows the sweeper voice
+- Several sweeper playlists, following their AzuraCast schedules, rotated as one pool
 - Rotation by oldest play, optionally preferring the longest fitting sweeper
 - Spacing rules around jingles and sweepers, and playlists that never get a sweeper
 - Optionally moves a queued song with a fitting intro forward when a sweeper is due
@@ -49,10 +50,10 @@ and loads the plugin's Liquidsoap module on all stations.
 
 ## Setup
 
-1. Create an **Advanced** playlist with your sweepers (Advanced keeps them out of the
-   normal rotation).
+1. Create one or more **Advanced** playlists with your sweepers (Advanced keeps them out
+   of the normal rotation). Add a schedule to use a playlist only at certain times.
 2. Open **Sweepers → Settings** in the station sidebar (below Media), select the
-   playlist and save. The page also shows whether the module runs on the station.
+   playlists and save. The page also shows whether the module runs on the station.
 3. Set the intro ends (see [Intro end](#intro-end)).
 
 Settings apply live; no restart is needed.
@@ -115,7 +116,8 @@ Defaults for a new installation:
 
 | Setting | Default |
 | --- | --- |
-| Enable sweepers | On (nothing plays until a sweeper playlist is selected) |
+| Enable sweepers | On |
+| Sweeper playlists | None (nothing plays until one is selected) |
 | Songs without sweeper after a jingle / after a sweeper / before a jingle | 1 / 1 / 0 |
 | Count Jingle Mode playlists | On |
 | Other sweepers before a repeat | 1 |
@@ -130,11 +132,16 @@ Defaults for a new installation:
 
 Notes on the less obvious options:
 
+- **Sweeper playlists**: select one or more Advanced playlists. A playlist with an
+  AzuraCast schedule is used only during its time slots; one without a schedule is
+  always used. All playlists active at the same time share one rotation and one repeat
+  rule, and a sweeper in several of them counts once. Disabled playlists are skipped.
+  Example: everyday sweepers without a schedule plus a scheduled morning-show set.
 - **Spacing rules**: a song carries a sweeper only if all three rules allow it; `0`
   turns a rule off. "Before a jingle" looks ahead in the AutoDJ queue, so its maximum
   is the AutoDJ queue length.
 - **Jingles** are tracks from Jingle Mode playlists, the additional jingle playlists and
-  the sweeper playlist. They never get a sweeper.
+  the sweeper playlists. They never get a sweeper.
 - **Playlists without sweepers**, for example news or shows, never get a sweeper and are
   never moved. Selecting a playlist group covers all its playlists.
 - **Other sweepers before a repeat**: if no other sweeper fits, the song gets none. With

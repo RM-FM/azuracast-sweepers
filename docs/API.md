@@ -43,14 +43,14 @@ before all tracks were listed, when the sweeper started), `song` and `sweeper`
 `move_sequential`, or `null`).
 `result` is `played`, `scheduled` (sweeper not started yet) or the reason for no
 sweeper: `no_intro`, `intro_zero`, `intro_before_cue`, `no_fit`, `repeat`, `no_sweepers`,
-`jingle_follows`, `excluded`, `after_jingle`, `after_sweeper`, `jingle`, `other`,
+`off_schedule`, `jingle_follows`, `excluded`, `after_jingle`, `after_sweeper`, `jingle`, `other`,
 `live`, `disabled`, `late`, `skipped`, `settings`, `unavailable`, `error` or
 `not_planned`.
 
-The reverb preview reads `GET /sweepers/{station_id}/media?playlist={playlist_id}`
-(same permissions). For an Advanced playlist of the station it returns `rows` with
+The reverb preview reads `GET /sweepers/{station_id}/media?playlist={playlist_ids}`
+(same permissions; comma-separated IDs). For Advanced playlists of the station it returns `rows` with
 `id`, `title`, `artist`, `path`, `cue_in`/`cue_out` (the AutoCue range Liquidsoap
-plays) and `audio_url`. The browser applies the reflections itself; nothing is saved.
+plays) and `audio_url`, each file once. The browser applies the reflections itself; nothing is saved.
 `GET /sweepers/{station_id}/media?id={media_id}` returns that single library file in
 the Intros row format, so the timeline can open the intro editor on it.
 
@@ -113,7 +113,8 @@ Broadcasting permission. It accepts the existing settings plus:
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `enabled` | `true` | Use sweepers; without `playlist_id` no sweeper plays |
+| `enabled` | `true` | Use sweepers; without `playlist_ids` no sweeper plays |
+| `playlist_ids` | `[]` | Advanced sweeper playlists (integer array); see below |
 | `songs_after_jingle` | `1` | Songs without sweeper after a jingle, integer 0–1000 |
 | `songs_after_sweeper` | `1` | Songs without sweeper after a sweeper, integer 0–1000 |
 | `songs_before_jingle` | `0` | Queued tracks checked for a following jingle, 0 to the AutoDJ queue length |
@@ -135,9 +136,20 @@ Broadcasting permission. It accepts the existing settings plus:
 | `reverb_intensity` | `25` | Reverb level, percent 0–100; sent to the module as `reverb` (0–1) in each plan |
 
 Saved settings from earlier versions remain valid: a `max_wait` of `null` reads as
-`limit_delay: false` with `max_wait: 10`, a numeric `max_wait` as `limit_delay: true`.
+`limit_delay: false` with `max_wait: 10`, a numeric `max_wait` as `limit_delay: true`,
+and a single `playlist_id` as `playlist_ids: [playlist_id]`.
 
-The panel state supplies Advanced `playlists` for sweeper selection, all station
+The `catalog` lists the sweepers of all selected playlists, so they are measured
+before their time slot starts. Planning and moving songs forward use only the
+playlists active now: enabled and inside one of their AzuraCast schedule items
+(checked with AzuraCast's scheduler, without its queue-resetting special rules), or
+without any schedule. All active playlists form one pool: each file counts once,
+rotation follows the shared play history and `sweeper_gap` counts across them.
+When playlists are selected but none is active, the timeline reports `off_schedule`.
+Deleted or no longer Advanced playlists are skipped at runtime and rejected on save.
+
+The panel state supplies Advanced `playlists` for sweeper selection (with `enabled`
+and `scheduled`), all station
 `jingle_playlists` for spacing classification and the effective `queue_length`
 (`max(autodj_queue_length, 2)`). Foreign or missing jingle playlist IDs and a
 `songs_before_jingle` above `queue_length` are rejected before saving. A saved

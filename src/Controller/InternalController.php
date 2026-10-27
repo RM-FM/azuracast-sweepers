@@ -49,7 +49,7 @@ final readonly class InternalController
         $settings = Settings::fromArray($data['settings'] ?? []);
         $jobs = [];
         if ($settings->enabled) {
-            foreach ($this->media->jingles($station, $settings->playlistId) as $jingle) {
+            foreach ($this->media->jingles($station, $settings->playlistIds) as $jingle) {
                 $jobs[] = [
                     'media_id' => $jingle->id,
                     'identity' => $this->media->timingIdentity($station, $jingle),
@@ -120,7 +120,7 @@ final readonly class InternalController
     private function measurements(Station $station, Settings $settings, mixed $rows): array
     {
         $allowed = [];
-        foreach ($this->media->jingles($station, $settings->playlistId) as $jingle) {
+        foreach ($this->media->jingles($station, $settings->playlistIds) as $jingle) {
             $allowed[$jingle->id] = $jingle;
         }
         $measurements = [];

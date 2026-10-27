@@ -25,7 +25,8 @@ namespace {
     $state = new \Plugin\AzuracastSweepers\Service\State();
     $media = (new ReflectionClass(\Plugin\AzuracastSweepers\Service\Media::class))->newInstanceWithoutConstructor();
     $queue = (new ReflectionClass(\Plugin\AzuracastSweepers\Service\Queue::class))->newInstanceWithoutConstructor();
-    $planner = new \Plugin\AzuracastSweepers\Service\Planner($state, $media, $queue);
+    $schedule = (new ReflectionClass(\Plugin\AzuracastSweepers\Service\Schedule::class))->newInstanceWithoutConstructor();
+    $planner = new \Plugin\AzuracastSweepers\Service\Planner($state, $media, $queue, $schedule);
     $seed = static fn(int $expires): array => ['plans' => ['123' => [
         'song_id' => 7, 'jingle_id' => 42, 'expires_at' => $expires, 'played' => false, 'payload' => ['offset' => 3.5],
     ]]];
@@ -70,7 +71,7 @@ namespace {
         );
         $liveSettings = new \Plugin\AzuracastSweepers\ValueObject\Settings(
             enabled: true,
-            playlistId: 7,
+            playlistIds: [7],
             songsAfterJingle: 3,
             songsAfterSweeper: 2
         );

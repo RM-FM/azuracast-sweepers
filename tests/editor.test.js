@@ -38,11 +38,15 @@ globalThis.fetch = async (url, options) => {
     let data;
     if (url.endsWith("/state")) {
         data = { csrf: "session-token", station: { id: 1, name: "Test" }, queue_length: 3, module: moduleState, settings: {
-            enabled: true, playlist_id: null, limit_delay: false, max_wait: 10, margin: .5, duck_db: -7, jingle_gain: 1,
+            enabled: true, playlist_ids: [], limit_delay: false, max_wait: 10, margin: .5, duck_db: -7, jingle_gain: 1,
             songs_after_jingle: 1, songs_after_sweeper: 1, songs_before_jingle: 0, early_start: 2,
             count_jingle_mode: true, jingle_playlist_ids: [], longest_fit: false, length_tolerance: 20, swap_for_intro: false,
             reverb: false, reverb_intensity: 25, swap_sequential: false, excluded_playlist_ids: [], sweeper_gap: 1,
-        }, playlists: [{ id: 10, name: "Sweepers" }], jingle_playlists: [
+        }, playlists: [
+            { id: 10, name: "Sweepers", enabled: true, scheduled: false },
+            { id: 11, name: "Christmas", enabled: true, scheduled: true },
+            { id: 12, name: "Retired", enabled: false, scheduled: false },
+        ], jingle_playlists: [
             { id: 20, name: "Station IDs", is_jingle: true }, { id: 21, name: "Promos", is_jingle: false },
         ] };
     } else if (url.startsWith("/play/")) {
@@ -200,6 +204,18 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(first.swap_for_intro, false);
         assert.equal(first.swap_sequential, false);
         assert.deepEqual(first.excluded_playlist_ids, []);
+        assert.deepEqual(first.playlist_ids, [], "No sweeper playlist by default");
+        const sweeperPlaylists = field("Sweeper playlists");
+        assert.ok(sweeperPlaylists.hasAttribute("multiple"), "Several sweeper playlists can be selected");
+        assert.deepEqual([...sweeperPlaylists.options].map((option) => option.textContent.trim()),
+            ["Sweepers", "Christmas (scheduled)", "Retired (disabled)"]);
+        Object.defineProperty(sweeperPlaylists, "multiple", { value: true });
+        for (const option of sweeperPlaylists.options) {
+            Object.defineProperty(option, "selected", { configurable: true, writable: true, value: option.value !== "12" });
+        }
+        sweeperPlaylists.dispatchEvent(new Event("change", { bubbles: true }));
+        await settle();
+        assert.deepEqual((await submit()).playlist_ids, [10, 11], "All selected sweeper playlists are saved");
         assert.equal(first.sweeper_gap, 1, "One other sweeper before a repeat by default");
         assert.equal(first.reverb, false, "Reverb is off by default");
         assert.ok(![...document.querySelectorAll("section.card label")].some((node) => node.textContent.includes("Reverb intensity")),
@@ -397,14 +413,15 @@ test("reverb preview plays the selected sweeper and follows the reverb settings 
         await settle();
         assert.match(document.querySelector(".sweepers-preview").textContent, /Choose a sweeper playlist above/);
         assert.ok(button().disabled, "Nothing to play without a sweeper playlist");
-        const playlist = input("Sweeper playlist");
+        const playlist = input("Sweeper playlists");
+        Object.defineProperty(playlist, "multiple", { value: true });
         for (const option of playlist.options) {
-            Object.defineProperty(option, "selected", { configurable: true, writable: true, value: option.textContent.trim() === "Sweepers" });
+            Object.defineProperty(option, "selected", { configurable: true, writable: true, value: option.value !== "12" });
         }
         playlist.dispatchEvent(new Event("change", { bubbles: true }));
         await settle();
         await settle();
-        assert.deepEqual(previewRequests, ["/sweepers/1/media?playlist=10"], "Unsaved playlist choice loads its sweepers");
+        assert.deepEqual(previewRequests, ["/sweepers/1/media?playlist=10,11"], "Unsaved playlist choice loads all their sweepers");
         assert.deepEqual([...input("Preview sweeper").options].map((option) => option.textContent.trim()),
             ["radiomonster.fm – male", "female.mp3"]);
         button().dispatchEvent(new Event("click", { bubbles: true }));

@@ -17,7 +17,8 @@ final readonly class Planner
     public function __construct(
         private State $state,
         private Media $media,
-        private Queue $queue
+        private Queue $queue,
+        private Schedule $schedule
     ) {
     }
 
@@ -53,9 +54,6 @@ final readonly class Planner
                 $data['plans'] ?? [],
                 static fn(array $plan): bool => $plan['expires_at'] > time()
             );
-            $fingerprint = hash('sha256', json_encode([
-                Media::identity($song), $intro, $settings->toArray(), $measurements,
-            ], JSON_THROW_ON_ERROR));
             $decide = static function (string $reason) use (&$data, $token): array {
                 $decisions = $data['decisions'] ?? [];
                 unset($decisions[$token]);
@@ -88,6 +86,15 @@ final readonly class Planner
 
                 return $decide('jingle_follows');
             }
+            $active = $this->schedule->active($station, $settings->playlistIds);
+            if ($settings->playlistIds !== [] && $active === []) {
+                unset($data['plans'][$token]);
+
+                return $decide('off_schedule');
+            }
+            $fingerprint = hash('sha256', json_encode([
+                Media::identity($song), $intro, $settings->toArray(), $measurements, $active,
+            ], JSON_THROW_ON_ERROR));
             if (isset($data['plans'][$token])) {
                 $saved = $data['plans'][$token];
                 if (
@@ -104,7 +111,7 @@ final readonly class Planner
                 unset($data['plans'][$token]);
             }
 
-            $jingles = $this->media->jingles($station, $settings->playlistId);
+            $jingles = $this->media->jingles($station, $active);
             $reserved = Selection::unavailable($data, $settings->sweeperGap, count($jingles));
             $candidates = [];
             $fitting = 0;

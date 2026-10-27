@@ -27,15 +27,14 @@
                     </div>
                     <div class="form-text mb-3">Switches sweepers on or off for this station.</div>
                     <label class="form-label d-block mb-0">
-                        Sweeper playlist
-                        <select v-model="settings.playlist_id" class="form-select">
-                            <option :value="null">Choose an Advanced playlist</option>
+                        Sweeper playlists
+                        <select v-model="settings.playlist_ids" class="form-select" multiple size="5">
                             <option v-for="playlist in playlists" :key="playlist.id" :value="playlist.id">
-                                {{ playlist.name }}
+                                {{ playlistLabel(playlist) }}
                             </option>
                         </select>
                     </label>
-                    <div class="form-text">The playlist that contains the sweepers. It must be an <strong>Advanced</strong> playlist, so the sweepers do not also play as normal songs.</div>
+                    <div class="form-text">One or more <strong>Advanced</strong> playlists with the sweepers, so they do not also play as normal songs. Playlists with a schedule are used only in their time slots; without a schedule they are always used. All playlists active at the same time share one rotation. Disabled playlists are skipped. Hold <kbd>Ctrl</kbd> (<kbd>Cmd</kbd> on Mac) to select several.</div>
                 </fieldset>
 
                 <fieldset>
@@ -82,7 +81,7 @@
                             </option>
                         </select>
                     </label>
-                    <div class="form-text">Other playlists whose tracks count as jingles. Hold <kbd>Ctrl</kbd> (<kbd>Cmd</kbd> on Mac) to select several. The sweeper playlist always counts.</div>
+                    <div class="form-text">Other playlists whose tracks count as jingles. Hold <kbd>Ctrl</kbd> (<kbd>Cmd</kbd> on Mac) to select several. The sweeper playlists always count.</div>
                 </fieldset>
 
                 <fieldset>
@@ -226,7 +225,7 @@
                         </div>
                         <div class="form-text">
                             <template v-if="!previewSupported">This browser cannot play the preview.</template>
-                            <template v-else-if="!settings.playlist_id">Choose a sweeper playlist above to preview its sweepers.</template>
+                            <template v-else-if="!settings.playlist_ids.length">Choose a sweeper playlist above to preview its sweepers.</template>
                             <template v-else>Plays the sweeper in your browser with the reverb as set above, before saving. Switching the reverb or changing the intensity is heard right away. Volume and ducking are not part of the preview.</template>
                         </div>
                         <p v-if="previewError" class="text-danger small mb-0" role="alert">{{ previewError }}</p>
@@ -494,6 +493,7 @@ const reasons = {
     no_fit: "Intro too short for every sweeper",
     repeat: "Only fitting sweeper played too recently",
     no_sweepers: "No sweepers ready (empty playlist or not measured yet)",
+    off_schedule: "No sweeper playlist scheduled now",
     jingle_follows: "A jingle follows soon",
     excluded: "Playlist excluded from sweepers",
     after_jingle: "Too soon after a jingle",
@@ -535,6 +535,7 @@ function isUpcoming(entry) {
 // Spacing rules and track types skip a sweeper by design; any other reason means a due sweeper could not play.
 const intendedSkips = new Set([
     "jingle", "after_jingle", "after_sweeper", "jingle_follows", "excluded", "other", "live", "disabled", "intro_zero",
+    "off_schedule",
 ]);
 
 function status(entry) {
@@ -608,14 +609,19 @@ function stopPreview() {
     previewPlaying.value = false;
 }
 
-async function loadPreviewSweepers(playlist) {
+function playlistLabel(playlist) {
+    const notes = [playlist.scheduled ? "scheduled" : "", playlist.enabled === false ? "disabled" : ""].filter(Boolean);
+    return notes.length ? `${playlist.name} (${notes.join(", ")})` : playlist.name;
+}
+
+async function loadPreviewSweepers(ids) {
     stopPreview();
     previewSweepers.value = [];
     previewId.value = null;
     previewError.value = "";
-    if (!playlist) return;
+    if (!ids?.length) return;
     try {
-        previewSweepers.value = (await api(`media?playlist=${encodeURIComponent(playlist)}`)).rows;
+        previewSweepers.value = (await api(`media?playlist=${ids.join(",")}`)).rows;
         previewId.value = previewSweepers.value[0]?.id ?? null;
     } catch (exception) {
         previewError.value = exception.message;
@@ -642,7 +648,7 @@ async function togglePreview() {
     }
 }
 
-watch(() => settings.value.playlist_id, (playlist) => loadPreviewSweepers(playlist));
+watch(() => settings.value.playlist_ids?.join(","), () => loadPreviewSweepers(settings.value.playlist_ids));
 watch(previewLevel, (level) => preview?.setLevel(level));
 watch(previewId, stopPreview);
 watch(current, stopPreview);

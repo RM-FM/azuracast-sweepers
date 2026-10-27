@@ -136,26 +136,50 @@ final readonly class Media
         }
     }
 
-    public function jingles(Station $station, ?int $playlistId): array
+    /**
+     * @param list<int> $playlistIds
+     * @return list<StationMedia> Each file once, even if it is in several playlists.
+     */
+    public function jingles(Station $station, array $playlistIds): array
     {
-        if ($playlistId === null) {
-            return [];
-        }
-        $playlist = $this->em->find(StationPlaylist::class, $playlistId);
-        if (
-            $playlist === null || $playlist->station_id !== $station->id
-            || $playlist->type !== PlaylistTypes::Advanced
-        ) {
-            throw new InvalidArgumentException('Choose an Advanced playlist belonging to this station.');
-        }
-
         $unique = [];
-        foreach ($playlist->media_items as $entry) {
-            $media = $this->get($station, $entry->media_id);
-            $unique[$media->id] = $media;
+        foreach ($this->sweeperPlaylists($station, $playlistIds) as $playlist) {
+            foreach ($playlist->media_items as $entry) {
+                $unique[$entry->media_id] ??= $this->get($station, $entry->media_id);
+            }
         }
 
         return array_values($unique);
+    }
+
+    /**
+     * @param list<int> $ids
+     * @return list<StationPlaylist> Deleted or changed playlists are skipped, so one cannot block the others.
+     */
+    public function sweeperPlaylists(Station $station, array $ids): array
+    {
+        $playlists = [];
+        foreach ($ids as $id) {
+            $playlist = $this->em->find(StationPlaylist::class, $id);
+            if (
+                $playlist !== null && $playlist->station_id === $station->id
+                && $playlist->type === PlaylistTypes::Advanced
+            ) {
+                $playlists[] = $playlist;
+            }
+        }
+
+        return $playlists;
+    }
+
+    /**
+     * @param list<int> $ids
+     */
+    public function validateSweeperPlaylists(Station $station, array $ids): void
+    {
+        if (count($this->sweeperPlaylists($station, $ids)) !== count($ids)) {
+            throw new InvalidArgumentException('Choose Advanced playlists belonging to this station.');
+        }
     }
 
     public function timingIdentity(Station $station, StationMedia $media): string
