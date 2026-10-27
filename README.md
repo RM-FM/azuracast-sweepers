@@ -45,6 +45,10 @@ services:
       - ./plugins/azuracast-sweepers:/var/azuracast/www/plugins/azuracast-sweepers:ro
 ```
 
+`COMPOSER_PLUGIN_MODE` is an AzuraCast setting: on start, the web container runs
+`composer update` with the plugins' `composer.json` merged in, so AzuraCast can load the
+plugin's PHP classes. This makes the container start a little slower.
+
 Then run `docker compose up -d` in `/var/azuracast`. This briefly interrupts broadcasting
 and loads the plugin's Liquidsoap module on all stations.
 
