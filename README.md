@@ -143,7 +143,9 @@ an error. These previews only play in the browser and do not affect station play
 
 Settings are grouped into **General**, **Spacing & Jingles**, **Selection & Timing**
 and **Audio & Preview** tabs. Switching tabs keeps unsaved changes; **Save Changes**
-saves all tabs together. Module status and update notices remain visible above the tabs.
+saves all tabs together. Module status, plugin version and update notices appear
+in the **Status** section of **General**, followed by separate sweeper playlist and
+playlist exclusion sections.
 
 Playlist selections appear as removable source tags with playlist-type icons. Use **Add Playlist** to
 check or uncheck playlists in the dropdown, or the **x** on a label to remove one. Changes take effect when you

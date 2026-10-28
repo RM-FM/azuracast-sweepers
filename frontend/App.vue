@@ -10,7 +10,7 @@
         <div v-if="loading" class="d-flex justify-content-center py-3">
             <div class="spinner-border" role="status"><span class="visually-hidden">Loading…</span></div>
         </div>
-        <div v-if="!loading && moduleStatus.state && moduleStatus.state !== 'active'" class="alert alert-warning" role="status" :data-module-status="moduleStatus.state">
+        <div v-if="!loading && current !== 'settings' && moduleStatus.state && moduleStatus.state !== 'active'" class="alert alert-warning" role="status" :data-module-status="moduleStatus.state">
             <p class="mb-0">{{ moduleStatus.message }}</p>
             <div v-if="restart && restartNeeded" class="buttons mt-2">
                 <button type="button" class="btn btn-warning" :disabled="restarting" @click="restartBroadcasting">Restart Broadcasting</button>
@@ -23,15 +23,6 @@
             </div>
             <form class="form sweepers-settings" @submit.prevent="saveSettings" @invalid.capture="revealInvalidSetting">
                 <div class="card-body">
-                    <p v-if="moduleStatus.state === 'active'" class="card-text text-success" data-module-status="active">{{ moduleStatus.message }}</p>
-                    <p v-if="release" class="card-text text-muted small" data-plugin-version>Plugin version {{ installedLabel }}</p>
-                    <div v-if="release?.latest" class="alert alert-info" role="status" data-plugin-update>
-                        <p class="mb-1">Version {{ release.latest.version }} is available. {{ updateRestartText }}</p>
-                        <a class="alert-link" :href="release.latest.url" target="_blank" rel="noopener">Release notes</a>
-                        ·
-                        <a class="alert-link" :href="release.repository_url + '#updating'" target="_blank" rel="noopener">Update steps</a>
-                    </div>
-
                     <nav class="nav nav-default nav-tabs mb-3" role="tablist" aria-label="Sweeper settings" @keydown="settingsTabKey">
                         <div v-for="[key, label] in settingsTabs" :key="key" class="nav-item" role="presentation">
                             <button :id="'sweepers-tab-' + key" class="nav-link" :class="{ active: settingsTab === key }" type="button" role="tab" :aria-selected="settingsTab === key" :aria-controls="'sweepers-panel-' + key" :tabindex="settingsTab === key ? 0 : -1" @click="settingsTab = key">{{ label }}</button>
@@ -39,7 +30,21 @@
                     </nav>
                     <div id="sweepers-panel-general" v-show="settingsTab === 'general'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-general" data-settings-tab="general">
                     <fieldset class="form-group">
-                        <legend>General</legend>
+                        <legend>Status</legend>
+                        <p v-if="moduleStatus.state === 'active'" class="card-text text-success" data-module-status="active">{{ moduleStatus.message }}</p>
+                        <div v-else-if="moduleStatus.state" class="alert alert-warning" role="status" :data-module-status="moduleStatus.state">
+                            <p class="mb-0">{{ moduleStatus.message }}</p>
+                            <div v-if="restart && restartNeeded" class="buttons mt-2">
+                                <button type="button" class="btn btn-warning" :disabled="restarting" @click="restartBroadcasting">Restart Broadcasting</button>
+                            </div>
+                        </div>
+                        <p v-if="release" class="card-text text-muted small" data-plugin-version>Plugin version {{ installedLabel }}</p>
+                        <div v-if="release?.latest" class="alert alert-info" role="status" data-plugin-update>
+                            <p class="mb-1">Version {{ release.latest.version }} is available. {{ updateRestartText }}</p>
+                            <a class="alert-link" :href="release.latest.url" target="_blank" rel="noopener">Release notes</a>
+                            ·
+                            <a class="alert-link" :href="release.repository_url + '#updating'" target="_blank" rel="noopener">Update steps</a>
+                        </div>
                         <div class="row g-3">
                             <div class="form-group col-md-12">
                                 <div class="form-check form-switch">
@@ -48,16 +53,16 @@
                                 </div>
                                 <div class="form-text">Switches sweepers on or off for this station.</div>
                             </div>
-                            <fieldset class="form-group col-md-12" aria-describedby="sweepers-playlists-help">
-                                <legend class="form-label">Sweeper playlists</legend>
+                        </div>
+                    </fieldset>
+                    <fieldset class="form-group" aria-describedby="sweepers-playlists-help">
+                        <legend>Sweeper Playlists</legend>
                                 <PlaylistPicker id="sweepers-playlist" v-model="settings.playlist_ids" title="Sweeper playlists" :playlists="playlists" :label="playlistLabel" />
                                 <div id="sweepers-playlists-help" class="form-text">One or more <strong>Advanced</strong> playlists with the sweepers, so they do not also play as normal songs. Playlists with a schedule are used only in their time slots; without a schedule they are always used. All playlists active at the same time share one rotation. Disabled playlists are skipped.</div>
-                            </fieldset>
-                        </div>
                     </fieldset>
 
                     <fieldset class="form-group">
-                        <legend>Playlists Without Sweepers</legend>
+                        <legend>Exclude Playlists from Sweepers</legend>
                         <div class="row g-3">
                             <fieldset class="form-group col-md-12">
                                 <legend class="form-label">Exclude these playlists</legend>
@@ -255,7 +260,6 @@
                     <div class="buttons mt-3">
                         <button type="submit" class="btn btn-lg btn-primary" :disabled="saving">Save Changes</button>
                     </div>
-                    <div class="form-text">Changes apply immediately; no broadcasting restart is needed.</div>
                 </div>
             </form>
         </section>

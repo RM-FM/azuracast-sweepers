@@ -536,7 +536,7 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
             node.dispatchEvent(new Event("change", { bubbles: true }));
             await settle();
         };
-        assert.ok([...document.querySelectorAll("legend.form-label")].some((node) => node.textContent === "Sweeper playlists"));
+        assert.ok([...document.querySelectorAll("legend")].some((node) => node.textContent === "Sweeper Playlists"));
         assert.ok(document.querySelector("form.sweepers-settings").classList.contains("form"), "Settings use the native AzuraCast form styles");
         assert.equal(document.querySelectorAll(".sweepers-playlist-picker input[type=checkbox]").length, 0);
         await openPicker("sweepers-playlist");
@@ -690,8 +690,12 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         duck.dispatchEvent(new Event("input", { bubbles: true }));
         await select(0);
         assert.equal(spacing.value, "7", "Hidden panels keep unsaved edits");
-        assert.ok(document.querySelector('[data-plugin-version]'), "Version remains outside panels");
-        assert.equal(document.querySelector('[data-plugin-version]').closest('[role="tabpanel"]'), null);
+        const status = document.querySelector('[data-plugin-version]').closest("fieldset");
+        assert.equal(status.querySelector("legend").textContent, "Status");
+        assert.equal(status.closest('[role="tabpanel"]'), panel("general"));
+        assert.deepEqual([...panel("general").children].map((node) => node.querySelector("legend").textContent),
+            ["Status", "Sweeper Playlists", "Exclude Playlists from Sweepers"]);
+        assert.doesNotMatch(document.querySelector(".sweepers-settings").textContent, /Changes apply immediately; no broadcasting restart is needed/);
         const save = document.querySelector('.sweepers-settings button[type="submit"]');
         assert.equal(document.querySelectorAll('.sweepers-settings button[type="submit"]').length, 1);
         assert.equal(save.closest('[role="tabpanel"]'), null);
