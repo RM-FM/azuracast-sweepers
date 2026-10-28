@@ -431,6 +431,8 @@ test("unknown intro switch filters server-side, resets pages and removes newly t
         return mediaResult([track(1)], 51);
     };
     const app = await mountIntros();
+    assert.ok(document.querySelector(".datatable-toolbar-top .sweepers-filters #unknown-intros")
+        && !document.querySelector("#unknown-intros").closest(".dropdown-menu"), "The unknown filter is visible in the toolbar");
     const toggle = async (checked) => {
         const node = document.querySelector("#unknown-intros");
         node.checked = checked;

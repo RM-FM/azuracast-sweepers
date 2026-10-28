@@ -34,8 +34,22 @@
     font-weight: 500;
 }
 
+.sweepers-page .sweepers-toolbar-controls {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem 1rem;
+}
+
+.sweepers-page .sweepers-toolbar-search {
+    min-width: 12rem;
+}
+
 .sweepers-page .sweepers-filters {
-    min-width: 16rem;
+    flex: 0 0 auto;
+}
+
+.sweepers-page .sweepers-filters .form-check {
+    margin-bottom: 0;
 }
 
 .sweepers-page .dp__main {

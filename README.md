@@ -120,8 +120,8 @@ Ways to set it:
 
 On **Sweepers → Intros**, search updates automatically after typing, without a Search
 button. All matching files are available with AzuraCast's page controls (25 per page by
-default, up to all files), without a 100-file limit. The filter menu's
-**Only unknown/untagged tracks** limits the list to files with a missing or blank
+default, up to all files), without a 100-file limit. The
+**Only unknown/untagged tracks** switch beside the search box limits the list to files with a missing or blank
 `intro_end`; a saved zero still counts as tagged. Search and pagination apply to
 the filtered results. Saving an intro removes that track from the filtered list.
 **Intro** (play icon) plays a track directly from its saved `intro_end` for 5 seconds
