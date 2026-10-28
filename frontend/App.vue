@@ -10,7 +10,7 @@
         <div v-if="loading" class="d-flex justify-content-center py-3">
             <div class="spinner-border" role="status"><span class="visually-hidden">Loading…</span></div>
         </div>
-        <div v-if="!loading && current !== 'settings' && moduleStatus.state && moduleStatus.state !== 'active'" class="alert alert-warning" role="status" :data-module-status="moduleStatus.state">
+        <div v-if="!loading && moduleStatus.state && moduleStatus.state !== 'active'" class="alert alert-warning" role="status" :data-module-status="moduleStatus.state">
             <p class="mb-0">{{ moduleStatus.message }}</p>
             <div v-if="restart && restartNeeded" class="buttons mt-2">
                 <button type="button" class="btn btn-warning" :disabled="restarting" @click="restartBroadcasting">Restart Broadcasting</button>
@@ -32,12 +32,6 @@
                     <fieldset class="form-group">
                         <legend>Status</legend>
                         <p v-if="moduleStatus.state === 'active'" class="card-text text-success" data-module-status="active">{{ moduleStatus.message }}</p>
-                        <div v-else-if="moduleStatus.state" class="alert alert-warning" role="status" :data-module-status="moduleStatus.state">
-                            <p class="mb-0">{{ moduleStatus.message }}</p>
-                            <div v-if="restart && restartNeeded" class="buttons mt-2">
-                                <button type="button" class="btn btn-warning" :disabled="restarting" @click="restartBroadcasting">Restart Broadcasting</button>
-                            </div>
-                        </div>
                         <p v-if="release" class="card-text text-muted small" data-plugin-version>Plugin version {{ installedLabel }}</p>
                         <div v-if="release?.latest" class="alert alert-info" role="status" data-plugin-update>
                             <p class="mb-1">Version {{ release.latest.version }} is available. {{ updateRestartText }}</p>

@@ -732,6 +732,10 @@ test("module status tells when a one-time restart is still required", async () =
         const status = document.querySelector('[data-module-status="restart"]');
         assert.ok(status, "Restart requirement is not shown");
         assert.ok(status.classList.contains("alert-warning"));
+        assert.equal(status.closest("section.card"), null, "Module warnings stay above the settings card");
+        document.getElementById("sweepers-tab-audio").click();
+        await settle();
+        assert.equal(document.querySelector('[data-module-status="restart"]'), status, "Module warning remains visible across settings tabs");
         assert.match(status.textContent, /Restart broadcasting once/);
         assert.equal(status.querySelector("button"), null, "Users without Broadcasting permission get no restart button");
         document.querySelector("section.card form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
