@@ -13,12 +13,13 @@ const vue = import.meta.resolve("vue");
 const stub = `import { defineComponent, h, ref } from ${JSON.stringify(vue)};
 export default defineComponent({
     props: ['intro'], emits: ['intro', 'position'],
-    setup(props, { emit, expose }) {
+    setup(props, { emit, expose, slots }) {
         expose({ ready: ref(true), playAt() {}, pause() {} });
         return () => h('div', [
             h('span', { id: 'marker' }, props.intro === null ? 'blank' : String(props.intro)),
             h('button', { type: 'button', id: 'move-marker', onClick: () => emit('intro', 14.75) }, 'Move marker'),
-            h('button', { type: 'button', id: 'seek', onClick: () => emit('position', 18.36) }, 'Seek')
+            h('button', { type: 'button', id: 'seek', onClick: () => emit('position', 18.36) }, 'Seek'),
+            slots.controls?.({ ready: true })
         ]);
     }
 });`;
@@ -132,6 +133,14 @@ test("intro editor saves one field from numeric, marker and playhead input", asy
         assert.ok(document.querySelector(".media-track button.btn-primary"));
         document.querySelector(".media-track button").click();
         await settle();
+        const editorText = document.querySelector("article").textContent;
+        assert.ok(!editorText.includes("Saved Intro End"));
+        assert.ok(!editorText.includes("Original file position"));
+        assert.ok(!editorText.includes("Move the marker"));
+        assert.ok(!editorText.includes("Listen −3"));
+        for (const label of ["Set", "Listen Intro", "No Intro", "Clear", "Save Intro"]) {
+            assert.ok([...document.querySelectorAll("article button")].some((button) => button.textContent.trim() === label));
+        }
         assert.equal(document.querySelector(".media-list tbody tr").querySelector("article h2").textContent, "First song",
             "The editor replaces the track row");
         assert.equal(document.querySelectorAll(".media-track").length, 1);
@@ -147,14 +156,14 @@ test("intro editor saves one field from numeric, marker and playhead input", asy
         await save();
         assert.deepEqual(writes.at(-1).body, { intro_end: 14.75 });
         await click("Seek");
-        await click("Set at playhead");
+        await click("Set");
         assert.equal(input().value, "18.36");
         await save();
         assert.deepEqual(writes.at(-1).body, { intro_end: 18.36 });
-        await click("No intro (0 s)");
+        await click("No Intro");
         await save();
         assert.deepEqual(writes.at(-1).body, { intro_end: 0 });
-        await click("Clear cue");
+        await click("Clear");
         await save();
         assert.deepEqual(writes.at(-1).body, { intro_end: null });
         await setInput("181");
@@ -232,7 +241,13 @@ test("intro scan plays five seconds from saved original-file cues through every 
     try {
         assert.ok(document.body.textContent.includes("102 matching files"));
         assert.equal(document.querySelector("form.search button"), null);
-        await click("Scan intros (5 s each)");
+        const scan = document.querySelector(".media-list thead button");
+        assert.equal(scan.textContent.trim(), "Scan Intros");
+        assert.ok(scan.classList.contains("btn-sm"));
+        assert.ok(scan.querySelector('svg[aria-hidden="true"]'));
+        await click("Scan Intros");
+        assert.equal(scan.textContent.trim(), "Stop");
+        assert.equal(scan.getAttribute("aria-pressed"), "true");
         for (let id = 2; id <= 102; id++) {
             const player = lastAudio();
             const cue = id === 2 ? 0 : 10;
@@ -247,6 +262,8 @@ test("intro scan plays five seconds from saved original-file cues through every 
         assert.equal(IntroAudio.instances.length - start, 101, "Blank skipped; zero is playable; all 102 results covered");
         assert.ok(document.body.textContent.includes("5 / 5"));
         assert.ok(document.body.textContent.includes("Finished listening"));
+        assert.equal(scan.textContent.trim(), "Scan Intros");
+        assert.equal(scan.getAttribute("aria-pressed"), "false");
         assert.equal(document.querySelector("article"), null, "Scanning does not open the editor");
     } finally {
         app.unmount();
@@ -257,26 +274,26 @@ test("intro scan plays five seconds from saved original-file cues through every 
 test("single-track listening, early EOF, stop and editor opening release audio", async () => {
     const app = await mountIntros();
     try {
-        await click("Listen at intro");
+        await click("Intro");
         assert.equal(lastAudio().currentTime, 10);
         assert.equal(document.querySelector("article"), null);
         const single = lastAudio();
         single.onended();
         await settle();
         assert.equal(single.paused, true);
-        await click("Scan intros (5 s each)");
+        await click("Scan Intros");
         lastAudio().onended();
         await settle();
         assert.equal(lastAudio().currentTime, 6);
-        await click("Stop listening");
+        await click("Stop");
         const stopped = lastAudio();
         assert.equal(stopped.paused, true);
         assert.equal(stopped.onended, null);
-        await click("Listen at intro");
+        await click("Intro");
         await click("Edit intro");
         assert.equal(lastAudio().paused, true);
         assert.ok(document.querySelector("article"));
-        await click("Listen at intro");
+        await click("Intro");
         assert.equal(document.querySelector("article"), null, "Listening closes and pauses an open waveform");
     } finally {
         app.unmount();
@@ -295,7 +312,7 @@ test("live search debounces, resets pagination, stops playback and ignores stale
     try {
         await click("Next");
         assert.ok(document.body.textContent.includes("2 / 5"));
-        await click("Listen at intro");
+        await click("Intro");
         const oldAudio = lastAudio();
         const requests = mediaRequests.length;
         await typeSearch("o");
@@ -311,7 +328,7 @@ test("live search debounces, resets pagination, stops playback and ignores stale
         releaseOld(mediaResult([track(8)], 1));
         await settle();
         assert.ok(document.body.textContent.includes("Track 9"), "Old search cannot overwrite newer results");
-        await click("Listen at intro");
+        await click("Intro");
         await click("Settings");
         assert.equal(lastAudio().paused, true, "Leaving Intros stops listening");
         await click("Intros");
@@ -329,16 +346,19 @@ test("stop during page loading prevents resumed audio, and playback failures are
         : mediaResult([track(1)], 26);
     const app = await mountIntros();
     try {
-        await click("Scan intros (5 s each)");
+        await click("Scan Intros");
         lastAudio().tick(15);
         await settle();
         const count = IntroAudio.instances.length;
-        await click("Stop listening");
+        const scan = document.querySelector(".media-list thead button");
+        assert.equal(scan.textContent.trim(), "Stop");
+        assert.ok(!scan.disabled, "Scan can be stopped while the next page is loading");
+        await click("Stop");
         releasePage(mediaResult([track(26)], 26));
         await settle();
         assert.equal(IntroAudio.instances.length, count);
         IntroAudio.reject = true;
-        await click("Listen at intro");
+        await click("Intro");
         assert.ok(document.body.textContent.includes("Playback blocked"));
         assert.equal(lastAudio().paused, true);
     } finally {
@@ -357,11 +377,12 @@ test("empty intro pages are skipped and media failures stop scanning explicitly"
     const app = await mountIntros();
     try {
         const count = IntroAudio.instances.length;
-        await click("Scan intros (5 s each)");
+        await click("Scan Intros");
         assert.equal(IntroAudio.instances.length, count);
         assert.ok(document.body.textContent.includes("Page loading failed"));
-        const stop = [...document.querySelectorAll("button")].find((node) => node.textContent === "Stop listening");
-        assert.ok(stop.disabled);
+        const scan = document.querySelector(".media-list thead button");
+        assert.equal(scan.textContent.trim(), "Scan Intros");
+        assert.equal(scan.getAttribute("aria-pressed"), "false");
     } finally {
         app.unmount();
         mediaResponse = null;

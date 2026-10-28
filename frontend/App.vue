@@ -251,14 +251,6 @@
                             <input id="search" v-model="search" class="form-control" type="search" placeholder="Artist, title or filename">
                         </div>
                     </form>
-                    <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
-                        <button class="btn btn-secondary" type="button" :disabled="mediaLoading || !rows.length" @click="startListening">Scan intros (5 s each)</button>
-                        <button class="btn btn-secondary" type="button" :disabled="!listening && !scanning" @click="stopListening">Stop listening</button>
-                        <span v-if="listening" role="status">Listening: {{ listening.path }}</span>
-                        <span v-else-if="scanning" role="status">Finding the next intro…</span>
-                        <span v-if="mediaLoading" role="status">Loading files…</span>
-                    </div>
-                    <p class="form-text mb-0">Listen from the saved Intro End for 5 seconds. Scanning continues through all matching pages; unknown intro ends are skipped.</p>
                 </div>
                 <div class="table-responsive media-list">
                     <table class="table align-middle table-striped table-hover mb-0">
@@ -267,7 +259,19 @@
                                 <th scope="col">File</th>
                                 <th scope="col">Duration</th>
                                 <th scope="col">Intro End</th>
-                                <th scope="col"><span class="visually-hidden">Actions</span></th>
+                                <th scope="col" class="text-end text-nowrap">
+                                    <button
+                                        class="btn btn-sm btn-secondary"
+                                        type="button"
+                                        :disabled="!listening && !scanning && (mediaLoading || !rows.length)"
+                                        :aria-pressed="Boolean(listening || scanning)"
+                                        :title="listening?.path"
+                                        @click="listening || scanning ? stopListening() : startListening()"
+                                    >
+                                        <svg class="intro-play-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path :d="listening || scanning ? 'M3 3h10v10H3z' : 'M4 2l10 6-10 6z'" /></svg>
+                                        {{ listening || scanning ? 'Stop' : 'Scan Intros' }}
+                                    </button>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
@@ -280,7 +284,10 @@
                                 <td class="text-nowrap">{{ formatIntro(row.intro_end) }}</td>
                                 <td class="text-end text-nowrap">
                                     <button type="button" class="btn btn-sm btn-primary" :aria-label="'Edit intro: ' + row.path" @click="select(row)">Edit intro</button>
-                                    <button type="button" class="btn btn-sm btn-secondary ms-2" :disabled="!canListen(row)" :aria-label="'Listen at intro: ' + row.path" @click="listenOne(row)">Listen at intro</button>
+                                    <button type="button" class="btn btn-sm btn-secondary ms-2" :disabled="!canListen(row)" :aria-label="'Listen at intro: ' + row.path" @click="listenOne(row)">
+                                        <svg class="intro-play-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 2l10 6-10 6z" /></svg>
+                                        Intro
+                                    </button>
                                 </td>
                             </tr>
                             <tr v-if="selected?.id === row.id" class="intro-editor-row">
@@ -291,7 +298,7 @@
                     <button class="btn btn-sm btn-outline-light" type="button" @click="selected = null">Close editor</button>
                 </div>
                 <div class="card-body">
-                <p class="text-muted">Duration {{ formatDuration(selected.duration) }} · Saved Intro End: {{ formatIntro(selected.intro_end) }} · Original file position</p>
+                <p class="text-muted">Duration {{ formatDuration(selected.duration) }}</p>
                 <Waveform
                     :key="selected.id"
                     :ref="el => { if (selected?.id === row.id) waveform = el; }"
@@ -300,22 +307,21 @@
                     :intro="marker"
                     @position="position = $event"
                     @intro="draft = $event"
-                />
-                <div class="d-flex flex-wrap gap-2 my-3">
-                    <button class="btn btn-secondary" type="button" :disabled="!waveform?.ready" @click="draft = Math.round(position * 100) / 100">Set at playhead</button>
-                    <button class="btn btn-secondary" type="button" :disabled="marker === null || !waveform?.ready" @click="waveform?.playAt(marker)">Listen at Intro</button>
-                    <button class="btn btn-secondary" type="button" :disabled="marker === null || !waveform?.ready" @click="waveform?.playAt(marker - 3)">Listen −3 s</button>
-                </div>
+                >
+                    <template #controls="{ ready }">
+                        <button class="btn btn-secondary" type="button" :disabled="!ready" @click="draft = Math.round(position * 100) / 100">Set</button>
+                        <button class="btn btn-secondary" type="button" :disabled="marker === null || !ready" @click="waveform?.playAt(marker)">Listen Intro</button>
+                    </template>
+                </Waveform>
                 <form @submit.prevent="saveIntro">
                     <label class="form-label">
                         Intro End (s)
                         <input v-model="draft" class="form-control" type="number" min="0" :max="selected.duration" step="0.01">
                     </label>
-                    <p class="form-text">Move the marker, or seek in the waveform and set the cue at the playhead. Blank means unknown; zero means no intro.</p>
                     <div class="d-flex flex-wrap gap-2">
-                        <button class="btn btn-secondary" type="button" @click="draft = 0">No intro (0 s)</button>
-                        <button class="btn btn-secondary" type="button" @click="draft = ''">Clear cue</button>
-                        <button class="btn btn-primary" :disabled="saving || !validDraft">Save Intro End</button>
+                        <button class="btn btn-secondary" type="button" @click="draft = 0">No Intro</button>
+                        <button class="btn btn-secondary" type="button" @click="draft = ''">Clear</button>
+                        <button class="btn btn-primary" :disabled="saving || !validDraft">Save Intro</button>
                     </div>
                 </form>
                 </div>

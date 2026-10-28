@@ -111,12 +111,13 @@ Ways to set it:
 
 On **Sweepers → Intros**, search updates automatically after typing, without a Search
 button. All matching files are available in pages of 25, without a 100-file limit.
-**Listen at intro** plays a track directly from its saved `intro_end` for 5 seconds
-without opening the editor. **Scan intros (5 s each)** starts at the first playable
+**Intro** (play icon) plays a track directly from its saved `intro_end` for 5 seconds
+without opening the editor. **Scan Intros** in the table header starts at the first playable
 track on the current page and continues automatically through subsequent matching
 pages, stopping after the last result. Blank intro ends are skipped; zero starts at
 the beginning of the file. A track ending sooner advances immediately.
-**Stop listening**, changing the search or page, opening an editor, or leaving the
+The same button changes to **Stop** during playback. Pressing it, changing the search
+or page, opening an editor, or leaving the
 Intros page stops the preview. Audio or page-loading failures stop scanning and show
 an error. These previews only play in the browser and do not affect station playback.
 
