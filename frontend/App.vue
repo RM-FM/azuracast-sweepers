@@ -44,10 +44,7 @@
                             </div>
                             <fieldset class="form-group col-md-12" aria-describedby="sweepers-playlists-help">
                                 <legend class="form-label">Sweeper playlists</legend>
-                                <div v-for="playlist in playlists" :key="playlist.id" class="form-check form-check-inline">
-                                    <input :id="'sweepers-playlist-' + playlist.id" v-model="settings.playlist_ids" class="form-check-input" type="checkbox" :value="playlist.id">
-                                    <label class="form-check-label" :for="'sweepers-playlist-' + playlist.id">{{ playlistLabel(playlist) }}</label>
-                                </div>
+                                <PlaylistPicker id="sweepers-playlist" v-model="settings.playlist_ids" title="Sweeper playlists" :playlists="playlists" :label="playlistLabel" />
                                 <div id="sweepers-playlists-help" class="form-text">One or more <strong>Advanced</strong> playlists with the sweepers, so they do not also play as normal songs. Playlists with a schedule are used only in their time slots; without a schedule they are always used. All playlists active at the same time share one rotation. Disabled playlists are skipped.</div>
                             </fieldset>
                         </div>
@@ -88,10 +85,7 @@
                             </div>
                             <fieldset class="form-group col-md-12">
                                 <legend class="form-label">Additional jingle playlists</legend>
-                                <div v-for="playlist in jinglePlaylists" :key="playlist.id" class="form-check form-check-inline">
-                                    <input :id="'sweepers-jingle-' + playlist.id" v-model="settings.jingle_playlist_ids" class="form-check-input" type="checkbox" :value="playlist.id">
-                                    <label class="form-check-label" :for="'sweepers-jingle-' + playlist.id">{{ playlist.name }}{{ playlist.is_jingle ? ' (Jingle Mode)' : '' }}</label>
-                                </div>
+                                <PlaylistPicker id="sweepers-jingle" v-model="settings.jingle_playlist_ids" title="Additional jingle playlists" :playlists="jinglePlaylists" :label="(playlist) => playlist.name + (playlist.is_jingle ? ' (Jingle Mode)' : '')" />
                                 <div class="form-text">Other playlists whose tracks count as jingles. The sweeper playlists always count.</div>
                             </fieldset>
                         </div>
@@ -102,10 +96,7 @@
                         <div class="row g-3">
                             <fieldset class="form-group col-md-12">
                                 <legend class="form-label">Exclude these playlists</legend>
-                                <div v-for="playlist in jinglePlaylists" :key="playlist.id" class="form-check form-check-inline">
-                                    <input :id="'sweepers-excluded-' + playlist.id" v-model="settings.excluded_playlist_ids" class="form-check-input" type="checkbox" :value="playlist.id">
-                                    <label class="form-check-label" :for="'sweepers-excluded-' + playlist.id">{{ playlist.name }}</label>
-                                </div>
+                                <PlaylistPicker id="sweepers-excluded" v-model="settings.excluded_playlist_ids" title="Excluded playlists" :playlists="jinglePlaylists" />
                                 <div class="form-text">Tracks from these playlists never get a sweeper and are never moved, for example news or pre-recorded shows. Selecting a playlist group covers all playlists in it.</div>
                             </fieldset>
                         </div>
@@ -487,6 +478,7 @@ import { VueDatePicker } from "@vuepic/vue-datepicker";
 import DataToolbar from "./DataToolbar.vue";
 import Icon from "./Icon.vue";
 import Pagination from "./Pagination.vue";
+import PlaylistPicker from "./PlaylistPicker.vue";
 import Waveform from "./Waveform.vue";
 import { formatStationTime, lastDay, presetRanges, startOfDay } from "./dates.js";
 import { createReverbPreview, reverbLevel } from "./reverb.js";

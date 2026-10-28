@@ -2,6 +2,16 @@
     overflow-x: auto;
 }
 
+.sweepers-page .sweepers-playlist-options {
+    max-height: 16rem;
+    overflow-y: auto;
+}
+
+.sweepers-page .sweepers-playlist-picker .btn-close {
+    flex-shrink: 0;
+    font-size: .65rem;
+}
+
 .sweepers-page .media-list .file-name {
     overflow-wrap: anywhere;
 }

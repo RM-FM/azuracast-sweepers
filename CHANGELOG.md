@@ -4,6 +4,8 @@
 
 ### Improvements
 
+- Settings show selected playlists as removable labels with a searchable add menu
+  instead of checkbox lists.
 - Saving settings no longer cancels a sweeper already prepared for an upcoming song;
   only switching sweepers off does.
 - Same-playlist replacement also considers songs already played in the current

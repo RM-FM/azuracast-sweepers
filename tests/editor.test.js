@@ -522,23 +522,38 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(first.swap_sequential, false);
         assert.deepEqual(first.excluded_playlist_ids, []);
         assert.deepEqual(first.playlist_ids, [], "No sweeper playlist by default");
-        const checkboxLabels = (prefix) => [...document.querySelectorAll(`input[id^="${prefix}"]`)]
-            .map((node) => document.querySelector(`label[for="${node.id}"]`).textContent.trim());
-        const check = async (id, checked = true) => {
-            const node = document.getElementById(id);
-            node.checked = checked;
-            node.dispatchEvent(new Event("change", { bubbles: true }));
+        const openPicker = async (id) => {
+            document.getElementById(id + "-toggle").click();
+            await settle();
+        };
+        const playlistLabels = (prefix) => [...document.querySelectorAll(`button[id^="${prefix}"]`)]
+            .filter((node) => !node.id.endsWith("-toggle")).map((node) => node.textContent.trim());
+        const check = async (id) => {
+            document.getElementById(id).click();
             await settle();
         };
         assert.ok([...document.querySelectorAll("legend.form-label")].some((node) => node.textContent === "Sweeper playlists"));
         assert.ok(document.querySelector("form.sweepers-settings").classList.contains("form"), "Settings use the native AzuraCast form styles");
-        assert.ok([...document.querySelectorAll('input[id^="sweepers-"][type="checkbox"]:not([role])')]
-            .every((node) => node.parentElement.classList.contains("form-check-inline")), "Playlist checkboxes sit side by side");
-        assert.deepEqual(checkboxLabels("sweepers-playlist-"), ["Sweepers", "Christmas (scheduled)", "Retired (disabled)"],
+        assert.equal(document.querySelectorAll(".sweepers-playlist-picker input[type=checkbox]").length, 0);
+        await openPicker("sweepers-playlist");
+        assert.deepEqual(playlistLabels("sweepers-playlist-"), ["Sweepers", "Christmas (scheduled)", "Retired (disabled)"],
             "Several sweeper playlists can be selected");
+        const search = document.querySelector("#sweepers-playlist-choices input");
+        search.value = "CHRIST";
+        search.dispatchEvent(new Event("input", { bubbles: true }));
+        await settle();
+        assert.deepEqual(playlistLabels("sweepers-playlist-"), ["Christmas (scheduled)"], "Search ignores case");
+        search.value = "";
+        search.dispatchEvent(new Event("input", { bubbles: true }));
+        await settle();
         await check("sweepers-playlist-10");
         await check("sweepers-playlist-11");
-        assert.deepEqual((await submit()).playlist_ids, [10, 11], "All selected sweeper playlists are saved");
+        assert.deepEqual(playlistLabels("sweepers-playlist-"), ["Retired (disabled)"], "Selected playlists cannot be added twice");
+        document.querySelector('[aria-label="Remove Sweepers"]').click();
+        await settle();
+        assert.deepEqual((await submit()).playlist_ids, [11], "Removing a label updates the saved selection");
+        await check("sweepers-playlist-10");
+        assert.deepEqual((await submit()).playlist_ids, [11, 10], "All selected sweeper playlists are saved");
         assert.equal(first.sweeper_gap, 1, "One other sweeper before a repeat by default");
         assert.equal(first.reverb, false, "Reverb is off by default");
         assert.ok(![...document.querySelectorAll("section.card label")].some((node) => node.textContent.includes("Reverb intensity")),
@@ -568,7 +583,8 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
             "Tolerance has the same narrow responsive column as handover margin"
         );
         assert.match(document.querySelector("section.card").textContent, /regular rotation chooses another fitting sweeper/);
-        assert.deepEqual(checkboxLabels("sweepers-jingle-"), ["Station IDs (Jingle Mode)", "Promos"]);
+        await openPicker("sweepers-jingle");
+        assert.deepEqual(playlistLabels("sweepers-jingle-"), ["Station IDs (Jingle Mode)", "Promos"]);
         await check("sweepers-jingle-20");
         await check("sweepers-jingle-21");
         await change("Limit start delay", true, true);
@@ -580,7 +596,8 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         await change("Move a song with an intro forward", true, true);
         await change("Also move or swap songs from sequential playlists", true, true);
         await change("Swap with another song from same playlist", true, true);
-        assert.deepEqual(checkboxLabels("sweepers-excluded-"), ["Station IDs", "Promos"]);
+        await openPicker("sweepers-excluded");
+        assert.deepEqual(playlistLabels("sweepers-excluded-"), ["Station IDs", "Promos"]);
         await check("sweepers-excluded-21");
         await change("Add reverb to the sweeper voice", true, true);
         assert.equal(field("Reverb intensity").value, "25");
@@ -831,9 +848,11 @@ test("reverb preview plays the selected sweeper and follows the reverb settings 
         assert.match(document.querySelector(".sweepers-preview").textContent, /Choose a sweeper playlist above/);
         assert.ok(button().disabled, "Nothing to play without a sweeper playlist");
         const playlist = async (id) => {
-            const node = document.getElementById(`sweepers-playlist-${id}`);
-            node.checked = true;
-            node.dispatchEvent(new Event("change", { bubbles: true }));
+            if (!document.getElementById("sweepers-playlist-choices")) {
+                document.getElementById("sweepers-playlist-toggle").click();
+                await settle();
+            }
+            document.getElementById(`sweepers-playlist-${id}`).click();
             await settle();
         };
         await playlist(10);
