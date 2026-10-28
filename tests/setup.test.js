@@ -62,6 +62,11 @@ test("setup adds an environment list entry and preserves interpolation", () => {
     assert.deepEqual(data.services.web.environment, ["OTHER=${OTHER}", "COMPOSER_PLUGIN_MODE=true"]);
 });
 
+test("setup fills empty environment and volumes keys instead of refusing them", () => {
+    const data = parse(mergeOverride("services:\n  web:\n    environment:\n    volumes:\n", root));
+    assert.deepEqual(data.services.web, { environment: { COMPOSER_PLUGIN_MODE: "true" }, volumes: [mount] });
+});
+
 test("setup refuses ambiguous YAML or conflicting mounts instead of overwriting them", () => {
     for (const input of [
         "services: [web]",

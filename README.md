@@ -62,9 +62,13 @@ plugin's PHP classes. This makes the container start a little slower.
 
 When the running web container lacks the mount or plugin environment flag, setup
 asks before running `docker compose up -d --no-deps web`. **This interrupts broadcasting
-on all stations in that container.** Answering no leaves the files prepared and prints
-the command to run later. Noninteractive runs never recreate the container.
-After applying, setup waits for PHP services and clears the route cache.
+on all stations in that container.** When AzuraCast is not running at all, setup asks
+before starting the whole stack with `docker compose up -d` instead. Answering no leaves
+the files prepared and prints the command to run later. Noninteractive runs never
+recreate or start containers. After applying, setup waits up to ten minutes for the
+PHP services (the first start runs `composer update`) and clears the route cache.
+If a later step fails, the error output names the backup and the exact `cp` command
+to revert the Compose override.
 The plugin is not enabled automatically; check the module status on each station.
 
 ## Setup

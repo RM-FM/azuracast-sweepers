@@ -8,7 +8,7 @@ const source = "./plugins/azuracast-sweepers";
 
 function mapping(document, parent, key) {
     let value = parent.get(key, true);
-    if (value === undefined) {
+    if (value === undefined || (isScalar(value) && value.value === null)) {
         value = document.createNode({});
         parent.set(key, value);
     }
@@ -40,7 +40,7 @@ export function mergeOverride(text, root) {
         mapping(document, web, "environment").set("COMPOSER_PLUGIN_MODE", "true");
     }
     let volumes = web.get("volumes", true);
-    if (volumes === undefined) {
+    if (volumes === undefined || (isScalar(volumes) && volumes.value === null)) {
         volumes = document.createNode([]);
         web.set("volumes", volumes);
     }
@@ -87,7 +87,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     let mode = 0o600;
     try {
         const stat = lstatSync(file);
-        if (!stat.isFile() || stat.nlink !== 1) throw new Error("The Compose override must be a regular, unlinked file.");
+        if (!stat.isFile()) throw new Error("The Compose override must be a regular file.");
         text = readFileSync(file, "utf8");
         mode = stat.mode & 0o777;
     } catch (error) {

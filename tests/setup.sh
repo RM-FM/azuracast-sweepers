@@ -21,11 +21,16 @@ elif [[ "$1" == run ]]; then
     mkdir -p "$TEST_ROOT/plugins/azuracast-sweepers/dist"
     printf 'bundle\n' > "$TEST_ROOT/plugins/azuracast-sweepers/dist/app.js"
 elif [[ "$1" == inspect && "$*" == *Mounts* ]]; then
-    printf '%s /var/azuracast/www/plugins/azuracast-sweepers false\n' "$TEST_ROOT/plugins/azuracast-sweepers"
+    [[ "${TEST_STALE:-false}" == true ]] ||
+        printf '%s /var/azuracast/www/plugins/azuracast-sweepers false\n' "$TEST_ROOT/plugins/azuracast-sweepers"
+elif [[ "$1" == inspect && "$*" == *State.Running* ]]; then
+    [[ "${TEST_STOPPED:-false}" == true ]] && printf 'false\n' || printf 'true\n'
 elif [[ "$1" == inspect ]]; then
     printf 'COMPOSER_PLUGIN_MODE=true\n'
 elif [[ "$1" == compose && "$2" == ps ]]; then
     [[ "${TEST_RECREATE:-false}" == true ]] || printf 'container\n'
+elif [[ "$1" == compose && "$2" == up ]]; then
+    [[ "${TEST_UP_FAILS:-false}" != true ]] || { echo 'Injected container start failure' >&2; exit 1; }
 elif [[ "$*" == *'config --services'* && "${TEST_NO_WEB:-false}" == true ]]; then
     printf 'custom-web\nredis\n'
 elif [[ "$*" == *'config --services'* ]]; then
@@ -69,10 +74,30 @@ grep -q 'Interactive confirmation is required' "$work/result"
 if command -v script >/dev/null; then
     printf 'n\n' | TEST_RECREATE=true script -qec "bash '$setup'" /dev/null > "$work/result"
     grep -q 'Prepared only; NOT applied' "$work/result"
+    grep -q 'AzuraCast is not running' "$work/result"
     ! grep -q 'compose up' "$TEST_ROOT/commands"
     printf 'y\n' | TEST_RECREATE=true script -qec "bash '$setup'" /dev/null > "$work/result"
     grep -q 'Plugin installed/updated' "$work/result"
-    grep -q 'compose up -d --no-deps web' "$TEST_ROOT/commands"
+    grep -qx 'compose up -d' "$TEST_ROOT/commands"
+    : > "$TEST_ROOT/commands"
+    printf 'y\n' | TEST_STOPPED=true script -qec "bash '$setup'" /dev/null > "$work/result"
+    grep -qx 'compose up -d' "$TEST_ROOT/commands"
+    ! grep -q 'no-deps' "$TEST_ROOT/commands"
+    : > "$TEST_ROOT/commands"
+    printf 'y\n' | TEST_STALE=true script -qec "bash '$setup'" /dev/null > "$work/result"
+    grep -q 'interrupts broadcasting' "$work/result"
+    grep -qx 'compose up -d --no-deps web' "$TEST_ROOT/commands"
+    printf '\n' | TEST_STALE=true script -qec "bash '$setup'" /dev/null > "$work/result"
+    grep -q 'Prepared only; NOT applied' "$work/result"
+    printf 'services:\n  web:\n    environment:\n      OTHER: keep\n' > "$TEST_ROOT/docker-compose.override.yml"
+    if printf 'y\n' | TEST_STALE=true TEST_UP_FAILS=true script -qec "bash '$setup'" /dev/null > "$work/result" 2>&1; then
+        echo 'Container start failure unexpectedly reported success' >&2; exit 1
+    fi
+    grep -q 'To revert it: cp -p' "$work/result"
+    restore=$(grep -o 'cp -p "[^"]*" "[^"]*"' "$work/result" | tail -1)
+    eval "$restore"
+    grep -q 'OTHER: keep' "$TEST_ROOT/docker-compose.override.yml"
+    ! grep -q 'azuracast-sweepers' "$TEST_ROOT/docker-compose.override.yml"
 else
     echo 'The script utility is required to test interactive confirmation.' >&2
     exit 1
