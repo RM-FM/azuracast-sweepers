@@ -389,7 +389,13 @@ isolated MariaDB `sweepers_test` database (`SWEEPER_TEST_DB_HOST`). It uses real
 playlist repositories, duplicate prevention, queue and rotation entities with
 minimal station/library fixtures. Never point integration tests at a station database.
 
-CI tests every push against pinned AzuraCast versions. The daily **AzuraCast
+CI tests pushes to `develop` and pull requests against pinned AzuraCast versions.
+Release PRs from this repository's `develop` to `main` reuse a successful push run
+for the exact head commit when `main` is an ancestor of that commit. Otherwise the
+full suite runs, including when the earlier run is still pending or failed.
+Pushes to `main` do not repeat the suite. Other PRs always run the full suite.
+
+The daily **AzuraCast
 compatibility** workflow tests `develop` against AzuraCast's rolling `latest` image
 and matching `main` sources: dependencies listed in `tests/compat.php`, sidebar
 markup, the Liquidsoap module and playback scenarios.
