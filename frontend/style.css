@@ -10,6 +10,13 @@
     min-height: 128px;
 }
 
+.sweepers-page .intro-play-icon {
+    width: 1em;
+    height: 1em;
+    fill: currentColor;
+    vertical-align: -.125em;
+}
+
 .sweepers-page .sweepers-settings fieldset {
     min-width: 0;
     margin: 0 0 1.5rem;

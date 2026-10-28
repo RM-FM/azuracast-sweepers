@@ -14,6 +14,7 @@ use App\Entity\StationPlaylist;
 use App\Event\Radio\AnnotateNextSong;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Tools\Pagination\Paginator;
 use InvalidArgumentException;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
@@ -251,7 +252,7 @@ final readonly class Media
         return $intros;
     }
 
-    public function list(Station $station, string $search): array
+    public function list(Station $station, string $search, int $page = 1, bool $unknownOnly = false): array
     {
         $query = $this->em->createQueryBuilder()
             ->select('m')
@@ -259,14 +260,29 @@ final readonly class Media
             ->where('m.storage_location = :storage')
             ->setParameter('storage', $station->media_storage_location)
             ->orderBy('m.path', 'ASC')
-            ->setMaxResults(100);
+            ->addOrderBy('m.id', 'ASC')
+            ->setFirstResult(($page - 1) * 25)
+            ->setMaxResults(25);
 
         if ($search !== '') {
             $query->andWhere('m.path LIKE :search OR m.title LIKE :search OR m.artist LIKE :search')
                 ->setParameter('search', '%' . $search . '%');
         }
+        if ($unknownOnly) {
+            $query->andWhere(
+                <<<'DQL'
+                    NOT EXISTS (
+                        SELECT v.id FROM App\Entity\StationMediaCustomField v JOIN v.field f
+                        WHERE v.media = m AND f.short_name = 'intro_end'
+                        AND v.value IS NOT NULL AND TRIM(v.value) <> ''
+                    )
+                DQL
+            );
+        }
 
-        return $query->getQuery()->getResult();
+        $paginator = new Paginator($query, false);
+
+        return ['rows' => iterator_to_array($paginator), 'total' => count($paginator)];
     }
 
     public function uri(Station $station, StationMedia $media): string

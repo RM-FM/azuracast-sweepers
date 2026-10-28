@@ -244,15 +244,16 @@
                     <h2 id="sweepers-cues-heading" class="card-title mb-0">Intro Cues</h2>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted">The intro end is where the singing starts. <strong>0</strong> = no usable intro, empty = not known yet. Songs without an intro end get no sweeper.</p>
-                    <form class="search" @submit.prevent="loadMedia">
-                        <label class="form-label" for="search">Find audio</label>
+                    <p class="text-muted"><strong>0</strong> = no usable intro, <strong>empty</strong> = not known yet. Songs without an intro end get no sweeper.</p>
+                    <form class="search" @submit.prevent>
                         <div class="input-group">
-                            <input id="search" v-model="search" class="form-control" type="search" placeholder="Artist, title or filename">
-                            <button class="btn btn-secondary" type="submit">Search</button>
+                            <input id="search" v-model="search" class="form-control" type="search" aria-label="Search tracks" placeholder="Artist, title or filename">
                         </div>
                     </form>
-                    <p class="form-text mb-0">Up to 100 matches. Refine your search to find more.</p>
+                    <div class="form-check form-switch mt-3">
+                        <input id="unknown-intros" v-model="unknownOnly" class="form-check-input" type="checkbox" role="switch">
+                        <label class="form-check-label" for="unknown-intros">Show unknown/untagged tracks</label>
+                    </div>
                 </div>
                 <div class="table-responsive media-list">
                     <table class="table align-middle table-striped table-hover mb-0">
@@ -261,7 +262,19 @@
                                 <th scope="col">File</th>
                                 <th scope="col">Duration</th>
                                 <th scope="col">Intro End</th>
-                                <th scope="col"><span class="visually-hidden">Actions</span></th>
+                                <th scope="col" class="text-end text-nowrap">
+                                    <button
+                                        class="btn btn-sm btn-secondary"
+                                        type="button"
+                                        :disabled="!listening && !scanning && (mediaLoading || !rows.length)"
+                                        :aria-pressed="Boolean(listening || scanning)"
+                                        :title="listening?.path"
+                                        @click="listening || scanning ? stopListening() : startListening()"
+                                    >
+                                        <svg class="intro-play-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path :d="listening || scanning ? 'M3 3h10v10H3z' : 'M4 2l10 6-10 6z'" /></svg>
+                                        {{ listening || scanning ? 'Stop' : 'Scan Intros' }}
+                                    </button>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
@@ -274,6 +287,10 @@
                                 <td class="text-nowrap">{{ formatIntro(row.intro_end) }}</td>
                                 <td class="text-end text-nowrap">
                                     <button type="button" class="btn btn-sm btn-primary" :aria-label="'Edit intro: ' + row.path" @click="select(row)">Edit intro</button>
+                                    <button type="button" class="btn btn-sm btn-secondary ms-2" :disabled="!canListen(row)" :aria-label="'Listen at intro: ' + row.path" @click="listenOne(row)">
+                                        <svg class="intro-play-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 2l10 6-10 6z" /></svg>
+                                        Intro
+                                    </button>
                                 </td>
                             </tr>
                             <tr v-if="selected?.id === row.id" class="intro-editor-row">
@@ -284,7 +301,7 @@
                     <button class="btn btn-sm btn-outline-light" type="button" @click="selected = null">Close editor</button>
                 </div>
                 <div class="card-body">
-                <p class="text-muted">Duration {{ formatDuration(selected.duration) }} · Saved Intro End: {{ formatIntro(selected.intro_end) }} · Original file position</p>
+                <p class="text-muted">Duration {{ formatDuration(selected.duration) }}</p>
                 <Waveform
                     :key="selected.id"
                     :ref="el => { if (selected?.id === row.id) waveform = el; }"
@@ -293,22 +310,21 @@
                     :intro="marker"
                     @position="position = $event"
                     @intro="draft = $event"
-                />
-                <div class="d-flex flex-wrap gap-2 my-3">
-                    <button class="btn btn-secondary" type="button" :disabled="!waveform?.ready" @click="draft = Math.round(position * 100) / 100">Set at playhead</button>
-                    <button class="btn btn-secondary" type="button" :disabled="marker === null || !waveform?.ready" @click="waveform?.playAt(marker)">Listen at Intro</button>
-                    <button class="btn btn-secondary" type="button" :disabled="marker === null || !waveform?.ready" @click="waveform?.playAt(marker - 3)">Listen −3 s</button>
-                </div>
-                <form @submit.prevent="saveIntro">
-                    <label class="form-label">
+                >
+                    <template #controls="{ ready }">
+                        <button class="btn btn-secondary" type="button" :disabled="!ready" @click="draft = Math.round(position * 100) / 100">Set</button>
+                        <button class="btn btn-secondary" type="button" :disabled="marker === null || !ready" @click="waveform?.playAt(marker)">Listen Intro</button>
+                    </template>
+                </Waveform>
+                <form class="d-flex flex-wrap align-items-end gap-2" @submit.prevent="saveIntro">
+                    <label class="form-label mb-0">
                         Intro End (s)
                         <input v-model="draft" class="form-control" type="number" min="0" :max="selected.duration" step="0.01">
                     </label>
-                    <p class="form-text">Move the marker, or seek in the waveform and set the cue at the playhead. Blank means unknown; zero means no intro.</p>
                     <div class="d-flex flex-wrap gap-2">
-                        <button class="btn btn-secondary" type="button" @click="draft = 0">No intro (0 s)</button>
-                        <button class="btn btn-secondary" type="button" @click="draft = ''">Clear cue</button>
-                        <button class="btn btn-primary" :disabled="saving || !validDraft">Save Intro End</button>
+                        <button class="btn btn-secondary" type="button" @click="draft = 0">No Intro</button>
+                        <button class="btn btn-secondary" type="button" @click="draft = ''">Clear</button>
+                        <button class="btn btn-primary" :disabled="saving || !validDraft">Save Intro</button>
                     </div>
                 </form>
                 </div>
@@ -320,12 +336,12 @@
                     </table>
                 </div>
                 <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
-                    <span class="text-muted" role="status">{{ rows.length ? rows.length + ' matching files (maximum 100)' : 'No matching files.' }}</span>
+                    <span class="text-muted" role="status">{{ total ? total + ' matching files' : 'No matching files.' }}</span>
                     <nav aria-label="Intro cue pages">
                         <ul class="pagination mb-0">
-                            <li class="page-item" :class="{ disabled: page === 1 }"><button class="page-link" type="button" :disabled="page === 1" @click="page--">Previous</button></li>
+                            <li class="page-item" :class="{ disabled: page === 1 || mediaLoading }"><button class="page-link" type="button" :disabled="page === 1 || mediaLoading" @click="changePage(page - 1)">Previous</button></li>
                             <li class="page-item disabled"><span class="page-link">{{ page }} / {{ pageCount }}</span></li>
-                            <li class="page-item" :class="{ disabled: page === pageCount }"><button class="page-link" type="button" :disabled="page === pageCount" @click="page++">Next</button></li>
+                            <li class="page-item" :class="{ disabled: page === pageCount || mediaLoading }"><button class="page-link" type="button" :disabled="page === pageCount || mediaLoading" @click="changePage(page + 1)">Next</button></li>
                         </ul>
                     </nav>
                 </div>
@@ -422,12 +438,15 @@ const jinglePlaylists = ref([]);
 const rows = ref([]);
 const page = ref(1);
 const pageSize = 25;
-const pageCount = computed(() => Math.max(1, Math.ceil(rows.value.length / pageSize)));
-const visibleRows = computed(() => rows.value.slice((page.value - 1) * pageSize, page.value * pageSize));
+const total = ref(0);
+const mediaLoading = ref(false);
+const pageCount = computed(() => Math.max(1, Math.ceil(total.value / pageSize)));
+const visibleRows = computed(() => rows.value);
 const search = ref("");
+const unknownOnly = ref(false);
 const selected = ref(null);
 const waveform = ref(null);
-watch(page, () => { selected.value = null; });
+watch(page, () => { selected.value = null; }, { flush: "sync" });
 const draft = ref("");
 const position = ref(0);
 const loading = ref(true);
@@ -654,35 +673,195 @@ watch(previewId, stopPreview);
 watch(current, stopPreview);
 onUnmounted(() => preview?.close());
 
-async function loadMedia() {
+let mediaRequest = 0;
+let searchTimer;
+let settingSearch = false;
+const listening = ref(null);
+const scanning = ref(false);
+let audio = null;
+let listeningRun = 0;
+
+function canListen(row) {
+    return Number.isFinite(row.intro_end) && row.intro_end >= 0 && row.intro_end < row.duration;
+}
+
+function clearAudio() {
+    if (!audio) return;
+    audio.onloadedmetadata = audio.ontimeupdate = audio.onended = audio.onerror = null;
+    audio.pause();
+    audio.removeAttribute("src");
+    audio.load();
+    audio = null;
+    listening.value = null;
+}
+
+function stopListening() {
+    listeningRun++;
+    scanning.value = false;
+    clearAudio();
+}
+
+function listeningError(exception, run) {
+    if (run !== listeningRun) return;
+    stopListening();
+    error.value = exception.message || "The intro could not be played.";
+}
+
+function playIntro(row, run, next) {
+    clearAudio();
+    waveform.value?.pause();
+    selected.value = null;
+    stopPreview();
+    listening.value = row;
+    const player = new Audio(row.audio_url);
+    audio = player;
+    let finished = false;
+    const finish = () => {
+        if (finished || run !== listeningRun) return;
+        finished = true;
+        clearAudio();
+        void next();
+    };
+    player.onloadedmetadata = () => {
+        try {
+            if (row.intro_end >= player.duration) {
+                throw new Error("The saved Intro End is outside the playable audio.");
+            }
+            player.currentTime = row.intro_end;
+        } catch (exception) {
+            listeningError(exception, run);
+        }
+    };
+    player.ontimeupdate = () => {
+        if (player.currentTime >= row.intro_end + 5) finish();
+    };
+    player.onended = finish;
+    player.onerror = () => listeningError(new Error(`Audio could not be loaded: ${row.path}`), run);
+    void player.play().catch((exception) => listeningError(exception, run));
+}
+
+function listenOne(row) {
+    stopListening();
+    error.value = "";
+    playIntro(row, listeningRun, stopListening);
+}
+
+async function scanNext(index, run) {
     try {
-        rows.value = (await api(`media?search=${encodeURIComponent(search.value)}`)).rows;
+        while (run === listeningRun) {
+            const next = rows.value.findIndex((row, i) => i >= index && canListen(row));
+            if (next !== -1) {
+                playIntro(rows.value[next], run, () => scanNext(next + 1, run));
+                return;
+            }
+            if (page.value >= pageCount.value) {
+                stopListening();
+                notice.value = "Finished listening to all matching intros.";
+                return;
+            }
+            if (!await loadMedia(page.value + 1) || run !== listeningRun) return;
+            index = 0;
+        }
+    } catch (exception) {
+        listeningError(exception, run);
+    }
+}
+
+function startListening() {
+    stopListening();
+    error.value = "";
+    notice.value = "";
+    scanning.value = true;
+    void scanNext(0, listeningRun);
+}
+
+function changePage(target) {
+    stopListening();
+    void loadMedia(target);
+}
+
+watch(search, () => {
+    clearTimeout(searchTimer);
+    if (settingSearch) return;
+    stopListening();
+    mediaRequest++;
+    mediaLoaded.value = false;
+    mediaLoading.value = true;
+    searchTimer = setTimeout(() => { void loadMedia(); }, 300);
+}, { flush: "sync" });
+watch(unknownOnly, () => {
+    if (settingSearch) return;
+    clearTimeout(searchTimer);
+    stopListening();
+    mediaLoaded.value = false;
+    void loadMedia();
+}, { flush: "sync" });
+watch(current, () => {
+    stopListening();
+    clearTimeout(searchTimer);
+    mediaRequest++;
+    mediaLoading.value = false;
+}, { flush: "sync" });
+onUnmounted(() => {
+    stopListening();
+    clearTimeout(searchTimer);
+    mediaRequest++;
+});
+
+async function loadMedia(target = 1) {
+    const request = ++mediaRequest;
+    mediaLoading.value = true;
+    error.value = "";
+    try {
+        const result = await api(`media?search=${encodeURIComponent(search.value)}${unknownOnly.value ? "&unknown=1" : ""}&page=${target}`);
+        if (request !== mediaRequest) return false;
+        rows.value = result.rows;
+        total.value = result.total;
         mediaLoaded.value = true;
-        page.value = 1;
+        page.value = target;
         const updated = rows.value.find((row) => row.id === selected.value?.id);
         if (updated) select(updated);
         else selected.value = null;
+        return true;
     } catch (exception) {
-        error.value = exception.message;
+        if (request === mediaRequest) {
+            stopListening();
+            error.value = exception.message;
+        }
+        return false;
+    } finally {
+        if (request === mediaRequest) mediaLoading.value = false;
     }
 }
 
 async function editIntro(id) {
+    stopListening();
     current.value = "intros";
     notice.value = "";
+    clearTimeout(searchTimer);
+    const request = ++mediaRequest;
+    mediaLoading.value = true;
     try {
         const [row] = (await api(`media?id=${encodeURIComponent(id)}`)).rows;
+        if (request !== mediaRequest) return;
+        settingSearch = true;
+        unknownOnly.value = false;
         search.value = row.path;
+        settingSearch = false;
         rows.value = [row];
+        total.value = 1;
         mediaLoaded.value = true;
         page.value = 1;
         select(row);
     } catch (exception) {
-        error.value = exception.message;
+        if (request === mediaRequest) error.value = exception.message;
+    } finally {
+        if (request === mediaRequest) mediaLoading.value = false;
     }
 }
 
 function select(row) {
+    stopListening();
     if (selected.value?.id !== row.id) position.value = 0;
     selected.value = row;
     draft.value = row.intro_end ?? "";
@@ -700,6 +879,11 @@ async function saveIntro() {
             if (marker.value === value) draft.value = result.intro_end ?? "";
         }
         notice.value = "Intro end saved.";
+        if (unknownOnly.value) {
+            const target = rows.value.length === 1 && page.value > 1 && result.intro_end !== null
+                ? page.value - 1 : page.value;
+            await loadMedia(target);
+        }
     });
 }
 

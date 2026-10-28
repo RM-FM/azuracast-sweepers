@@ -5,6 +5,11 @@ declare(strict_types=1);
 namespace App\Entity {
     use Doctrine\ORM\Mapping as ORM;
 
+    final class Station
+    {
+        public int $media_storage_location = 1;
+    }
+
     #[ORM\Entity]
     final class StationMedia
     {
@@ -22,6 +27,18 @@ namespace App\Entity {
 
         #[ORM\Column]
         public float $length = 180.0;
+
+        #[ORM\Column]
+        public int $storage_location = 1;
+
+        #[ORM\Column]
+        public string $path = '';
+
+        #[ORM\Column(nullable: true)]
+        public ?string $title = null;
+
+        #[ORM\Column(nullable: true)]
+        public ?string $artist = null;
     }
 
     #[ORM\Entity]
@@ -142,6 +159,70 @@ namespace {
     if ($mediaService->intros([1, 2, 3]) !== [1 => 14.0] || $mediaService->intros([]) !== []) {
         throw new RuntimeException('Intro lookup returned ' . json_encode($mediaService->intros([1, 2, 3])));
     }
+    for ($id = 3; $id <= 129; $id++) {
+        $file = new StationMedia();
+        $file->id = $id;
+        $file->path = 'pagination-' . str_pad((string)$id, 3, '0', STR_PAD_LEFT) . '.mp3';
+        $file->title = $id === 3 ? 'Title lookup' : null;
+        $file->artist = $id === 4 ? 'Artist lookup' : null;
+        $em->persist($file);
+    }
+    $foreign = new StationMedia();
+    $foreign->id = 130;
+    $foreign->storage_location = 2;
+    $foreign->path = 'pagination-foreign.mp3';
+    $foreign->title = 'Title lookup';
+    $em->persist($foreign);
+    $em->flush();
+
+    $station = new \App\Entity\Station();
+    $ids = [];
+    for ($page = 1; $page <= 6; $page++) {
+        $result = $mediaService->list($station, 'pagination', $page);
+        $expectedCount = $page === 6 ? 2 : 25;
+        if ($result['total'] !== 127 || count($result['rows']) !== $expectedCount) {
+            throw new RuntimeException('Media pagination returned an incorrect total or page size.');
+        }
+        array_push($ids, ...array_map(static fn(StationMedia $file): int => $file->id, $result['rows']));
+    }
+    if ($ids !== range(3, 129)) {
+        throw new RuntimeException('Pagination lost, duplicated or reordered files, or leaked another storage location.');
+    }
+    foreach (['Title lookup' => 3, 'Artist lookup' => 4] as $search => $expectedId) {
+        $result = $mediaService->list($station, $search);
+        if ($result['total'] !== 1 || $result['rows'][0]->id !== $expectedId) {
+            throw new RuntimeException('Media search did not match title or artist within the station.');
+        }
+    }
+    $empty = $mediaService->list($station, 'pagination', 7);
+    $all = $mediaService->list($station, '');
+    if ($empty !== ['rows' => [], 'total' => 127] || $all['total'] !== 129) {
+        throw new RuntimeException('Empty pages or unfiltered media totals are incorrect.');
+    }
+    $zero = $em->find(StationMedia::class, 3);
+    $mediaService->saveIntro($zero, 0);
+    $whitespace = new StationMediaCustomField($em->find(StationMedia::class, 4), $mediaService->ensureField());
+    $whitespace->value = '   ';
+    $em->persist($whitespace);
+    $emptyCue = new StationMediaCustomField($em->find(StationMedia::class, 5), $mediaService->ensureField());
+    $emptyCue->value = '';
+    $em->persist($emptyCue);
+    $em->flush();
+    $unknownIds = [];
+    for ($page = 1; $page <= 6; $page++) {
+        $result = $mediaService->list($station, '', $page, true);
+        if ($result['total'] !== 127) {
+            throw new RuntimeException('Unknown filter must exclude positive and zero cues, not blank or missing ones.');
+        }
+        array_push($unknownIds, ...array_map(static fn(StationMedia $file): int => $file->id, $result['rows']));
+    }
+    if ($unknownIds !== [2, ...range(4, 129)]) {
+        throw new RuntimeException('Unknown filter lost blank/missing cues or included tagged/foreign tracks.');
+    }
+    $filteredSearch = $mediaService->list($station, 'Title lookup', 1, true);
+    if ($filteredSearch !== ['rows' => [], 'total' => 0]) {
+        throw new RuntimeException('Unknown filter must combine with search before pagination.');
+    }
     try {
         $mediaService->saveIntro($recording, 999.0);
         throw new RuntimeException('An out-of-file cue was accepted.');
@@ -153,4 +234,5 @@ namespace {
         throw new RuntimeException('Invalid cue changed the saved value.');
     }
     echo "Single-field intro updates preserve other custom fields; intro lookup lists only songs with one.\n";
+    echo "Media pagination covers all 127 matches, with station-scoped path, title and artist search.\n";
 }

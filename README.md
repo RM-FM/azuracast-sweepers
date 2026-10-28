@@ -11,7 +11,7 @@ and rolling releases with Liquidsoap 2.5.
 
 ## Features
 
-- Sweepers placed on the song intro, using AutoCue for cue points, loudness and handover
+- Sweepers timed to the song intro using Liquidsoap's resolved cue and crossfade metadata
 - Music ducking that follows the sweeper voice
 - Several sweeper playlists, following their AzuraCast schedules, rotated as one pool
 - Rotation by oldest play, optionally preferring the longest fitting sweeper
@@ -109,6 +109,21 @@ Ways to set it:
   `{"intro_end": 14.5}` and an AzuraCast API key, for example from an external intro
   detector. See [docs/API.md](docs/API.md).
 
+On **Sweepers → Intros**, search updates automatically after typing, without a Search
+button. All matching files are available in pages of 25, without a 100-file limit.
+**Show unknown/untagged tracks** limits the list to files with a missing or blank
+`intro_end`; a saved zero still counts as tagged. Search and pagination apply to
+the filtered results. Saving an intro removes that track from the filtered list.
+**Intro** (play icon) plays a track directly from its saved `intro_end` for 5 seconds
+without opening the editor. **Scan Intros** in the table header starts at the first playable
+track on the current page and continues automatically through subsequent matching
+pages, stopping after the last result. Blank intro ends are skipped; zero starts at
+the beginning of the file. A track ending sooner advances immediately.
+The same button changes to **Stop** during playback. Pressing it, changing the search
+or page, opening an editor, or leaving the
+Intros page stops the preview. Audio or page-loading failures stop scanning and show
+an error. These previews only play in the browser and do not affect station playback.
+
 > [!WARNING]
 > Deleting a custom field in AzuraCast deletes all its values on all stations. The plugin
 > therefore blocks deleting `Intro End` and changing its programmatic name. Still export
@@ -170,10 +185,21 @@ AzuraCast still picks every song. The plugin plans a sweeper when Liquidsoap fet
 the next song and mixes it in after the crossfade, before the station's audio
 processing. Live DJs are never overlaid.
 
-Sweeper timing comes from the file's manual cue points, otherwise from AzuraCast
-AutoCue, otherwise from Liquidsoap's built-in AutoCue. Song cue-in is taken into
-account. The sweeper's handover, not its file end, must fit the intro; its tail may
-continue into the song.
+Timing uses the effective cue and crossfade metadata resolved by Liquidsoap, including
+manual cue points and cached annotations. Song cue-in is taken into account. The
+sweeper's handover, not its file end, must fit the intro; its tail may continue into
+the song.
+
+You do not need to enable or change your station's AutoCue setup. The plugin uses the
+resolved metadata regardless of whether it comes from manual settings, AzuraCast's
+built-in AutoCue or an external integration such as Moonbase.
+
+Only when a **sweeper** lacks a complete pair of cue-in and cue-out values does the
+plugin use Liquidsoap's internal AutoCue analysis as a fallback. This finds cue and
+mix points so leading/trailing silence or very quiet artefacts do not distort the
+sweeper's timing. The fallback runs on sweepers only, not songs, and does not write
+its results to AzuraCast's cue fields or AutoCue cache. It does not detect song intros:
+those still come from the song's `intro_end` field.
 
 The station's Liquidsoap log shows the decisions under the `sweepers` label.
 
