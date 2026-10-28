@@ -10,6 +10,7 @@ use App\Event\Radio\WriteLiquidsoapConfiguration;
 use App\Middleware;
 use Plugin\AzuracastSweepers\Controller\InternalController;
 use Plugin\AzuracastSweepers\Controller\PanelController;
+use Plugin\AzuracastSweepers\Controller\ReleaseController;
 use Plugin\AzuracastSweepers\Middleware\ProtectIntroField;
 use Plugin\AzuracastSweepers\Middleware\SidebarNavigation;
 use Plugin\AzuracastSweepers\Service\Media;
@@ -54,6 +55,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
             $group->get('/state', PanelController::class . ':stateAction');
             $group->get('/media', PanelController::class . ':mediaAction');
             $group->get('/history', PanelController::class . ':historyAction');
+            $group->get('/release', ReleaseController::class . ':releaseAction');
             $group->post('/intro/{id:[0-9]+}', PanelController::class . ':introAction');
             $group->post('/settings', PanelController::class . ':settingsAction')
                 ->add(new Middleware\Permissions(StationPermissions::Broadcasting, true));

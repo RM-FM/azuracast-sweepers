@@ -73,7 +73,7 @@ permission.
 
 | Page | Contents |
 | --- | --- |
-| **Settings** | All options with help texts, module status and sweeper preview |
+| **Settings** | All options with help texts, module status, plugin version, update notice and sweeper preview |
 | **Intros** | Search songs and set the intro end on a waveform |
 | **Playback Timeline** | Every played track with its sweeper status, intro end and start offset |
 
@@ -249,6 +249,12 @@ The station's Liquidsoap log shows the decisions under the `sweepers` label.
 
 ## Updating
 
+The Settings page shows the installed version (from the release notes, plus the checked-out
+branch and commit) and checks GitHub's releases every few hours. When a newer release exists,
+it links the release notes and states whether the update applies without restarting
+broadcasting. Updates are installed on the host, as below; AzuraCast's own web updater only
+updates AzuraCast itself, and the plugin directory is read-only inside the container.
+
 Read the [release notes](CHANGELOG.md) before updating. Every release explicitly
 states whether an **AzuraCast Broadcast (Liquidsoap) restart** is required.
 Frontend rebuilds and PHP/worker reloads are separate and do not restart broadcasting.
@@ -268,8 +274,10 @@ Frontend rebuilds and PHP/worker reloads are separate and do not restart broadca
 )
 ```
 
-This does not interrupt broadcasting. If the Liquidsoap module changed, the Settings page
-asks for one broadcasting restart per station. Settings, media and intro ends are kept.
+This does not interrupt broadcasting. Only if the Liquidsoap module's code changed (comments
+do not count), the Settings page asks for one broadcasting restart per station and offers a
+**Restart Broadcasting** button to users with Broadcasting permission. Settings, media and
+intro ends are kept.
 
 > [!IMPORTANT]
 > Keep the order: delete the route cache only after all PHP processes run the new code.

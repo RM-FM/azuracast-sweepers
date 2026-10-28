@@ -10,7 +10,12 @@
         <div v-if="loading" class="d-flex justify-content-center py-3">
             <div class="spinner-border" role="status"><span class="visually-hidden">Loading…</span></div>
         </div>
-        <div v-if="!loading && moduleStatus.state && moduleStatus.state !== 'active'" class="alert alert-warning" role="status" :data-module-status="moduleStatus.state">{{ moduleStatus.message }}</div>
+        <div v-if="!loading && moduleStatus.state && moduleStatus.state !== 'active'" class="alert alert-warning" role="status" :data-module-status="moduleStatus.state">
+            <p class="mb-0">{{ moduleStatus.message }}</p>
+            <div v-if="restart && restartNeeded" class="buttons mt-2">
+                <button type="button" class="btn btn-warning" :disabled="restarting" @click="restartBroadcasting">Restart Broadcasting</button>
+            </div>
+        </div>
 
         <section v-if="!loading && current === 'settings'" class="card mb-3" role="region" aria-labelledby="sweepers-settings-heading">
             <div class="card-header text-bg-primary">
@@ -20,6 +25,13 @@
                 <div class="card-body">
                     <p class="card-text">Sweepers are short station drop-ins played over the instrumental intro of a song, while the music is ducked underneath. Configure them for {{ station.name || 'your station' }} below.</p>
                     <p v-if="moduleStatus.state === 'active'" class="card-text text-success" data-module-status="active">{{ moduleStatus.message }}</p>
+                    <p v-if="release" class="card-text text-muted small" data-plugin-version>Plugin version {{ installedLabel }}</p>
+                    <div v-if="release?.latest" class="alert alert-info" role="status" data-plugin-update>
+                        <p class="mb-1">Version {{ release.latest.version }} is available. {{ updateRestartText }}</p>
+                        <a class="alert-link" :href="release.latest.url" target="_blank" rel="noopener">Release notes</a>
+                        ·
+                        <a class="alert-link" :href="release.repository_url + '#updating'" target="_blank" rel="noopener">Update steps</a>
+                    </div>
 
                     <fieldset class="form-group">
                         <legend>General</legend>
@@ -494,6 +506,20 @@ const csrf = ref(props.csrf);
 const station = ref({});
 const queueLength = ref(2);
 const moduleStatus = ref({});
+const restart = ref(null);
+const restarting = ref(false);
+const restartNeeded = computed(() => ["outdated", "restart"].includes(moduleStatus.value.state));
+const release = ref(null);
+const installedLabel = computed(() => {
+    const { version, branch, commit } = release.value?.installed ?? {};
+    const checkout = [branch, commit].filter(Boolean).join(" @ ");
+    return [version ?? "unknown", checkout && `(${checkout})`].filter(Boolean).join(" ");
+});
+const updateRestartText = computed(() => ({
+    required: "Updating requires restarting broadcasting once per station.",
+    not_required: "It applies without restarting broadcasting.",
+    unknown: "Check the release notes for whether broadcasting must be restarted.",
+})[release.value?.restart] ?? "");
 const settings = ref({});
 const playlists = ref([]);
 const jinglePlaylists = ref([]);
@@ -1052,16 +1078,55 @@ async function save(action) {
     }
 }
 
+let moduleRefresh;
+
+async function restartBroadcasting() {
+    if (!window.confirm("Restart broadcasting? This briefly disconnects your listeners.")) return;
+    restarting.value = true;
+    error.value = "";
+    notice.value = "";
+    try {
+        const response = await fetch(restart.value.url, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "X-API-CSRF": restart.value.csrf },
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || result.success === false) {
+            throw new Error(result.message || "Broadcasting could not be restarted.");
+        }
+        notice.value = "Broadcasting restarted. The module status updates within a minute.";
+        clearTimeout(moduleRefresh);
+        moduleRefresh = setTimeout(refreshModule, 20000);
+    } catch (exception) {
+        error.value = exception.message;
+    } finally {
+        restarting.value = false;
+    }
+}
+
+async function refreshModule() {
+    try {
+        moduleStatus.value = (await api("state")).module ?? moduleStatus.value;
+    } catch {
+        // The next page load shows the status.
+    }
+}
+
+onUnmounted(() => clearTimeout(moduleRefresh));
+
 onMounted(async () => {
     try {
         const state = await api("state");
         csrf.value = state.csrf ?? csrf.value;
         station.value = state.station;
+        restart.value = state.restart ?? null;
         queueLength.value = state.queue_length ?? 2;
         moduleStatus.value = state.module ?? {};
         settings.value = state.settings;
         playlists.value = state.playlists;
         jinglePlaylists.value = state.jingle_playlists ?? [];
+        api("release").then((result) => { release.value = result; }, () => {});
         if (current.value === "intros") await loadMedia();
         if (current.value === "history") await loadHistory();
     } catch (exception) {

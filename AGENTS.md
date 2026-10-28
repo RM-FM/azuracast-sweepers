@@ -31,6 +31,8 @@
   discuss and obtain explicit agreement first. Respect explicitly agreed version assignments.
 - Maintain [CHANGELOG.md](CHANGELOG.md) and use the same version-specific notes in the GitHub Release.
   Draft notes for unreleased work are clearly marked pending and are not a release authorization.
+  The plugin reports the newest `## X.Y.Z` heading without "Pending" as its installed version, so
+  replace the pending heading with `## X.Y.Z - YYYY-MM-DD` in the release PR before merging.
 - Group relevant user/product changes under Features, Fixes and Improvements; omit empty sections.
   Summarize related changes rather than enumerating code edits, tests or internal refactors. For a
   small single-purpose release, one concise user-relevant bullet is sufficient.
@@ -38,6 +40,11 @@
   Required / Not required**, with a short reason. Compare the shipped Liquidsoap module and generated
   configuration with the preceding release; distinguish a broadcast restart from frontend rebuilds
   and PHP/worker reloads. Initial installation may need a broadcast restart even if an update does not.
+  Keep the exact wording `AzuraCast Broadcast (Liquidsoap) restart: Required` or `... restart: Not
+  required` (bold allowed) in the GitHub Release body: the Settings page parses it to tell users whether
+  an available update needs a restart; any other wording is shown as unknown.
+- The module status compares a fingerprint of the Liquidsoap code without comments and blank lines.
+  A release that changes Liquidsoap code requires a restart; comment-only changes do not.
 - Verify the exact commit boundary, tag uniqueness, notes and restart requirement before publishing.
   Record checks actually run; never claim CI or station playback passed without evidence.
   A test/release hold forbids creating the release PR, tag or published release until the user lifts it.

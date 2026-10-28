@@ -54,10 +54,19 @@ let needsRestart = false;
 let mediaResponse = null;
 const mediaRequests = [];
 let moduleState = { state: "active", message: "The sweeper module is running on this station." };
+let restartInfo = null;
+let releaseInfo = { installed: { version: "1.0.1", branch: "main", commit: "ecd7ff2" }, checked: true,
+    repository_url: "https://github.com/RM-FM/azuracast-sweepers", latest: null, updates: [], restart: null };
+const restarts = [];
 globalThis.fetch = async (url, options) => {
     let data;
-    if (url.endsWith("/state")) {
-        data = { csrf: "session-token", station: { id: 1, name: "Test" }, queue_length: 3, module: moduleState, settings: {
+    if (url.endsWith("/release")) {
+        data = releaseInfo;
+    } else if (url === "/api/station/1/restart") {
+        restarts.push(options);
+        data = { success: true, message: "Station restarted." };
+    } else if (url.endsWith("/state")) {
+        data = { csrf: "session-token", station: { id: 1, name: "Test" }, restart: restartInfo, queue_length: 3, module: moduleState, settings: {
             enabled: true, playlist_ids: [], limit_delay: false, max_wait: 10, margin: .5, duck_db: -7, jingle_gain: 1,
             songs_after_jingle: 1, songs_after_sweeper: 1, songs_before_jingle: 0, early_start: 2,
             count_jingle_mode: true, jingle_playlist_ids: [], longest_fit: false, length_tolerance: 20, swap_for_intro: false,
@@ -609,7 +618,7 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
 });
 
 test("module status tells when a one-time restart is still required", async () => {
-    moduleState = { state: "restart", message: "The sweeper module is not running. Restart broadcasting once after installing or updating the plugin." };
+    moduleState = { state: "restart", message: "The sweeper module is not running. Restart broadcasting once after installing the plugin." };
     const app = createApp(App, { base: "/sweepers/1", csrf: "session-token" });
     app.mount(document.querySelector("#app"));
     try {
@@ -618,6 +627,7 @@ test("module status tells when a one-time restart is still required", async () =
         assert.ok(status, "Restart requirement is not shown");
         assert.ok(status.classList.contains("alert-warning"));
         assert.match(status.textContent, /Restart broadcasting once/);
+        assert.equal(status.querySelector("button"), null, "Users without Broadcasting permission get no restart button");
         document.querySelector("section.card form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
         await settle();
         assert.match(document.querySelector('div.alert-info[role="status"]').textContent, /apply once the sweeper module runs/);
@@ -625,6 +635,66 @@ test("module status tells when a one-time restart is still required", async () =
         app.unmount();
         moduleState = { state: "active", message: "The sweeper module is running on this station." };
     }
+});
+
+test("restart button restarts broadcasting through AzuraCast's API after confirmation", async () => {
+    moduleState = { state: "outdated", message: "This station runs an older sweeper module than the installed plugin." };
+    restartInfo = { url: "/api/station/1/restart", csrf: "api-token" };
+    const confirms = [];
+    globalThis.window.confirm = (message) => { confirms.push(message); return confirms.length > 1; };
+    const app = createApp(App, { base: "/sweepers/1", csrf: "session-token" });
+    app.mount(document.querySelector("#app"));
+    try {
+        await settle();
+        const button = document.querySelector('[data-module-status="outdated"] button.btn-warning');
+        assert.equal(button?.textContent.trim(), "Restart Broadcasting");
+        await click("Restart Broadcasting");
+        assert.equal(restarts.length, 0, "Cancelling the confirmation does not restart");
+        await click("Restart Broadcasting");
+        assert.equal(restarts.length, 1);
+        assert.equal(restarts[0].method, "POST");
+        assert.equal(restarts[0].headers["X-API-CSRF"], "api-token");
+        assert.match(document.querySelector('div.alert-info[role="status"]').textContent, /Broadcasting restarted/);
+    } finally {
+        app.unmount();
+        delete globalThis.window.confirm;
+        restartInfo = null;
+        moduleState = { state: "active", message: "The sweeper module is running on this station." };
+    }
+});
+
+test("settings show the installed version and newer releases with their restart requirement", async () => {
+    const app = createApp(App, { base: "/sweepers/1", csrf: "session-token" });
+    app.mount(document.querySelector("#app"));
+    try {
+        await settle();
+        assert.equal(document.querySelector("[data-plugin-version]").textContent.trim(), "Plugin version 1.0.1 (main @ ecd7ff2)");
+        assert.equal(document.querySelector("[data-plugin-update]"), null, "No update notice without a newer release");
+    } finally {
+        app.unmount();
+    }
+    const saved = releaseInfo;
+    for (const [restart, text] of [
+        ["not_required", /Version 1\.1\.0 is available\. It applies without restarting broadcasting\./],
+        ["required", /requires restarting broadcasting once per station/],
+        ["unknown", /Check the release notes/],
+    ]) {
+        releaseInfo = { ...saved, restart, latest: { version: "1.1.0", url: "https://github.com/RM-FM/azuracast-sweepers/releases/tag/1.1.0", restart } };
+        const update = createApp(App, { base: "/sweepers/1", csrf: "session-token" });
+        update.mount(document.querySelector("#app"));
+        try {
+            await settle();
+            const notice = document.querySelector("[data-plugin-update]");
+            assert.match(notice.textContent, text);
+            assert.deepEqual([...notice.querySelectorAll("a")].map((link) => link.getAttribute("href")), [
+                "https://github.com/RM-FM/azuracast-sweepers/releases/tag/1.1.0",
+                "https://github.com/RM-FM/azuracast-sweepers#updating",
+            ]);
+        } finally {
+            update.unmount();
+        }
+    }
+    releaseInfo = saved;
 });
 
 test("playback timeline lists all tracks, highlights songs with a sweeper and explains the others", async () => {

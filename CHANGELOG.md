@@ -11,13 +11,17 @@ Not released. The next `develop` -> `main` PR (expected #3), tag and GitHub Rele
 are on hold until testing is approved.
 
 **AzuraCast Broadcast (Liquidsoap) restart: Not required** when upgrading from
-1.0.1. The Liquidsoap module and generated broadcast configuration are unchanged.
-Rebuild the frontend and reload PHP/worker processes using the normal update steps.
+1.0.1. The Liquidsoap module code is unchanged and running stations are recognized
+as current. Rebuild the frontend and reload PHP/worker processes using the normal update steps.
 New same-playlist replacement is off by default; validate station playback before
 enabling it.
 
 ### Features
 
+- The Settings page shows the installed plugin version, checks GitHub for newer
+  releases and states from their release notes whether updating needs a broadcasting
+  restart. When a station must restart to load the sweeper module, a Restart
+  Broadcasting button is offered to users with Broadcasting permission.
 - Optional same-playlist song replacement improves sweeper matching using
   AzuraCast's native playlist order and repetition rules. Displaced songs return to
   their rotation; queued-song movement remains an independent, first-choice option.
@@ -36,6 +40,11 @@ enabling it.
   automatically.
 - Settings and Intros follow AzuraCast's form and data-table layout; playlist choices
   are checkbox lists instead of multi-select boxes, and Intros offers page sizes.
+
+### Fixes
+
+- Stations no longer ask for a broadcasting restart after updates that only changed
+  comments in the Liquidsoap module.
 
 ## 1.0.1 - 2026-10-28
 

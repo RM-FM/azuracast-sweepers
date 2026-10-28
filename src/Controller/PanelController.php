@@ -6,9 +6,11 @@ namespace Plugin\AzuracastSweepers\Controller;
 
 use App\Entity\Station;
 use App\Entity\StationMedia;
+use App\Enums\StationPermissions;
 use App\Http\Response;
 use App\Http\RouterInterface;
 use App\Http\ServerRequest;
+use App\Middleware\Auth\ApiAuth;
 use InvalidArgumentException;
 use Plugin\AzuracastSweepers\Service\Arranger;
 use Plugin\AzuracastSweepers\Service\History;
@@ -74,6 +76,7 @@ final readonly class PanelController
     {
         $station = $request->getStation();
         $data = $this->state->read($station->getRadioConfigDir());
+        $canRestart = $request->getAcl()->isAllowed(StationPermissions::Broadcasting, $station);
 
         return $response->withHeader('Cache-Control', 'no-store')->withJson([
             'csrf' => $request->getCsrf()->generate('sweepers'),
@@ -83,6 +86,10 @@ final readonly class PanelController
                 'timezone' => $station->timezone,
                 'needs_restart' => $station->needs_restart,
             ],
+            'restart' => $canRestart ? [
+                'url' => $request->getRouter()->named('api:stations:restart', ['station_id' => $station->id]),
+                'csrf' => $request->getCsrf()->generate(ApiAuth::API_CSRF_NAMESPACE),
+            ] : null,
             'queue_length' => Queue::length($station),
             'module' => Module::status($data),
             'settings' => Settings::fromArray($data['settings'] ?? [])->toArray(),
