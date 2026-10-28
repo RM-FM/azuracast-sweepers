@@ -29,6 +29,7 @@ jobs:
       commit: ${{ steps.commit.outputs.commit }}
       date: ${{ steps.commit.outputs.date }}
       plugin: ${{ steps.plugin.outputs.commit }}
+      changed: ${{ github.event_name != 'schedule' || steps.checked.outputs.cache-hit != 'true' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,9 +49,19 @@ jobs:
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
           echo "date=$date" >> "$GITHUB_OUTPUT"
           echo "AzuraCast $commit ($date)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Skip if this pair already passed
+        id: checked
+        uses: actions/cache/restore@v4
+        with:
+          path: .compat-passed
+          key: compat-${{ steps.commit.outputs.commit }}-${{ steps.plugin.outputs.commit }}
+          lookup-only: true
+      - if: github.event_name == 'schedule' && steps.checked.outputs.cache-hit == 'true'
+        run: echo "No AzuraCast or plugin change since the last passing check." >> "$GITHUB_STEP_SUMMARY"
 
   php:
     needs: target
+    if: needs.target.outputs.changed == 'true'
     runs-on: ubuntu-latest
     services:
       mariadb:
@@ -77,6 +88,7 @@ jobs:
 
   frontend:
     needs: target
+    if: needs.target.outputs.changed == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check the sidebar and page markup the navigation script attaches to
@@ -95,6 +107,7 @@ jobs:
 
   liquidsoap:
     needs: target
+    if: needs.target.outputs.changed == 'true'
     runs-on: ubuntu-latest
     env:
       LIQUIDSOAP_IMAGE: ghcr.io/azuracast/azuracast:latest
@@ -140,12 +153,20 @@ jobs:
 
   report:
     needs: [target, php, frontend, liquidsoap]
-    if: always() && needs.target.result != 'skipped'
+    if: always() && (needs.target.result == 'failure' || needs.target.outputs.changed == 'true')
     runs-on: ubuntu-latest
     permissions:
       issues: write
       actions: read
     steps:
+      - name: Remember this passing pair
+        if: needs.php.result == 'success' && needs.frontend.result == 'success' && needs.liquidsoap.result == 'success'
+        run: touch .compat-passed
+      - if: needs.php.result == 'success' && needs.frontend.result == 'success' && needs.liquidsoap.result == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: .compat-passed
+          key: compat-${{ needs.target.outputs.commit }}-${{ needs.target.outputs.plugin }}
       - name: Open, update or close the compatibility issue
         uses: actions/github-script@v7
         env:
