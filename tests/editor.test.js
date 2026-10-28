@@ -553,6 +553,7 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         await check("sweepers-playlist-10");
         await check("sweepers-playlist-11");
         const songBadge = document.querySelector(".sweepers-playlist-picker .playlist-source-badge");
+        assert.notEqual(songBadge.parentElement, addButton.parentElement, "Add button stays below the labels in its own row");
         assert.ok(songBadge.classList.contains("gap-1"), "Labels use source badge spacing");
         assert.ok(songBadge.querySelector("svg.sm path"), "Song-based labels include the source icon");
         assert.deepEqual(playlistLabels("sweepers-playlist-"), ["Retired (disabled)"], "Selected playlists cannot be added twice");

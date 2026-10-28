@@ -1,11 +1,13 @@
 <template>
     <div class="sweepers-playlist-picker">
-        <div class="d-flex flex-wrap align-items-center gap-2">
+        <div v-if="selected.length" class="d-flex flex-wrap align-items-center gap-2 mb-2">
             <span v-for="playlist in selected" :key="playlist.id" class="playlist-source-badge badge text-bg-secondary d-inline-flex align-items-center gap-1">
                 <Icon v-if="sourceIcon(playlist)" :name="sourceIcon(playlist)" class="sm" />
                 <span class="text-truncate">{{ label(playlist) }}</span>
                 <button class="btn-close btn-close-white" type="button" :aria-label="'Remove ' + label(playlist)" @click="remove(playlist.id)" />
             </span>
+        </div>
+        <div>
             <button
                 :id="id + '-toggle'"
                 ref="toggle"
