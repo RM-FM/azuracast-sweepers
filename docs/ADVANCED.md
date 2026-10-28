@@ -222,7 +222,8 @@ preserved.
 ## Settings reference
 
 Main sections and their headings span the full width. Only related fields within
-a section use columns on larger screens; song spacing values remain stacked.
+a section use columns on larger screens; the three song spacing values appear
+side by side on large screens and stack on smaller screens.
 
 Defaults for a new installation:
 

@@ -75,17 +75,17 @@
                         <legend>Song Spacing</legend>
                         <p>A song only gets a sweeper if all three rules allow it. <strong>0</strong> switches a rule off.</p>
                         <div class="row g-3">
-                            <div class="form-group col-12">
+                            <div class="form-group col-12 col-lg-4">
                                 <label class="form-label" for="sweepers-after-jingle">Songs without sweeper after a jingle</label>
                                 <input id="sweepers-after-jingle" v-model.number="settings.songs_after_jingle" class="form-control" type="number" min="0" max="1000" step="1" required>
                                 <div class="form-text">Complete songs that must play after a jingle before the next sweeper.</div>
                             </div>
-                            <div class="form-group col-12">
+                            <div class="form-group col-12 col-lg-4">
                                 <label class="form-label" for="sweepers-after-sweeper">Songs without sweeper after a sweeper</label>
                                 <input id="sweepers-after-sweeper" v-model.number="settings.songs_after_sweeper" class="form-control" type="number" min="0" max="1000" step="1" required>
                                 <div class="form-text">Songs that must play without a sweeper after a song that carried one. That song itself does not count.</div>
                             </div>
-                            <div class="form-group col-12">
+                            <div class="form-group col-12 col-lg-4">
                                 <label class="form-label" for="sweepers-before-jingle">Songs without sweeper before a jingle</label>
                                 <input id="sweepers-before-jingle" v-model.number="settings.songs_before_jingle" class="form-control" type="number" min="0" :max="queueLength" step="1" required>
                                 <div class="form-text">No sweeper if a jingle is queued within this many following tracks. Maximum: the AutoDJ queue length ({{ queueLength }}).</div>
