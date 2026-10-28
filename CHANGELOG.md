@@ -1,6 +1,6 @@
 # Release notes
 
-## Pending
+## 1.2.0 - 2026-10-28
 
 ### Features
 
@@ -9,11 +9,9 @@
 
 ### Improvements
 
-- Settings are grouped into four tabs for general options, spacing and jingles,
-  selection and timing, and audio with preview, with one shared save action.
-
-- Settings show selected playlists as removable source tags with a compact checkbox
-  dropdown, matching the Music Files playlist selection.
+- Settings use four tabs, native half-width and full-width inputs, and removable
+  playlist source tags with a checkbox dropdown and one shared save action.
+- The intro-editing page is named Intro Manager.
 - Saving settings no longer cancels a sweeper already prepared for an upcoming song;
   only switching sweepers off does.
 - Same-playlist replacement also considers songs already played in the current
@@ -33,7 +31,10 @@
 ### Update notes
 
 - **AzuraCast Broadcast (Liquidsoap) restart: Required** when upgrading from 1.1.0,
-  because the sweeper module changed. Until then, stations keep the previous behaviour.
+  to load the updated prepared-sweeper handling and queue-matching request budget.
+  Until then, stations keep the previous module behaviour.
+- Run `bash bin/setup.sh` to rebuild the frontend and reload PHP/worker processes.
+  This does not replace the required station broadcasting restart.
 
 ## 1.1.0 - 2026-10-28
 
