@@ -17,20 +17,25 @@ final readonly class Arranger
         private State $state,
         private Media $media,
         private Queue $queue,
-        private Schedule $schedule
+        private Schedule $schedule,
+        private PlaylistReplacement $replacement
     ) {
     }
 
     /**
      * @param array<int, Timing> $measurements
-     * @return array{moved: string, before: string}
+     * @return array{moved: string, before: string, replaced: string}
      */
     public function arrange(Station $station, array $gap, string $counted, array $measurements): array
     {
-        $none = ['moved' => '', 'before' => ''];
+        $deadline = hrtime(true) + 500_000_000;
+        $none = ['moved' => '', 'before' => '', 'replaced' => ''];
         $data = $this->state->read($station->getRadioConfigDir());
         $settings = Settings::fromArray($data['settings'] ?? []);
-        if (!$settings->enabled || !$settings->swapForIntro || $measurements === []) {
+        if (
+            !$settings->enabled || (!$settings->swapForIntro && !$settings->swapFromPlaylist)
+            || $measurements === []
+        ) {
             return $none;
         }
         $active = $this->media->jingles($station, $this->schedule->active($station, $settings->playlistIds));
@@ -62,18 +67,54 @@ final readonly class Arranger
         $usable = function (int $mediaId) use ($station, $settings, $timings, &$known): bool {
             return $known[$mediaId] ??= $this->usable($station, $mediaId, $settings, $timings);
         };
-        $choice = Arrangement::choose($rows, $gap, $settings, Queue::length($station), $usable, $blocked);
+        $blocked = null;
+        $choice = $settings->swapForIntro
+            ? Arrangement::choose($rows, $gap, $settings, Queue::length($station), $usable, $blocked)
+            : null;
+        if ($choice !== null) {
+            if (!$this->queue->exchange($station, $choice[0], $choice[1])) {
+                return $none;
+            }
+            $media = array_column($rows, 'media_id', 'id');
+            $this->remember($station, 'moved', (string)$choice[1], ['before' => $media[$choice[0]] ?? null]);
+
+            return ['moved' => (string)$choice[1], 'before' => (string)$choice[0], 'replaced' => ''];
+        }
+        if ($settings->swapFromPlaylist) {
+            $replacementReason = null;
+            $target = Arrangement::replacement(
+                $rows,
+                $gap,
+                $settings,
+                Queue::length($station),
+                $usable,
+                $replacementReason
+            );
+            if ($target !== null) {
+                $mediaId = $this->replacement->replace(
+                    $station,
+                    $target,
+                    $counted,
+                    $settings,
+                    $usable,
+                    $replacementReason,
+                    $deadline
+                );
+                if ($mediaId !== null) {
+                    $this->remember($station, 'moved', (string)$target['id'], [
+                        'before' => $target['media_id'], 'replacement' => true,
+                    ]);
+
+                    return ['moved' => '', 'before' => '', 'replaced' => (string)$target['id']];
+                }
+            }
+            $blocked = $replacementReason ?? $blocked;
+        }
         if ($blocked !== null) {
             $next = current(array_filter($rows, static fn(array $row): bool => !$row['sent']));
             $this->remember($station, 'unmoved', (string)$next['id'], ['reason' => $blocked]);
         }
-        if ($choice === null || !$this->queue->exchange($station, $choice[0], $choice[1])) {
-            return $none;
-        }
-        $media = array_column($rows, 'media_id', 'id');
-        $this->remember($station, 'moved', (string)$choice[1], ['before' => $media[$choice[0]] ?? null]);
-
-        return ['moved' => (string)$choice[1], 'before' => (string)$choice[0]];
+        return $none;
     }
 
     private function remember(Station $station, string $key, string $token, array $entry): void
@@ -85,6 +126,9 @@ final readonly class Arranger
             );
             $entries[$token] = ['at' => time(), ...$entry];
             $data[$key] = array_slice($entries, -50, preserve_keys: true);
+            if ($key === 'moved') {
+                unset($data['unmoved'][$token], $data['decisions'][$token]);
+            }
 
             return $data;
         });

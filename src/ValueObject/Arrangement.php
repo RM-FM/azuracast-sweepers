@@ -24,6 +24,93 @@ final class Arrangement
         callable $usable,
         ?string &$blocked = null
     ): ?array {
+        $index = self::target($rows, $gap, $settings, $usable, $blocked);
+        if ($index === null) {
+            return null;
+        }
+        $row = $rows[$index];
+        $playlists = $settings->runtime()['jingle_playlists'];
+        $isJingle = static fn(array $candidate): bool => ($settings->countJingleMode && $candidate['is_jingle'])
+            || in_array($candidate['playlist_id'], $playlists, true);
+        $count = count($rows);
+        for ($next = $index + 1; $next < $count; $next++) {
+            $candidate = $rows[$next];
+            if (
+                $candidate['sent'] || $candidate['media_id'] === null || $isJingle($candidate)
+                || ($candidate['excluded'] ?? false) || !$usable((int)$candidate['media_id'])
+            ) {
+                continue;
+            }
+            if (!self::movable($candidate, true, $settings)) {
+                if ($candidate['playlist_order'] === 'sequential') {
+                    $blocked ??= 'move_sequential';
+                }
+                continue;
+            }
+            $order = $rows;
+            $order[$index] = $candidate;
+            $order[$next] = $row;
+            if (self::nearJingle($order, $index, $settings, $queueLength)) {
+                $blocked ??= 'move_jingle';
+                continue;
+            }
+            $blocked = null;
+
+            return [$row['id'], $candidate['id']];
+        }
+        $blocked ??= 'move_none';
+
+        return null;
+    }
+
+    public static function replacement(
+        array $rows,
+        array $gap,
+        Settings $settings,
+        int $queueLength,
+        callable $usable,
+        ?string &$blocked = null
+    ): ?array {
+        $index = self::target($rows, $gap, $settings, $usable, $blocked);
+        if ($index === null) {
+            return null;
+        }
+        $row = $rows[$index];
+        if ($row['request_id'] !== null || $row['playlist_id'] === null) {
+            return null;
+        }
+        if (self::nearJingle($rows, $index, $settings, $queueLength)) {
+            $blocked = 'move_jingle';
+
+            return null;
+        }
+
+        return $row;
+    }
+
+    private static function nearJingle(array $rows, int $index, Settings $settings, int $queueLength): bool
+    {
+        $lookahead = min($settings->songsBeforeJingle, $queueLength);
+        $playlists = $settings->runtime()['jingle_playlists'];
+        foreach (array_slice($rows, $index + 1, $lookahead) as $row) {
+            if (
+                ($settings->countJingleMode && $row['is_jingle'])
+                || in_array($row['playlist_id'], $playlists, true)
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function target(
+        array $rows,
+        array $gap,
+        Settings $settings,
+        callable $usable,
+        ?string &$blocked
+    ): ?int {
         $blocked = null;
         $sinceJingle = $gap['songs_since_jingle'];
         $sinceSweeper = $gap['songs_since_sweeper'];
@@ -60,7 +147,10 @@ final class Arrangement
                 continue;
             }
 
-            if (!$allowed || ($row['excluded'] ?? false) || $usable((int)$row['media_id'])) {
+            if (
+                !$allowed || $row['planned'] || ($row['excluded'] ?? false)
+                || $usable((int)$row['media_id'])
+            ) {
                 return null;
             }
             if (!self::movable($row, $song, $settings)) {
@@ -68,37 +158,7 @@ final class Arrangement
 
                 return null;
             }
-            $count = count($rows);
-            for ($next = $index + 1; $next < $count; $next++) {
-                $candidate = $rows[$next];
-                if (
-                    $candidate['sent'] || !$isSong($candidate) || ($candidate['excluded'] ?? false)
-                    || !$usable((int)$candidate['media_id'])
-                ) {
-                    continue;
-                }
-                if (!self::movable($candidate, true, $settings)) {
-                    if ($candidate['playlist_order'] === 'sequential') {
-                        $blocked ??= 'move_sequential';
-                    }
-                    continue;
-                }
-                $order = $rows;
-                $order[$index] = $candidate;
-                $order[$next] = $row;
-                $lookahead = min($settings->songsBeforeJingle, $queueLength);
-                $following = $lookahead > 0 ? array_slice($order, $index + 1, $lookahead) : [];
-                if (array_filter($following, $isJingle) !== []) {
-                    $blocked ??= 'move_jingle';
-                    continue;
-                }
-                $blocked = null;
-
-                return [$row['id'], $candidate['id']];
-            }
-            $blocked ??= 'move_none';
-
-            return null;
+            return $index;
         }
 
         return null;

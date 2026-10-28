@@ -44,7 +44,8 @@ globalThis.fetch = async (url, options) => {
             enabled: true, playlist_ids: [], limit_delay: false, max_wait: 10, margin: .5, duck_db: -7, jingle_gain: 1,
             songs_after_jingle: 1, songs_after_sweeper: 1, songs_before_jingle: 0, early_start: 2,
             count_jingle_mode: true, jingle_playlist_ids: [], longest_fit: false, length_tolerance: 20, swap_for_intro: false,
-            reverb: false, reverb_intensity: 25, swap_sequential: false, excluded_playlist_ids: [], sweeper_gap: 1,
+            reverb: false, reverb_intensity: 25, swap_sequential: false, swap_from_playlist: false,
+            excluded_playlist_ids: [], sweeper_gap: 1,
         }, playlists: [
             { id: 10, name: "Sweepers", enabled: true, scheduled: false },
             { id: 11, name: "Christmas", enabled: true, scheduled: true },
@@ -85,7 +86,8 @@ globalThis.fetch = async (url, options) => {
                 sweeper: { artist: "RadioMonster.FM", title: "Dropin 03 (no ads)", path: "dropin-03.mp3" },
                 moved: true, moved_before: { artist: "Queen", title: "Bohemian Rhapsody", path: "queen.mp3" } },
             { at: 1792947500, offset: null, result: "scheduled", song: { artist: "Wham!", title: "I'm Your Man", path: "wham.mp3" },
-                sweeper: null, moved: false, moved_before: null },
+                sweeper: null, moved: false, moved_before: null, replaced: true,
+                replaced_before: { title: "No Intro", artist: "Original Artist", path: "original.mp3" } },
             { at: 1792947000, offset: 2, result: "played", song: { artist: null, title: null, path: "untagged.mp3" }, sweeper: null,
                 moved: false, moved_before: null },
             { at: 1792946000, offset: null, result: "intro_before_cue", song: { id: 8, artist: "Sting", title: "Fragile", path: "sting.mp3", intro: 0 },
@@ -465,6 +467,16 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(first.jingle_gain, 1);
         assert.equal(field("Move a song with an intro forward").checked, false, "Moving songs forward is off by default");
         assert.equal(first.swap_for_intro, false);
+        assert.equal(first.swap_from_playlist, false);
+        assert.equal(field("Swap with another song from same playlist").checked, false);
+        assert.ok(document.querySelector("section.card").textContent.includes("Improve Sweeper-to-Song Matching"));
+        await change("Swap with another song from same playlist", true, true);
+        await change("Also move or swap songs from sequential playlists", true, true);
+        const replacementOnly = await submit();
+        assert.equal(replacementOnly.swap_from_playlist, true);
+        assert.equal(replacementOnly.swap_for_intro, false, "Replacement can be enabled without queued-song movement");
+        assert.equal(replacementOnly.swap_sequential, true, "Sequential control is available for replacement alone");
+        await change("Swap with another song from same playlist", false, true);
         assert.equal(first.swap_sequential, false);
         assert.deepEqual(first.excluded_playlist_ids, []);
         assert.deepEqual(first.playlist_ids, [], "No sweeper playlist by default");
@@ -497,6 +509,17 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         await change("Count Jingle Mode", false, true);
         await change("Prefer the longest", true, true);
         await change("Intro length tolerance", "20");
+        assert.equal(
+            field("Intro length tolerance").closest(".row").className,
+            field("Handover margin").closest(".row").className,
+            "Tolerance uses the same responsive row as handover margin"
+        );
+        assert.equal(
+            field("Intro length tolerance").closest(".col-md-6").className,
+            field("Handover margin").closest(".col-md-6").className,
+            "Tolerance has the same narrow responsive column as handover margin"
+        );
+        assert.match(document.querySelector("section.card").textContent, /regular rotation chooses another fitting sweeper/);
         const select = field("Additional jingle playlists");
         assert.ok(select.hasAttribute("multiple"));
         Object.defineProperty(select, "multiple", { value: true });
@@ -510,7 +533,8 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         await change("Jingle gain", "70");
         await change("Other sweepers before a repeat", "2");
         await change("Move a song with an intro forward", true, true);
-        await change("Also move songs from sequential playlists", true, true);
+        await change("Also move or swap songs from sequential playlists", true, true);
+        await change("Swap with another song from same playlist", true, true);
         const excluded = field("Exclude these playlists");
         assert.ok(excluded.hasAttribute("multiple"));
         Object.defineProperty(excluded, "multiple", { value: true });
@@ -526,6 +550,7 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(settings.reverb, true);
         assert.equal(settings.reverb_intensity, 40);
         assert.equal(settings.swap_for_intro, true);
+        assert.equal(settings.swap_from_playlist, true);
         assert.equal(settings.swap_sequential, true);
         assert.equal(settings.sweeper_gap, 2);
         assert.deepEqual(settings.excluded_playlist_ids, [21], "Playlists without sweepers are saved");
@@ -609,6 +634,8 @@ test("playback timeline lists all tracks, highlights songs with a sweeper and ex
         assert.equal(cell(all[2], 4).querySelector("button"), null, "Jingles have no intro to edit");
         assert.equal(cell(all[1], 5).textContent.trim(), "", "No start time without a sweeper");
         assert.deepEqual(parts(all[4], 3), ["Sweeper did not start"]);
+        assert.deepEqual(parts(all[4], 1), ["I'm Your Man", "Wham!", "Replaced No Intro from the same playlist"]);
+        assert.equal(cell(all[4], 1).querySelector(".timeline-moved").getAttribute("title"), "Original Artist – No Intro");
         assert.deepEqual(parts(all[5], 1), ["untagged.mp3"]);
         assert.deepEqual(parts(all[5], 3), ["Deleted file"]);
         assert.deepEqual(parts(all[6], 3), ["No intro"], "A 0 s intro means no intro, also in older entries");

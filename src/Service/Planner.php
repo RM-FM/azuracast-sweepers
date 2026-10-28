@@ -279,7 +279,9 @@ final readonly class Planner
                 'artist' => mb_substr((string)($event['artist'] ?? ''), 0, 200),
                 'result' => $result,
                 'jingle_id' => $result === 'scheduled' ? ($plan['jingle_id'] ?? null) : null,
-                ...($moved === null ? [] : ['moved_before' => $moved['before'] ?? null]),
+                ...($moved === null ? [] : [
+                    ($moved['replacement'] ?? false) ? 'replaced_before' : 'moved_before' => $moved['before'] ?? null,
+                ]),
                 ...($unmoved === null ? [] : ['unmoved' => $unmoved]),
             ], ...$log], 0, self::LOG_LIMIT);
 
@@ -319,7 +321,9 @@ final readonly class Planner
                 'token' => $token,
                 'song_id' => $plan['song_id'] ?? null,
                 ...$played,
-                ...($moved === null ? [] : ['moved_before' => $moved['before'] ?? null]),
+                ...($moved === null ? [] : [
+                    ($moved['replacement'] ?? false) ? 'replaced_before' : 'moved_before' => $moved['before'] ?? null,
+                ]),
             ], ...$log], 0, self::LOG_LIMIT);
         } elseif ($type === 'release') {
             unset($data['plans'][$token]);

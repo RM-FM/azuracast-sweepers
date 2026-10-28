@@ -17,8 +17,11 @@ and rolling releases with Liquidsoap 2.5.
 - Rotation by oldest play, optionally preferring the longest fitting sweeper
 - Spacing rules around jingles and sweepers, and playlists that never get a sweeper
 - Optionally moves a queued song with a fitting intro forward when a sweeper is due
+- Optional same-playlist replacement using AzuraCast's native rotation and repetition rules
 - Optional reverb on the sweeper voice, with a browser preview
 - Waveform editor for the intro end of each song
+- Five-second intro auditioning per track or continuously across all result pages
+- Live library search and an unknown-intro filter, with complete server-side pagination
 - Playback timeline showing for every track whether a sweeper played and why not
 - All settings apply live; a station never fails to start because of the plugin
 
@@ -142,6 +145,7 @@ Defaults for a new installation:
 | Other sweepers before a repeat | 1 |
 | Prefer the longest fitting sweepers | Off (tolerance 20%) |
 | Move a song with an intro forward | Off (sequential playlists: off) |
+| Swap with another song from same playlist | Off |
 | Playlists without sweepers | None |
 | Handover margin | 0.5 s |
 | Limit start delay | Off (maximum 10 s, early start 2 s) |
@@ -162,15 +166,37 @@ Notes on the less obvious options:
 - **Jingles** are tracks from Jingle Mode playlists, the additional jingle playlists and
   the sweeper playlists. They never get a sweeper.
 - **Playlists without sweepers**, for example news or shows, never get a sweeper and are
-  never moved. Selecting a playlist group covers all its playlists.
+  never moved or replaced. Selecting a playlist group covers all its playlists.
 - **Other sweepers before a repeat**: if no other sweeper fits, the song gets none. With
   a single sweeper, repeats are always allowed.
-- **Prefer the longest fitting sweepers**: picks from the sweepers within the tolerance
-  of the available intro length.
+- **Prefer the longest fitting sweepers**: a preference, not an extra eligibility
+  rule. At 20% tolerance, bodies filling 80–100% of the available intro are preferred,
+  rotating by oldest actual play within that range. The available intro is
+  `intro_end` minus the song cue-in and handover margin. If no eligible sweeper is in
+  range, regular oldest-played rotation chooses any other fitting sweeper, not just
+  the longest remaining one. For example, if the long sweepers are blocked by repeat
+  protection or reservations, an eligible shorter sweeper can still play.
+  Tolerance never bypasses timing, schedules, reservations or repetition protection;
+  if none is eligible under the regular rules either, no sweeper plays.
 - **Move a song with an intro forward**: when a sweeper is due but the next song has no
   fitting intro, it changes places with the next queued song that has one. Jingles,
   excluded playlists and songs already sent to Liquidsoap never move; sequential
   playlists only when allowed.
+- **Swap with another song from same playlist**: optionally replaces that next song
+  with a fitting candidate returned by AzuraCast's native playlist queue, respecting
+  sequential/shuffle/random order and the playlist's repetition protection, including
+  inherited group rules. Both matching options work independently; moving an already
+  queued song is tried first when both are on. Requests, merged playlists/groups,
+  excluded playlists and entries already sent to Liquidsoap are never replaced.
+  **Also move or swap songs from sequential playlists** applies to both options.
+  The displaced song returns to its existing playlist rotation slot, keeping its
+  weight and history; it is not appended directly to the playback queue. It may be
+  replaced again when encountered later. No full playlist reset or relaxed repetition
+  fallback is used: an exhausted rotation, no eligible match, a busy native queue
+  builder or an expired 500 ms matching budget leaves the original song in place.
+  Matching improves the chance of a sweeper; it does not guarantee one. AzuraCast
+  continues rebuilding the queue's expected times. The timeline distinguishes
+  a forward move from a same-playlist replacement and explains an unsuccessful match.
 - **Limit start delay**: normally the sweeper ends at the intro end minus the margin.
   If that would start it later than the maximum delay, it starts at the early start
   instead.
@@ -181,7 +207,10 @@ for upcoming songs are dropped; a sweeper on air finishes normally.
 
 ## How playback works
 
-AzuraCast still picks every song. The plugin plans a sweeper when Liquidsoap fetches
+AzuraCast schedules the playlists and builds the playback queue. Optional matching
+either exchanges two queued songs or replaces the next unsent song with a candidate
+from the same native playlist rotation; it does not run a separate scheduler.
+The plugin plans a sweeper when Liquidsoap fetches
 the next song and mixes it in after the crossfade, before the station's audio
 processing. Live DJs are never overlaid.
 
@@ -264,5 +293,10 @@ Runs PHP lint and tests (run `composer install` first for the full set), the fro
 tests and build, and the Liquidsoap type check in containers. CI additionally runs
 `vendor/bin/phpcs` and native playback tests. Code follows AzuraCast's conventions
 (PSR-12, strict types).
+
+`tests/replacement.php` runs separately in CI's pinned AzuraCast image with an
+isolated MariaDB `sweepers_test` database (`SWEEPER_TEST_DB_HOST`). It uses the real
+playlist repositories, duplicate prevention, queue and rotation entities with
+minimal station/library fixtures. Never point integration tests at a station database.
 
 AGPL-3.0-or-later. Copyright 2026 RM-FM. Independent of the AzuraCast project.

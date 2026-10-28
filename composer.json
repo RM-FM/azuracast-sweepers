@@ -21,6 +21,7 @@
       "php tests/run.php",
       "php tests/navigation.php",
       "php tests/routes.php",
+      "php tests/arranger.php",
       "php tests/reservations.php",
       "php tests/settings.php"
     ]

@@ -137,6 +137,7 @@ final readonly class PanelController
             ...array_column($log, 'song_id'),
             ...array_column($log, 'jingle_id'),
             ...array_column($log, 'moved_before'),
+            ...array_column($log, 'replaced_before'),
         ]);
         $rows = array_map(static fn(array $entry): array => [
             'at' => (float)$entry['at'],
@@ -153,6 +154,8 @@ final readonly class PanelController
             'result' => (string)($entry['result'] ?? 'played'),
             'moved' => array_key_exists('moved_before', $entry),
             'moved_before' => $files[(int)($entry['moved_before'] ?? 0)] ?? null,
+            'replaced' => array_key_exists('replaced_before', $entry),
+            'replaced_before' => $files[(int)($entry['replaced_before'] ?? 0)] ?? null,
             'unmoved' => $entry['unmoved'] ?? null,
         ], $log);
 

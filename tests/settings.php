@@ -387,7 +387,7 @@ namespace {
 
         $state->update($directory, static fn(array $data) => ['log' => [
             ['at' => 300.0, 'token' => '8', 'song_id' => null, 'title' => 'Live show', 'artist' => '', 'result' => 'other'],
-            ['at' => 200.5, 'song_id' => 7, 'jingle_id' => 42, 'offset' => 9.66],
+            ['at' => 200.5, 'song_id' => 7, 'jingle_id' => 42, 'offset' => 9.66, 'replaced_before' => 42],
             ['at' => 100.0, 'song_id' => 99, 'jingle_id' => 42, 'offset' => null, 'unmoved' => 'move_none'],
         ]] + $data);
         $history = json_decode((string)$controller->historyAction(
@@ -405,6 +405,11 @@ namespace {
         expect($history['rows'][1]['song']['artist'] === 'ABBA' && $history['rows'][1]['offset'] === 9.66, 'Song and offset.');
         expect($history['rows'][1]['sweeper']['title'] === 'Dropin 03', 'Sweeper name.');
         expect($history['rows'][1]['result'] === 'played', 'Earlier entries are played sweepers.');
+        expect(
+            $history['rows'][1]['replaced'] && !$history['rows'][1]['moved']
+                && $history['rows'][1]['replaced_before']['title'] === 'Dropin 03',
+            'Same-playlist replacements resolve the displaced file without claiming a forward move.'
+        );
         expect($history['rows'][2]['song'] === null && $history['rows'][2]['offset'] === null, 'Deleted files stay listed.');
         expect(
             $history['rows'][2]['unmoved'] === 'move_none' && $history['rows'][1]['unmoved'] === null,

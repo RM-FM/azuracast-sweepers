@@ -114,26 +114,40 @@
                         <strong>Off:</strong> all sweepers that fit the intro take turns; the one played longest ago comes next.
                         <strong>On:</strong> prefer sweepers that fill most of the intro. How close they must come is set by the <em>intro length tolerance</em>, which appears when this is switched on.
                     </div>
-                    <template v-if="settings.longest_fit">
-                        <label class="form-label d-block mb-0">
-                            Intro length tolerance (%)
-                            <input v-model.number="settings.length_tolerance" class="form-control" type="number" min="0" max="100" step="1" required>
-                        </label>
-                        <div class="form-text">How much shorter than the intro a sweeper may be, in percent of the intro. If none is long enough, the longest fitting sweeper plays. With few sweepers, the same one may repeat often.</div>
-                    </template>
-                    <div class="form-check form-switch mt-3">
+                    <div v-if="settings.longest_fit" class="row g-3">
+                        <div class="col-md-6 col-xl-4">
+                            <label class="form-label d-block mb-0">
+                                Intro length tolerance (%)
+                                <input v-model.number="settings.length_tolerance" class="form-control" type="number" min="0" max="100" step="1" required>
+                            </label>
+                            <div class="form-text">Preferred sweepers may be this much shorter than the available intro. If none in this range is eligible, regular rotation chooses another fitting sweeper. Repeat, reservation and timing rules still apply.</div>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Improve Sweeper-to-Song Matching</legend>
+                    <div class="form-check form-switch">
                         <input id="sweepers-swap-for-intro" v-model="settings.swap_for_intro" class="form-check-input" type="checkbox" role="switch">
                         <label class="form-check-label" for="sweepers-swap-for-intro">Move a song with an intro forward</label>
                     </div>
                     <div class="form-text">
                         When a sweeper is due but the next song has no usable intro, it changes places with a later queued song that has one.
                     </div>
-                    <template v-if="settings.swap_for_intro">
+                    <div class="form-check form-switch mt-3">
+                        <input id="sweepers-swap-from-playlist" v-model="settings.swap_from_playlist" class="form-check-input" type="checkbox" role="switch">
+                        <label class="form-check-label" for="sweepers-swap-from-playlist">Swap with another song from same playlist</label>
+                    </div>
+                    <div class="form-text">
+                        If no queued song can be moved forward, try a fitting song from the same playlist using AzuraCast's playlist order and repetition rules.
+                        The replaced song returns to the playlist rotation, not directly to the end of the playback queue. Either option can be used on its own.
+                    </div>
+                    <template v-if="settings.swap_for_intro || settings.swap_from_playlist">
                         <div class="form-check form-switch mt-2">
                             <input id="sweepers-swap-sequential" v-model="settings.swap_sequential" class="form-check-input" type="checkbox" role="switch">
-                            <label class="form-check-label" for="sweepers-swap-sequential">Also move songs from sequential playlists</label>
+                            <label class="form-check-label" for="sweepers-swap-sequential">Also move or swap songs from sequential playlists</label>
                         </div>
-                        <div class="form-text">Off: songs from playlists played in sequential order keep their place. On: they may move one step within the queue as well.</div>
+                        <div class="form-text">Off: songs from sequential playlists keep their place. On: both matching options may change their order.</div>
                     </template>
                 </fieldset>
 
@@ -385,6 +399,9 @@
                                 <small v-if="entry.moved" class="timeline-moved" :title="entry.moved_before ? describe(entry.moved_before) : ''">
                                     ↑ Moved ahead of {{ entry.moved_before ? fileTitle(entry.moved_before) : 'a song without intro' }}
                                 </small>
+                                <small v-if="entry.replaced" class="timeline-moved" :title="entry.replaced_before ? describe(entry.replaced_before) : ''">
+                                    Replaced {{ entry.replaced_before ? fileTitle(entry.replaced_before) : 'a song without intro' }} from the same playlist
+                                </small>
                             </td>
                             <td class="text-nowrap">
                                 <span v-if="status(entry)" class="badge rounded-pill" :class="status(entry).class">{{ status(entry).label }}</span>
@@ -545,6 +562,12 @@ const unmovedReasons = {
     move_none: "Not moved forward: no queued song has a fitting intro",
     move_jingle: "Not moved forward: a jingle would follow too soon",
     move_sequential: "Not moved forward: sequential playlist order",
+    replace_none: "Not replaced: no fitting song left in this playlist rotation",
+    replace_ineligible: "Not replaced: this queue entry cannot be replaced",
+    replace_duplicates: "Not replaced: repetition rules exclude the fitting songs",
+    replace_changed: "Not replaced: the queue or playlist changed during selection",
+    replace_timeout: "Not replaced: playlist search reached its time limit",
+    replace_busy: "Not replaced: AzuraCast is currently rebuilding the queue",
 };
 
 function isUpcoming(entry) {

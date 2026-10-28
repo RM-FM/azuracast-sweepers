@@ -14,7 +14,7 @@ const fetch = async (url) => ({
 });
 
 const bundle = readFileSync(new URL("../dist/app.js", import.meta.url), "utf8");
-const exported = bundle.match(/(\w+) as mountSweepers/);
+const exported = bundle.match(/([$\w]+) as mountSweepers/);
 assert.ok(exported);
 const executable = bundle.replace(/export\s*\{[\s\S]*\};?\s*$/, "");
 vm.runInNewContext(executable, {
