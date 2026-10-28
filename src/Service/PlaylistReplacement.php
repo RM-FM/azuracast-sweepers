@@ -6,6 +6,7 @@ namespace Plugin\AzuracastSweepers\Service;
 
 use App\Entity\Enums\PlaylistOrders;
 use App\Entity\Enums\PlaylistSources;
+use App\Entity\Api\StationPlaylistQueue;
 use App\Entity\Repository\StationPlaylistMediaRepository;
 use App\Entity\Repository\StationQueueRepository;
 use App\Entity\Station;
@@ -129,7 +130,8 @@ final readonly class PlaylistReplacement
         }
         $reason = 'replace_none';
         $selected = null;
-        foreach ($this->playlistMedia->getQueue($playlist) as $candidate) {
+        $selectedQueued = true;
+        foreach ($this->candidates($playlist) as $queued => $candidate) {
             if (hrtime(true) >= $deadline) {
                 $reason = 'replace_timeout';
 
@@ -147,6 +149,7 @@ final readonly class PlaylistReplacement
                 continue;
             }
             $selected = $candidate;
+            $selectedQueued = $queued;
             break;
         }
         if ($selected === null) {
@@ -193,7 +196,7 @@ final readonly class PlaylistReplacement
             if (
                 $old === null || !array_key_exists($old->id, $flags)
                 || !array_key_exists($selected->spm_id, $flags)
-                || ($playlist->order !== PlaylistOrders::Random && !$flags[$selected->spm_id])
+                || ($playlist->order !== PlaylistOrders::Random && (bool)$flags[$selected->spm_id] !== $selectedQueued)
             ) {
                 $connection->rollBack();
                 $reason = 'replace_changed';
@@ -260,6 +263,40 @@ final readonly class PlaylistReplacement
         $reason = null;
 
         return $selected->media_id;
+    }
+
+    /**
+     * The remaining round in AzuraCast's native order, then this round's played songs, longest ago first.
+     * Reshuffling stays with AzuraCast when the round ends.
+     *
+     * @return iterable<bool, StationPlaylistQueue> Keyed by whether the song is still queued in this round.
+     */
+    private function candidates(StationPlaylist $playlist): iterable
+    {
+        foreach ($this->playlistMedia->getQueue($playlist) as $candidate) {
+            yield true => $candidate;
+        }
+        if ($playlist->order === PlaylistOrders::Random) {
+            return;
+        }
+        $played = $this->em->createQuery(
+            <<<'DQL'
+                SELECT spm.id AS spm_id, spm.last_played, sm.id, sm.song_id, sm.artist, sm.title
+                FROM App\Entity\StationPlaylistMedia spm JOIN spm.media sm
+                WHERE spm.playlist = :playlist AND spm.is_queued = 0
+                ORDER BY spm.last_played ASC, spm.weight ASC
+            DQL
+        )->setParameter('playlist', $playlist)->getArrayResult();
+        foreach ($played as $row) {
+            $candidate = new StationPlaylistQueue();
+            $candidate->spm_id = $row['spm_id'];
+            $candidate->media_id = $row['id'];
+            $candidate->song_id = $row['song_id'];
+            $candidate->artist = $row['artist'] ?? '';
+            $candidate->title = $row['title'] ?? '';
+            $candidate->last_played = $row['last_played'];
+            yield false => $candidate;
+        }
     }
 
     private static function withoutTarget(array $history, array $target): array

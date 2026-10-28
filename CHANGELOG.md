@@ -1,5 +1,20 @@
 # Release notes
 
+## Pending
+
+### Improvements
+
+- Saving settings no longer cancels a sweeper already prepared for an upcoming song;
+  only switching sweepers off does.
+- Same-playlist replacement also considers songs already played in the current
+  shuffle/sequential round when none of the remaining songs fits, instead of giving up
+  near the end of a round.
+
+### Update notes
+
+- **AzuraCast Broadcast (Liquidsoap) restart: Required** when upgrading from 1.1.0,
+  because the sweeper module changed. Until then, stations keep the previous behaviour.
+
 ## 1.1.0 - 2026-10-28
 
 ### Features

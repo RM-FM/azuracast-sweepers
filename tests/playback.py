@@ -191,9 +191,15 @@ thread.run(delay=7., {{shutdown()}})
         assert played, 'Enabling did not activate sweepers without a restart'
         assert not played.intersection({'123', '124'}), 'Disabled startup scheduled a sweeper'
         assert max(amplitude(samples, 880, t / 10) for t in range(25, 60)) > 5000, 'Enabled sweeper inaudible'
-    elif args.scenario in ('skip', 'unavailable', 'hot-pending', 'hot-change', 'before-jingle'):
+    elif args.scenario == 'hot-change':
+        applied = result.stdout.find('Live settings applied: changed')
+        started = result.stdout.find('Sweeper started for queue 123')
+        assert 0 <= applied < started, 'A settings change must keep the prepared sweeper'
+        assert {'event': 'played', 'token': '123'} in events, 'Prepared sweeper not reported as played'
+        assert max(amplitude(samples, 880, onset + t / 10) for t in range(25, 50)) > 5000, 'Prepared sweeper inaudible'
+    elif args.scenario in ('skip', 'unavailable', 'hot-pending', 'before-jingle'):
         assert max(amplitude(samples, 880, t / 10) for t in range(5, 60)) < 100, 'Unexpected sweeper'
-        if args.scenario in ('skip', 'hot-pending', 'hot-change', 'before-jingle'):
+        if args.scenario in ('skip', 'hot-pending', 'before-jingle'):
             assert {'event': 'release', 'token': '123'} in events, 'Skipped reservation not released'
             assert not any(e['event'] == 'played' for e in events), 'Cancelled plan counted as playback'
         if args.scenario == 'before-jingle':

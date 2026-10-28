@@ -198,9 +198,11 @@ Notes on the less obvious options:
   **Also move or swap songs from sequential playlists** applies to both options.
   The displaced song returns to its existing playlist rotation slot, keeping its
   weight and history; it is not appended directly to the playback queue. It may be
-  replaced again when encountered later. No full playlist reset or relaxed repetition
-  fallback is used: an exhausted rotation, no eligible match, a busy native queue
-  builder or an expired 500 ms matching budget leaves the original song in place.
+  replaced again when encountered later. Songs still open in the current round are
+  tried first; if none fits, songs already played in this round follow, longest ago
+  first, without reshuffling or resetting the round. Repetition protection is not
+  relaxed: no eligible match, a busy native queue builder or an expired 500 ms
+  matching budget leaves the original song in place.
   Matching improves the chance of a sweeper; it does not guarantee one. AzuraCast
   continues rebuilding the queue's expected times. The timeline distinguishes
   a forward move from a same-playlist replacement and explains an unsuccessful match.
@@ -209,8 +211,9 @@ Notes on the less obvious options:
   instead.
 - **Reverb** is computed live; the sweeper files are not changed.
 
-Settings take effect within five seconds without a restart. Sweepers already prepared
-for upcoming songs are dropped; a sweeper on air finishes normally.
+Settings take effect within five seconds without a restart. A sweeper already prepared
+for an upcoming song still plays with the timing it was planned with; only switching
+sweepers off drops it. A sweeper on air finishes normally.
 
 ## How playback works
 

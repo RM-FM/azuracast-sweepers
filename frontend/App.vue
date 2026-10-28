@@ -649,7 +649,7 @@ const unmovedReasons = {
     move_none: "Not moved forward: no queued song has a fitting intro",
     move_jingle: "Not moved forward: a jingle would follow too soon",
     move_sequential: "Not moved forward: sequential playlist order",
-    replace_none: "Not replaced: no fitting song left in this playlist rotation",
+    replace_none: "Not replaced: no fitting song in this playlist",
     replace_ineligible: "Not replaced: this queue entry cannot be replaced",
     replace_duplicates: "Not replaced: repetition rules exclude the fitting songs",
     replace_changed: "Not replaced: the queue or playlist changed during selection",

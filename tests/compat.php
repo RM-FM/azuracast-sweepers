@@ -77,9 +77,10 @@ foreach ($methods as $class => $names) {
 $properties = [
     'App\Entity\Station' => ['id', 'short_name'],
     'App\Entity\StationBackendConfiguration' => ['use_manual_autodj'],
-    'App\Entity\StationMedia' => ['id', 'length'],
+    'App\Entity\StationMedia' => ['id', 'length', 'song_id', 'artist', 'title'],
     'App\Entity\StationPlaylist' => ['station', 'name', 'type', 'order', 'source', 'is_enabled', 'is_jingle'],
-    'App\Entity\StationPlaylistMedia' => ['id', 'is_queued'],
+    'App\Entity\StationPlaylistMedia' => ['id', 'playlist', 'media', 'weight', 'is_queued', 'last_played'],
+    'App\Entity\Api\StationPlaylistQueue' => ['spm_id', 'media_id', 'song_id', 'artist', 'title', 'last_played'],
     'App\Entity\StationQueue' => [
         'id', 'playlist', 'media', 'song_id', 'title', 'artist', 'timestamp_cued', 'timestamp_played',
     ],

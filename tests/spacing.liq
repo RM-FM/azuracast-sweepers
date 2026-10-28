@@ -104,26 +104,24 @@ expect(not test_track(47), "A jingle is not a song for the sweeper gap")
 expect(not test_track(48), "Sweeper gap still counts only songs")
 expect(test_track(49), "Two clear songs after the sweeper")
 
-current = sweepers.settings().revision
 sweepers.blocked := ["51"]
-expect(not sweepers.current("51", current), "A queued jingle cancels that song's plan")
-expect(sweepers.current("52", current), "Other plans remain valid")
+expect(not sweepers.current("51"), "A queued jingle cancels that song's plan")
+expect(sweepers.current("52"), "Other plans remain valid")
 blocked_overlay = source.fail()
 sweepers.plans := [("51", {
-    source=blocked_overlay, ready=true, offset=1., duration=1., duck_gain=0.5, revision=current
+    source=blocked_overlay, ready=true, offset=1., duration=1., duck_gain=0.5
 })]
-sweepers.pending := {source=blocked_overlay, due=1., duck_end=2., token="51", revision=current}
+sweepers.pending := {source=blocked_overlay, due=1., duck_end=2., token="51"}
 ignore(sweepers.next_overlay())
 expect(not null.defined(sweepers.pending()), "A newly queued jingle cancels a pending overlay")
 expect(sweepers.plans() == [], "A blocked reservation is released")
 sweepers.blocked := []
 
-revision = sweepers.settings().revision
 overlay = source.fail()
 sweepers.plans := [("31", {
-    source=overlay, ready=true, offset=1., duration=1., duck_gain=0.5, revision=revision
+    source=overlay, ready=true, offset=1., duration=1., duck_gain=0.5
 })]
-sweepers.pending := {source=overlay, due=1., duck_end=2., token="31", revision=revision}
+sweepers.pending := {source=overlay, due=1., duck_end=2., token="31"}
 test_configure(enabled=false)
 ignore(sweepers.next_overlay())
 expect(not null.defined(sweepers.pending()), "Disabling discards a not-yet-started overlay")
@@ -136,8 +134,9 @@ sweepers.reset := false
 expect(not null.defined(sweepers.next_overlay()), "Disabling does not interrupt an already audible sweeper")
 expect(sweepers.duck_end() == 10., "Active ducking remains tied to its original handover")
 test_configure(enabled=true, minimum_songs=2)
-expect(sweepers.current("31", sweepers.settings().revision), "Re-enable without rebuilding the source")
-expect(not sweepers.current("31", revision), "Plans from an older configuration remain invalid")
+expect(sweepers.current("31"), "Re-enable without rebuilding the source")
+test_configure(enabled=true, minimum_songs=3)
+expect(sweepers.current("31"), "Other settings changes keep a prepared plan")
 print("Song spacing checks passed.")
 
 thread.run(delay=0.1, {shutdown()})
