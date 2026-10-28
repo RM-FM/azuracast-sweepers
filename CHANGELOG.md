@@ -4,6 +4,9 @@
 
 ### Improvements
 
+- Settings are grouped into four tabs for general options, spacing and jingles,
+  selection and timing, and audio with preview, with one shared save action.
+
 - Settings show selected playlists as removable source tags with a compact checkbox
   dropdown, matching the Music Files playlist selection.
 - Saving settings no longer cancels a sweeper already prepared for an upcoming song;

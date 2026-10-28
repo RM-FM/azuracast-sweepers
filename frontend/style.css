@@ -50,7 +50,7 @@
     margin-left: .25rem;
 }
 
-.sweepers-page .sweepers-settings > .card-body > fieldset + fieldset {
+.sweepers-page .sweepers-settings-panel > fieldset + fieldset {
     margin-top: 2rem;
 }
 

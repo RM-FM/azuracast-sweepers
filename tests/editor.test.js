@@ -666,6 +666,59 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
     }
 });
 
+test("settings tabs preserve edits, reveal invalid fields and share the native save button", async () => {
+    const app = createApp(App, { base: "/sweepers/1", csrf: "session-token" });
+    app.mount(document.getElementById("app"));
+    try {
+        await settle();
+        const nav = document.querySelector('[aria-label="Sweeper settings"]');
+        const tabs = [...nav.querySelectorAll('[role="tab"]')];
+        assert.deepEqual(tabs.map((tab) => tab.textContent), ["General", "Spacing & Jingles", "Selection & Timing", "Audio & Preview"]);
+        const panel = (key) => document.getElementById("sweepers-panel-" + key);
+        assert.notEqual(panel("general").style.display, "none");
+        assert.equal(panel("audio").style.display, "none");
+        const select = async (index) => { tabs[index].click(); await settle(); };
+        await select(1);
+        const spacing = document.getElementById("sweepers-after-jingle");
+        spacing.value = "7";
+        spacing.dispatchEvent(new Event("input", { bubbles: true }));
+        await select(3);
+        assert.equal(panel("spacing").style.display, "none");
+        assert.notEqual(panel("audio").style.display, "none");
+        const duck = document.getElementById("sweepers-duck");
+        duck.value = "-9";
+        duck.dispatchEvent(new Event("input", { bubbles: true }));
+        await select(0);
+        assert.equal(spacing.value, "7", "Hidden panels keep unsaved edits");
+        assert.ok(document.querySelector('[data-plugin-version]'), "Version remains outside panels");
+        assert.equal(document.querySelector('[data-plugin-version]').closest('[role="tabpanel"]'), null);
+        const save = document.querySelector('.sweepers-settings button[type="submit"]');
+        assert.equal(document.querySelectorAll('.sweepers-settings button[type="submit"]').length, 1);
+        assert.equal(save.closest('[role="tabpanel"]'), null);
+        assert.ok(save.classList.contains("btn-lg"));
+        assert.equal(save.parentElement.className, "buttons mt-3");
+        const invalid = new Event("invalid", { bubbles: true, cancelable: true });
+        let reported = false;
+        duck.reportValidity = () => { reported = true; };
+        duck.dispatchEvent(invalid);
+        await settle();
+        assert.equal(tabs[3].getAttribute("aria-selected"), "true", "Invalid hidden field opens its tab");
+        assert.ok(reported, "Validation is displayed after revealing the field");
+        const key = new Event("keydown", { bubbles: true, cancelable: true });
+        key.key = "ArrowRight";
+        tabs[3].dispatchEvent(key);
+        await settle();
+        assert.equal(tabs[0].getAttribute("aria-selected"), "true", "Keyboard navigation wraps");
+        const form = document.querySelector("form.sweepers-settings");
+        form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        await settle();
+        assert.equal(writes.at(-1).body.songs_after_jingle, 7);
+        assert.equal(writes.at(-1).body.duck_db, -9, "One save includes edits from all tabs");
+    } finally {
+        app.unmount();
+    }
+});
+
 test("module status tells when a one-time restart is still required", async () => {
     moduleState = { state: "restart", message: "The sweeper module is not running. Restart broadcasting once after installing the plugin." };
     const app = createApp(App, { base: "/sweepers/1", csrf: "session-token" });
@@ -877,7 +930,7 @@ test("reverb preview plays the selected sweeper and follows the reverb settings 
     const button = () => document.querySelector(".sweepers-preview button");
     try {
         await settle();
-        assert.match(document.querySelector(".sweepers-preview").textContent, /Choose a sweeper playlist above/);
+        assert.match(document.querySelector(".sweepers-preview").textContent, /Choose a sweeper playlist in General/);
         assert.ok(button().disabled, "Nothing to play without a sweeper playlist");
         const playlist = async (id) => {
             if (!document.getElementById("sweepers-playlist-choices")) {

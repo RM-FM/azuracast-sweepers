@@ -21,7 +21,7 @@
             <div class="card-header text-bg-primary">
                 <h2 id="sweepers-settings-heading" class="card-title my-0">Sweeper Settings</h2>
             </div>
-            <form class="form sweepers-settings" @submit.prevent="saveSettings">
+            <form class="form sweepers-settings" @submit.prevent="saveSettings" @invalid.capture="revealInvalidSetting">
                 <div class="card-body">
                     <p v-if="moduleStatus.state === 'active'" class="card-text text-success" data-module-status="active">{{ moduleStatus.message }}</p>
                     <p v-if="release" class="card-text text-muted small" data-plugin-version>Plugin version {{ installedLabel }}</p>
@@ -32,6 +32,12 @@
                         <a class="alert-link" :href="release.repository_url + '#updating'" target="_blank" rel="noopener">Update steps</a>
                     </div>
 
+                    <nav class="nav nav-default nav-tabs mb-3" role="tablist" aria-label="Sweeper settings" @keydown="settingsTabKey">
+                        <div v-for="[key, label] in settingsTabs" :key="key" class="nav-item" role="presentation">
+                            <button :id="'sweepers-tab-' + key" class="nav-link" :class="{ active: settingsTab === key }" type="button" role="tab" :aria-selected="settingsTab === key" :aria-controls="'sweepers-panel-' + key" :tabindex="settingsTab === key ? 0 : -1" @click="settingsTab = key">{{ label }}</button>
+                        </div>
+                    </nav>
+                    <div id="sweepers-panel-general" v-show="settingsTab === 'general'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-general" data-settings-tab="general">
                     <fieldset class="form-group">
                         <legend>General</legend>
                         <div class="row g-3">
@@ -50,6 +56,19 @@
                         </div>
                     </fieldset>
 
+                    <fieldset class="form-group">
+                        <legend>Playlists Without Sweepers</legend>
+                        <div class="row g-3">
+                            <fieldset class="form-group col-md-12">
+                                <legend class="form-label">Exclude these playlists</legend>
+                                <PlaylistPicker id="sweepers-excluded" v-model="settings.excluded_playlist_ids" title="Excluded playlists" :playlists="jinglePlaylists" />
+                                <div class="form-text">Tracks from these playlists never get a sweeper and are never moved, for example news or pre-recorded shows. Selecting a playlist group covers all playlists in it.</div>
+                            </fieldset>
+                        </div>
+                    </fieldset>
+                    </div>
+
+                    <div id="sweepers-panel-spacing" v-show="settingsTab === 'spacing'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-spacing" data-settings-tab="spacing">
                     <fieldset class="form-group">
                         <legend>Song Spacing</legend>
                         <p>A song only gets a sweeper if all three rules allow it. <strong>0</strong> switches a rule off.</p>
@@ -91,17 +110,9 @@
                         </div>
                     </fieldset>
 
-                    <fieldset class="form-group">
-                        <legend>Playlists Without Sweepers</legend>
-                        <div class="row g-3">
-                            <fieldset class="form-group col-md-12">
-                                <legend class="form-label">Exclude these playlists</legend>
-                                <PlaylistPicker id="sweepers-excluded" v-model="settings.excluded_playlist_ids" title="Excluded playlists" :playlists="jinglePlaylists" />
-                                <div class="form-text">Tracks from these playlists never get a sweeper and are never moved, for example news or pre-recorded shows. Selecting a playlist group covers all playlists in it.</div>
-                            </fieldset>
-                        </div>
-                    </fieldset>
+                    </div>
 
+                    <div id="sweepers-panel-selection" v-show="settingsTab === 'selection'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-selection" data-settings-tab="selection">
                     <fieldset class="form-group">
                         <legend>Sweeper Selection</legend>
                         <div class="row g-3">
@@ -192,6 +203,8 @@
                         </div>
                     </fieldset>
 
+                    </div>
+                    <div id="sweepers-panel-audio" v-show="settingsTab === 'audio'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-audio" data-settings-tab="audio">
                     <fieldset class="form-group">
                         <legend>Sound</legend>
                         <div class="row g-3">
@@ -230,7 +243,7 @@
                                 </div>
                                 <div class="form-text">
                                     <template v-if="!previewSupported">This browser cannot play the preview.</template>
-                                    <template v-else-if="!settings.playlist_ids.length">Choose a sweeper playlist above to preview its sweepers.</template>
+                                    <template v-else-if="!settings.playlist_ids.length">Choose a sweeper playlist in General to preview its sweepers.</template>
                                     <template v-else>Plays the sweeper in your browser with the reverb as set above, before saving. Switching the reverb or changing the intensity is heard right away. Volume and ducking are not part of the preview.</template>
                                 </div>
                                 <div v-if="previewError" class="invalid-feedback d-block" role="alert">{{ previewError }}</div>
@@ -238,7 +251,10 @@
                         </div>
                     </fieldset>
 
-                    <button type="submit" class="btn btn-primary mt-3" :disabled="saving">Save Changes</button>
+                    </div>
+                    <div class="buttons mt-3">
+                        <button type="submit" class="btn btn-lg btn-primary" :disabled="saving">Save Changes</button>
+                    </div>
                     <div class="form-text">Changes apply immediately; no broadcasting restart is needed.</div>
                 </div>
             </form>
@@ -473,7 +489,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { VueDatePicker } from "@vuepic/vue-datepicker";
 import DataToolbar from "./DataToolbar.vue";
 import Icon from "./Icon.vue";
@@ -491,6 +507,33 @@ const props = defineProps({
 });
 const views = [["settings", "Settings"], ["intros", "Intros"], ["history", "Playback Timeline"]];
 const current = ref(views.some(([key]) => key === props.view) ? props.view : "settings");
+const settingsTabs = [["general", "General"], ["spacing", "Spacing & Jingles"], ["selection", "Selection & Timing"], ["audio", "Audio & Preview"]];
+const settingsTab = ref("general");
+
+function settingsTabKey(event) {
+    if (event.target.getAttribute("role") !== "tab") return;
+    const index = settingsTabs.findIndex(([key]) => key === settingsTab.value);
+    let target;
+    if (event.key === "ArrowRight") target = (index + 1) % settingsTabs.length;
+    else if (event.key === "ArrowLeft") target = (index + settingsTabs.length - 1) % settingsTabs.length;
+    else if (event.key === "Home") target = 0;
+    else if (event.key === "End") target = settingsTabs.length - 1;
+    else return;
+    event.preventDefault();
+    settingsTab.value = settingsTabs[target][0];
+    document.getElementById("sweepers-tab-" + settingsTab.value)?.focus();
+}
+
+async function revealInvalidSetting(event) {
+    const input = event.target;
+    const tab = input.closest("[data-settings-tab]")?.dataset.settingsTab;
+    if (!tab || tab === settingsTab.value) return;
+    event.preventDefault();
+    settingsTab.value = tab;
+    await nextTick();
+    input.focus();
+    input.reportValidity();
+}
 const history = ref([]);
 const mediaLoaded = ref(false);
 const csrf = ref(props.csrf);
