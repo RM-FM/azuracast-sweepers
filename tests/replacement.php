@@ -277,11 +277,32 @@ namespace {
     $before = $flags();
     $nativeLock = $locks->createLock('nowplaying_' . $station->short_name, 60);
     $nativeLock->acquire();
+    $started = hrtime(true);
     $check(
         $replace(static fn(): bool => true) === null && $reason === 'replace_busy',
         'The native NowPlaying queue-builder lock prevents concurrent rotation selection.'
     );
+    $check(hrtime(true) - $started >= 300_000_000, 'A held lock is retried until the budget nearly expires.');
     $nativeLock->release();
+    if (function_exists('pcntl_fork') && function_exists('posix_kill')) {
+        $holder = pcntl_fork();
+        if ($holder === 0) {
+            $briefLock = $locks->createLock('nowplaying_' . $station->short_name, 60);
+            $briefLock->acquire();
+            usleep(150_000);
+            $briefLock->release();
+            // A regular exit would close the database connection shared with the parent.
+            posix_kill(posix_getpid(), SIGKILL);
+        }
+        usleep(30_000);
+        $check(
+            $replace(static fn(): bool => false) === null && $reason === 'replace_none',
+            'A queue build that finishes within the budget no longer blocks replacement.'
+        );
+        pcntl_waitpid($holder, $status);
+    } else {
+        echo "pcntl unavailable; lock release retry not exercised.\n";
+    }
     $check($replace(static function (): bool {
         usleep(510_000);
 

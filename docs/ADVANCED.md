@@ -291,11 +291,15 @@ tried first; if none fits, consumed songs follow, longest ago first, without
 reshuffling or resetting the round. Consumed means selected by AutoDJ, not
 necessarily already aired.
 
-Repetition protection is not relaxed: no eligible match, a busy native queue builder
-or an expired 500 ms matching budget leaves the original song in place. Matching
-improves the chance of a sweeper; it does not guarantee one. AzuraCast continues
-rebuilding the queue's expected times. The timeline distinguishes moves from
-replacements and explains unsuccessful matches.
+Repetition protection is not relaxed: no eligible match or an expired matching budget
+leaves the original song in place. While AzuraCast's queue builder holds its lock,
+replacement retries within the budget (1.5 s with the current module, 0.5 s with
+older modules) and otherwise gives up. A song counts as fitting only if a sweeper is
+free for it: sweepers reserved for already fetched songs stay blocked, and such a
+reservation relaxes the repeat protection only when the spacing rules will let it
+play. Matching improves the chance of a sweeper; it does not guarantee one.
+AzuraCast continues rebuilding the queue's expected times. The timeline
+distinguishes moves from replacements and explains unsuccessful matches.
 
 ### Timing and sound
 

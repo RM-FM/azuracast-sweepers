@@ -50,10 +50,15 @@ final readonly class PlaylistReplacement
         $deadline ??= hrtime(true) + 500_000_000;
         // Share the lock held by AzuraCast's NowPlaying station worker, which builds the native queue.
         $lock = $this->locks->createLock('nowplaying_' . $station->short_name, 60);
-        if (!$lock->acquire()) {
-            $reason = 'replace_busy';
+        // Leave room for the selection itself.
+        $retryUntil = $deadline - 150_000_000;
+        while (!$lock->acquire()) {
+            if (hrtime(true) >= $retryUntil) {
+                $reason = 'replace_busy';
 
-            return null;
+                return null;
+            }
+            usleep(25_000);
         }
         try {
             return $this->select($station, $target, $counted, $settings, $usable, $reason, $deadline);

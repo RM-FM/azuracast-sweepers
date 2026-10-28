@@ -234,6 +234,45 @@ namespace {
         $reset(true, true);
         $state->update($directory, static fn(array $data): array => ['plans' => ['21' => ['played' => false]]] + $data);
         $check($arrange() === $none && $queue->exchanges === [] && $replacement->targets === [], 'Planned slot fixed.');
+        $media->jingleIds = [9, 10];
+        $recent = ['log' => [['result' => 'played', 'jingle_id' => 9]]];
+        $dropped = [
+            'songs_since_jingle' => 0, 'songs_since_sweeper' => 5, 'previous_song' => false, 'previous_clear' => true,
+        ];
+        $reset(true, false);
+        $queue->rows = [['sent' => true] + $song(20), ['sent' => true] + $song(23), $song(21), $song(22)];
+        $state->update($directory, static fn(array $data): array => [
+            'plans' => ['20' => ['jingle_id' => 10, 'played' => false]],
+        ] + $recent + $data);
+        $check(
+            $arranger->arrange($station, $dropped, '19', $timings) === $none && $queue->exchanges === []
+                && $state->read($directory)['unmoved']['21']['reason'] === 'move_none',
+            'A reservation the module will drop for spacing does not relax the repeat protection.'
+        );
+        $reset(true, false);
+        $queue->rows = [['sent' => true] + $song(20), ['sent' => true] + $song(23), $song(21), $song(22)];
+        $state->update($directory, static fn(array $data): array => [
+            'plans' => ['20' => ['jingle_id' => 10, 'played' => false]],
+        ] + $recent + $data);
+        $check(
+            $arranger->arrange($station, $gap, '19', $timings)['moved'] === '22',
+            'A reservation that will play counts towards the gap and frees the recently played sweeper.'
+        );
+        $reset(true, false);
+        $state->update($directory, static fn(array $data): array => [
+            'plans' => ['20' => ['jingle_id' => 10, 'played' => false]],
+        ] + $recent + $data);
+        $check(
+            $arranger->arrange($station, $gap, '20', $timings)['moved'] === '22',
+            'The pending sweeper of the current song counts towards the gap.'
+        );
+        $reset(true, false);
+        $state->update($directory, static fn(array $data): array => $recent + $data);
+        $check(
+            $arranger->arrange($station, $gap, '20', $timings) === $none,
+            'Without a reservation that will play, the recently played sweeper stays blocked.'
+        );
+        $media->jingleIds = [9];
         echo $checks . " arranger orchestration checks passed.\n";
         $planner = new Planner($state, $media, $queue, new Schedule());
         $media->intros[21] = 30.5;
@@ -281,7 +320,19 @@ namespace {
             $planner->plan($station, 21, '200', 0, 180, $measurements)['uri'] === '',
             'Fallback cannot force a sweeper that does not fit.'
         );
-        echo "8 longest-fit planner checks passed.\n";
+        $media->intros[21] = 12.5;
+        foreach ([
+            [['plans' => ['300' => ['jingle_id' => 1, 'played' => false, 'expires_at' => time() + 30]]], 'reserved'],
+            [['log' => [['result' => 'played', 'jingle_id' => 1]]], 'repeat'],
+        ] as [$seed, $expected]) {
+            $state->update($directory, static fn(): array => ['settings' => $settings->toArray()] + $seed);
+            $planner->plan($station, 21, '200', 0, 180, $measurements);
+            $check(
+                $state->read($directory)['decisions']['200'] === $expected,
+                'The only fitting sweeper blocked by a reservation is reported apart from a recent repeat.'
+            );
+        }
+        echo "10 longest-fit planner checks passed.\n";
     } finally {
         foreach (glob($directory . '/*') as $path) {
             unlink($path);

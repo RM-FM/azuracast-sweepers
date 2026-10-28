@@ -100,17 +100,22 @@ final readonly class InternalController
             }
             $gap[$key] = $body[$key];
         }
+        $budget = $body['budget'] ?? Arranger::DEFAULT_BUDGET_SECONDS;
+        if (!is_numeric($budget) || !is_finite((float)$budget) || $budget < 0.1 || $budget > 5) {
+            throw new InvalidArgumentException('Invalid budget.');
+        }
         $station = $request->getStation();
         $settings = Settings::fromArray($this->state->read($station->getRadioConfigDir())['settings'] ?? []);
-        if (!$settings->enabled || !$settings->swapForIntro) {
-            return $response->withJson(['moved' => '', 'before' => '']);
+        if (!$settings->enabled || (!$settings->swapForIntro && !$settings->swapFromPlaylist)) {
+            return $response->withJson(['moved' => '', 'before' => '', 'replaced' => '']);
         }
 
         return $response->withJson($this->arranger->arrange(
             $station,
             $gap,
             (string)($body['counted'] ?? ''),
-            $this->measurements($station, $settings, $body['jingles'] ?? [])
+            $this->measurements($station, $settings, $body['jingles'] ?? []),
+            (float)$budget
         ));
     }
 

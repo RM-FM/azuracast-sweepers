@@ -13,6 +13,8 @@ use Plugin\AzuracastSweepers\ValueObject\Timing;
 
 final readonly class Arranger
 {
+    public const float DEFAULT_BUDGET_SECONDS = 0.5;
+
     public function __construct(
         private State $state,
         private Media $media,
@@ -26,9 +28,14 @@ final readonly class Arranger
      * @param array<int, Timing> $measurements
      * @return array{moved: string, before: string, replaced: string}
      */
-    public function arrange(Station $station, array $gap, string $counted, array $measurements): array
-    {
-        $deadline = hrtime(true) + 500_000_000;
+    public function arrange(
+        Station $station,
+        array $gap,
+        string $counted,
+        array $measurements,
+        float $budgetSeconds = self::DEFAULT_BUDGET_SECONDS
+    ): array {
+        $deadline = hrtime(true) + (int)($budgetSeconds * 1_000_000_000);
         $none = ['moved' => '', 'before' => '', 'replaced' => ''];
         $data = $this->state->read($station->getRadioConfigDir());
         $settings = Settings::fromArray($data['settings'] ?? []);
@@ -58,9 +65,14 @@ final readonly class Arranger
             );
         }
         unset($row);
+        // Reservations the module will drop for spacing must not relax the repeat protection.
+        $playing = Arrangement::playing($rows, $gap, $settings);
+        if (isset($plans[$counted])) {
+            $playing[] = $counted;
+        }
         $timings = array_diff_key(
             array_intersect_key($measurements, array_flip(array_map(static fn($jingle): int => $jingle->id, $active))),
-            array_flip(Selection::unavailable($data, $settings->sweeperGap, count($active)))
+            array_flip(Selection::unavailable($data, $settings->sweeperGap, count($active), $playing))
         );
 
         $known = [];

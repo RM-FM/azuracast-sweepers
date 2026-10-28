@@ -338,8 +338,9 @@ end
 def sweepers.arrange() =
     if sweepers.settings().enabled and sweepers.counted() != "" and not azuracast.live_enabled() then
         try
-            response = sweepers.api_call(timeout=1., "sweepers/arrange", json.stringify({
+            response = sweepers.api_call(timeout=2., "sweepers/arrange", json.stringify({
                 counted=sweepers.counted(),
+                budget=1.5,
                 songs_since_jingle=sweepers.songs_since_jingle(),
                 songs_since_sweeper=sweepers.songs_since_sweeper(),
                 previous_song=sweepers.previous_song(),

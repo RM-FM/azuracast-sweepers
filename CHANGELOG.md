@@ -20,6 +20,17 @@
   shuffle/sequential round when none of the remaining songs fits, instead of giving up
   near the end of a round.
 
+### Fixes
+
+- Moving or replacing a song no longer relies on sweepers reserved for songs that
+  the spacing rules will skip; such songs were moved forward and then played without
+  a sweeper ("Only fitting sweeper played too recently").
+- Same-playlist replacement waits briefly for AzuraCast's queue builder instead of
+  giving up immediately ("AzuraCast is currently rebuilding the queue").
+- Replacement alone (without moving queued songs) now runs; previously it was
+  skipped unless moving was also enabled.
+- The timeline distinguishes sweepers reserved for upcoming songs from a recent repeat.
+
 ### Update notes
 
 - **AzuraCast Broadcast (Liquidsoap) restart: Required** when upgrading from 1.1.0,

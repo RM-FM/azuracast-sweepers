@@ -660,6 +660,7 @@ const reasons = {
     intro_before_cue: "Intro ends in the silence before the song starts",
     no_fit: "Intro too short for every sweeper",
     repeat: "Only fitting sweeper played too recently",
+    reserved: "Fitting sweepers are reserved for upcoming songs",
     no_sweepers: "No sweepers ready (empty playlist or not measured yet)",
     off_schedule: "No sweeper playlist scheduled now",
     jingle_follows: "A jingle follows soon",

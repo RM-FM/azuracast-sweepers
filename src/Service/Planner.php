@@ -114,9 +114,14 @@ final readonly class Planner
 
             $jingles = $this->media->jingles($station, $active);
             $reserved = Selection::unavailable($data, $settings->sweeperGap, count($jingles));
+            $pending = array_map('intval', array_column(array_filter(
+                $data['plans'],
+                static fn(array $plan): bool => !($plan['played'] ?? false)
+            ), 'jingle_id'));
             $candidates = [];
             $fitting = 0;
             $measured = 0;
+            $recent = 0;
 
             foreach ($jingles as $jingle) {
                 if ($jingle->id === $song->id) {
@@ -130,6 +135,7 @@ final readonly class Planner
                 }
                 $fitting++;
                 if (in_array($jingle->id, $reserved, true)) {
+                    $recent += in_array($jingle->id, $pending, true) ? 0 : 1;
                     continue;
                 }
 
@@ -177,6 +183,7 @@ final readonly class Planner
             return $decide(match (true) {
                 $measured === 0 => 'no_sweepers',
                 $fitting === 0 => 'no_fit',
+                $recent === 0 => 'reserved',
                 default => 'repeat',
             });
         });
