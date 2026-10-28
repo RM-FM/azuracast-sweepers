@@ -313,8 +313,8 @@
                         <button class="btn btn-secondary" type="button" :disabled="marker === null || !ready" @click="waveform?.playAt(marker)">Listen Intro</button>
                     </template>
                 </Waveform>
-                <form @submit.prevent="saveIntro">
-                    <label class="form-label">
+                <form class="d-flex flex-wrap align-items-end gap-2" @submit.prevent="saveIntro">
+                    <label class="form-label mb-0">
                         Intro End (s)
                         <input v-model="draft" class="form-control" type="number" min="0" :max="selected.duration" step="0.01">
                     </label>
