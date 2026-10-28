@@ -1,44 +1,37 @@
 <template>
-    <div class="sweepers-playlist-picker">
-        <div>
-            <button
-                :id="id + '-toggle'"
-                ref="toggle"
-                class="btn btn-sm btn-primary"
-                type="button"
-                :aria-expanded="open"
-                :aria-controls="id + '-choices'"
-                @click="open = !open"
-            ><Icon name="add" /><span>Add Playlist</span></button>
-        </div>
-        <div v-if="open" :id="id + '-choices'" class="sweepers-playlist-choices border rounded mt-2" @keydown.esc.stop.prevent="close">
-            <div class="p-2 border-bottom">
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text"><Icon name="search" /></span>
-                    <input ref="searchInput" v-model="search" class="form-control" type="search" :aria-label="'Search ' + title" placeholder="Search playlists" @keydown.enter.prevent>
-                </div>
-            </div>
-            <div class="sweepers-playlist-options list-group list-group-flush" role="group" :aria-label="title">
-                <button v-for="playlist in available" :key="playlist.id" :id="id + '-' + playlist.id" class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-2" type="button" @click="add(playlist.id)">
-                    <Icon v-if="sourceIcon(playlist)" :name="sourceIcon(playlist)" class="flex-shrink-0" />
-                    <span class="text-break">{{ label(playlist) }}</span>
-                    <Icon name="add" class="ms-auto flex-shrink-0" />
-                </button>
-                <p v-if="!available.length" class="text-muted small p-3 mb-0">{{ search.trim() ? "No matching playlists." : "All playlists selected." }}</p>
-            </div>
-        </div>
-        <div v-if="selected.length" class="sweepers-playlist-selected d-flex flex-wrap align-items-center gap-2 mt-2">
+    <div ref="picker" class="sweepers-playlist-picker" @keydown.esc.stop.prevent="close">
+        <div v-if="selected.length" class="sweepers-playlist-selected d-flex flex-wrap align-items-center gap-2 mb-2">
             <span v-for="playlist in selected" :key="playlist.id" class="playlist-source-badge badge text-bg-secondary d-inline-flex align-items-center gap-1">
                 <Icon v-if="sourceIcon(playlist)" :name="sourceIcon(playlist)" class="sm" />
                 <span class="text-truncate">{{ label(playlist) }}</span>
                 <button class="btn-close btn-close-white" type="button" :aria-label="'Remove ' + label(playlist)" @click="remove(playlist.id)" />
             </span>
         </div>
+        <div class="dropdown">
+            <button
+                :id="id + '-toggle'"
+                ref="toggle"
+                class="btn btn-sm btn-primary dropdown-toggle"
+                type="button"
+                :aria-expanded="open"
+                :aria-controls="id + '-choices'"
+                @click="open = !open"
+            ><Icon name="add" /><span>Add Playlist</span></button>
+            <div v-if="open" :id="id + '-choices'" class="sweepers-playlist-choices dropdown-menu show p-3">
+                <div class="sweepers-playlist-options" role="group" :aria-label="title">
+                    <div v-for="playlist in playlists" :key="playlist.id" class="form-check mb-2">
+                        <input :id="id + '-' + playlist.id" class="form-check-input" type="checkbox" :checked="modelValue.includes(playlist.id)" @change="setSelected(playlist.id, $event.target.checked)">
+                        <label class="form-check-label" :for="id + '-' + playlist.id">{{ label(playlist) }}</label>
+                    </div>
+                    <p v-if="!playlists.length" class="text-muted small mb-0">No playlists available.</p>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
 <script setup>
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import Icon from "./Icon.vue";
 
 const sourceIcons = { songs: "libraryMusic", playlists: "queueMusic", remote_url: "public", requests: "people" };
@@ -53,27 +46,22 @@ const props = defineProps({
 });
 const emit = defineEmits(["update:modelValue"]);
 const open = ref(false);
-const search = ref("");
-const searchInput = ref(null);
+const picker = ref(null);
 const toggle = ref(null);
 const selected = computed(() => props.playlists.filter((playlist) => props.modelValue.includes(playlist.id)));
-const available = computed(() => props.playlists.filter((playlist) =>
-    !props.modelValue.includes(playlist.id)
-    && props.label(playlist).toLocaleLowerCase().includes(search.value.trim().toLocaleLowerCase())
-));
 watch(open, async (value) => {
-    search.value = "";
     if (value) {
         await nextTick();
-        searchInput.value?.focus();
+        picker.value?.querySelector('input[type="checkbox"]')?.focus();
     }
 });
 
-async function add(id) {
-    emit("update:modelValue", [...props.modelValue, id]);
-    search.value = "";
-    await nextTick();
-    searchInput.value?.focus();
+function setSelected(id, checked) {
+    if (checked && !props.modelValue.includes(id)) {
+        emit("update:modelValue", [...props.modelValue, id]);
+    } else if (!checked) {
+        remove(id);
+    }
 }
 
 function remove(id) {
@@ -84,4 +72,11 @@ function close() {
     open.value = false;
     toggle.value?.focus();
 }
+
+function outsideClick(event) {
+    if (open.value && !picker.value?.contains(event.target)) open.value = false;
+}
+
+onMounted(() => document.addEventListener("pointerdown", outsideClick));
+onUnmounted(() => document.removeEventListener("pointerdown", outsideClick));
 </script>

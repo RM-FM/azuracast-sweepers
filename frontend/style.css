@@ -3,13 +3,13 @@
 }
 
 .sweepers-page .sweepers-playlist-options {
-    max-height: 16rem;
+    max-height: 24rem;
     overflow-y: auto;
 }
 
 .sweepers-page .sweepers-playlist-choices {
-    max-width: 32rem;
-    overflow: hidden;
+    min-width: min(300px, calc(100vw - 3rem));
+    max-width: calc(100vw - 3rem);
 }
 
 .sweepers-page .sweepers-playlist-picker .btn-close {

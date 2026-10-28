@@ -141,8 +141,8 @@ an error. These previews only play in the browser and do not affect station play
 
 ## Settings
 
-Playlist selections appear as removable source tags with playlist-type icons. Use **Add Playlist** to search and
-add playlists, or the **x** on a label to remove one. Changes take effect when you
+Playlist selections appear as removable source tags with playlist-type icons. Use **Add Playlist** to
+check or uncheck playlists in the dropdown, or the **x** on a label to remove one. Changes take effect when you
 save the settings.
 
 Defaults for a new installation:

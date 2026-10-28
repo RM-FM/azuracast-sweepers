@@ -4,8 +4,8 @@
 
 ### Improvements
 
-- Settings show selected playlists as removable source tags with a searchable add menu
-  instead of checkbox lists.
+- Settings show selected playlists as removable source tags with a compact checkbox
+  dropdown, matching the Music Files playlist selection.
 - Saving settings no longer cancels a sweeper already prepared for an upcoming song;
   only switching sweepers off does.
 - Same-playlist replacement also considers songs already played in the current

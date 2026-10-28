@@ -526,10 +526,14 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
             document.getElementById(id + "-toggle").click();
             await settle();
         };
-        const playlistLabels = (prefix) => [...document.querySelectorAll(`button[id^="${prefix}"]`)]
-            .filter((node) => !node.id.endsWith("-toggle")).map((node) => node.textContent.trim());
-        const check = async (id) => {
-            document.getElementById(id).click();
+        const playlistLabels = (prefix) => [...document.querySelectorAll(`input[id^="${prefix}"]`)]
+            .map((node) => document.querySelector(`label[for="${node.id}"]`).textContent.trim());
+        const check = async (id, checked = true) => {
+            const pickerId = id.slice(0, id.lastIndexOf("-"));
+            if (!document.getElementById(id)) await openPicker(pickerId);
+            const node = document.getElementById(id);
+            node.checked = checked;
+            node.dispatchEvent(new Event("change", { bubbles: true }));
             await settle();
         };
         assert.ok([...document.querySelectorAll("legend.form-label")].some((node) => node.textContent === "Sweeper playlists"));
@@ -543,27 +547,39 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.ok(addButton.querySelector("svg path").getAttribute("d"), "Add button includes its plus icon");
         assert.deepEqual(playlistLabels("sweepers-playlist-"), ["Sweepers", "Christmas (scheduled)", "Retired (disabled)"],
             "Several sweeper playlists can be selected");
-        const search = document.querySelector("#sweepers-playlist-choices input");
-        search.value = "CHRIST";
-        search.dispatchEvent(new Event("input", { bubbles: true }));
-        await settle();
-        assert.deepEqual(playlistLabels("sweepers-playlist-"), ["Christmas (scheduled)"], "Search ignores case");
-        search.value = "";
-        search.dispatchEvent(new Event("input", { bubbles: true }));
-        await settle();
+        assert.ok(addButton.classList.contains("dropdown-toggle"), "Button includes the native dropdown arrow");
+        const choices = document.getElementById("sweepers-playlist-choices");
+        assert.ok(choices.classList.contains("dropdown-menu"), "Selection uses the native dropdown styling");
+        assert.equal(choices.querySelector('input[type="search"]'), null, "Playlist selection does not need search");
+        assert.equal(choices.querySelector("button"), null, "Dropdown has no Save or Clear buttons");
+        const writesBeforeSelection = writes.length;
         await check("sweepers-playlist-10");
         await check("sweepers-playlist-11");
         const songBadge = document.querySelector(".sweepers-playlist-picker .playlist-source-badge");
         const picker = addButton.closest(".sweepers-playlist-picker");
-        assert.equal(picker.firstElementChild, addButton.parentElement, "Add button stays above the labels");
-        assert.equal(picker.lastElementChild, songBadge.parentElement, "Selected tags follow the button and search list");
-        assert.ok(document.getElementById("sweepers-playlist-12").classList.contains("list-group-item-action"),
-            "Search results use native list rows rather than outlined buttons");
+        assert.equal(picker.firstElementChild, songBadge.parentElement, "Selected tags stay above the button");
+        assert.equal(picker.lastElementChild, addButton.parentElement, "Add button follows the selected tags");
         assert.ok(songBadge.classList.contains("gap-1"), "Labels use source badge spacing");
         assert.ok(songBadge.querySelector("svg.sm path"), "Song-based labels include the source icon");
-        assert.deepEqual(playlistLabels("sweepers-playlist-"), ["Retired (disabled)"], "Selected playlists cannot be added twice");
+        assert.equal(writes.length, writesBeforeSelection, "Selections update the form without autosaving");
+        assert.ok(document.getElementById("sweepers-playlist-10").checked, "Selected playlist remains checked in the open dropdown");
+        assert.equal(addButton.getAttribute("aria-expanded"), "true", "Checkbox changes keep the dropdown open");
+        await check("sweepers-playlist-11", false);
+        assert.equal(document.querySelector('[aria-label="Remove Christmas (scheduled)"]'), null, "Unchecking removes its tag immediately");
+        await check("sweepers-playlist-11");
         document.querySelector('[aria-label="Remove Sweepers"]').click();
         await settle();
+        assert.equal(document.getElementById("sweepers-playlist-10").checked, false, "Removing a tag unchecks its playlist");
+        const escape = new Event("keydown", { bubbles: true });
+        escape.key = "Escape";
+        choices.dispatchEvent(escape);
+        await settle();
+        assert.equal(addButton.getAttribute("aria-expanded"), "false", "Escape closes the dropdown");
+        assert.equal(document.getElementById("sweepers-playlist-choices"), null);
+        await openPicker("sweepers-playlist");
+        document.querySelector("h2").dispatchEvent(new Event("pointerdown", { bubbles: true }));
+        await settle();
+        assert.equal(addButton.getAttribute("aria-expanded"), "false", "Clicking outside closes the dropdown");
         assert.deepEqual((await submit()).playlist_ids, [11], "Removing a label updates the saved selection");
         await check("sweepers-playlist-10");
         assert.deepEqual((await submit()).playlist_ids, [11, 10], "All selected sweeper playlists are saved");
@@ -868,7 +884,9 @@ test("reverb preview plays the selected sweeper and follows the reverb settings 
                 document.getElementById("sweepers-playlist-toggle").click();
                 await settle();
             }
-            document.getElementById(`sweepers-playlist-${id}`).click();
+            const node = document.getElementById(`sweepers-playlist-${id}`);
+            node.checked = true;
+            node.dispatchEvent(new Event("change", { bubbles: true }));
             await settle();
         };
         await playlist(10);
