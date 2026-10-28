@@ -49,13 +49,14 @@
                             </div>
                         </div>
                     </fieldset>
-                    <fieldset class="form-group" aria-describedby="sweepers-playlists-help">
+                    <div class="row g-4 mt-0">
+                    <fieldset class="form-group col-lg-6" aria-describedby="sweepers-playlists-help">
                         <legend>Sweeper Playlists</legend>
                                 <PlaylistPicker id="sweepers-playlist" v-model="settings.playlist_ids" title="Sweeper playlists" :playlists="playlists" :label="playlistLabel" />
                                 <div id="sweepers-playlists-help" class="form-text">One or more <strong>Advanced</strong> playlists with the sweepers, so they do not also play as normal songs. Playlists with a schedule are used only in their time slots; without a schedule they are always used. All playlists active at the same time share one rotation. Disabled playlists are skipped.</div>
                     </fieldset>
 
-                    <fieldset class="form-group">
+                    <fieldset class="form-group col-lg-6">
                         <legend>Exclude Playlists from Sweepers</legend>
                         <div class="row g-3">
                             <fieldset class="form-group col-md-12">
@@ -65,6 +66,7 @@
                             </fieldset>
                         </div>
                     </fieldset>
+                    </div>
                     </div>
 
                     <div id="sweepers-panel-spacing" v-show="settingsTab === 'spacing'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-spacing" data-settings-tab="spacing">
@@ -94,14 +96,14 @@
                         <legend>Jingle Recognition</legend>
                         <p>Which tracks count as jingles for the spacing rules. Jingles never get a sweeper themselves.</p>
                         <div class="row g-3">
-                            <div class="form-group col-md-12">
+                            <div class="form-group col-lg-6">
                                 <div class="form-check form-switch">
                                     <input id="sweepers-count-jingle-mode" v-model="settings.count_jingle_mode" class="form-check-input" type="checkbox" role="switch">
                                     <label class="form-check-label" for="sweepers-count-jingle-mode">Count Jingle Mode playlists</label>
                                 </div>
                                 <div class="form-text">Tracks from playlists that use AzuraCast's <em>Jingle Mode</em> count as jingles.</div>
                             </div>
-                            <fieldset class="form-group col-md-12">
+                            <fieldset class="form-group col-lg-6">
                                 <legend class="form-label">Additional jingle playlists</legend>
                                 <PlaylistPicker id="sweepers-jingle" v-model="settings.jingle_playlist_ids" title="Additional jingle playlists" :playlists="jinglePlaylists" :label="(playlist) => playlist.name + (playlist.is_jingle ? ' (Jingle Mode)' : '')" />
                                 <div class="form-text">Other playlists whose tracks count as jingles. The sweeper playlists always count.</div>
@@ -112,7 +114,8 @@
                     </div>
 
                     <div id="sweepers-panel-selection" v-show="settingsTab === 'selection'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-selection" data-settings-tab="selection">
-                    <fieldset class="form-group">
+                    <div class="row g-4">
+                    <fieldset class="form-group col-lg-6">
                         <legend>Sweeper Selection</legend>
                         <div class="row g-3">
                             <div class="form-group col-md-6">
@@ -138,7 +141,7 @@
                         </div>
                     </fieldset>
 
-                    <fieldset class="form-group">
+                    <fieldset class="form-group col-lg-6">
                         <legend>Improve Sweeper-to-Song Matching</legend>
                         <div class="row g-3">
                             <div class="form-group col-md-12">
@@ -168,7 +171,8 @@
                         </div>
                     </fieldset>
 
-                    <fieldset class="form-group">
+                    </div>
+                    <fieldset class="form-group mt-4">
                         <legend>Timing</legend>
                         <p>A sweeper is normally timed so that its voice ends just before the singing starts. Any echo or reverb tail may continue over the vocals.</p>
                         <div class="row g-3">
@@ -204,7 +208,8 @@
 
                     </div>
                     <div id="sweepers-panel-audio" v-show="settingsTab === 'audio'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-audio" data-settings-tab="audio">
-                    <fieldset class="form-group">
+                    <div class="row g-4">
+                    <fieldset class="form-group col-lg-6">
                         <legend>Sound</legend>
                         <div class="row g-3">
                             <div class="form-group col-md-6">
@@ -229,7 +234,11 @@
                                 <input id="sweepers-reverb-intensity" v-model.number="settings.reverb_intensity" class="form-control" type="number" min="0" max="100" step="5" required>
                                 <div class="form-text">How much reverb is mixed in.</div>
                             </div>
-                            <div class="form-group col-md-12 sweepers-preview">
+                        </div>
+                    </fieldset>
+                    <fieldset class="form-group col-lg-6">
+                        <legend>Preview</legend>
+                            <div class="form-group sweepers-preview">
                                 <label class="form-label" for="sweepers-preview">Preview sweeper</label>
                                 <div class="input-group">
                                     <select id="sweepers-preview" v-model="previewId" class="form-select" :disabled="!previewSweepers.length">
@@ -247,8 +256,8 @@
                                 </div>
                                 <div v-if="previewError" class="invalid-feedback d-block" role="alert">{{ previewError }}</div>
                             </div>
-                        </div>
                     </fieldset>
+                    </div>
 
                     </div>
                     <div class="buttons mt-3">

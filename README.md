@@ -148,6 +148,9 @@ in the **Status** section of **General**, followed by separate sweeper playlist 
 playlist exclusion sections. Module warnings and their restart action remain above
 the settings card, visible regardless of the selected tab.
 
+Related settings use two columns on large screens and stack on smaller screens.
+Numeric inputs stay compact while their explanations use the available column width.
+
 Playlist selections appear as removable source tags with playlist-type icons. Use **Add Playlist** to
 check or uncheck playlists in the dropdown, or the **x** on a label to remove one. Changes take effect when you
 save the settings.

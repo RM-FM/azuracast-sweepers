@@ -693,8 +693,14 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         const status = document.querySelector('[data-plugin-version]').closest("fieldset");
         assert.equal(status.querySelector("legend").textContent, "Status");
         assert.equal(status.closest('[role="tabpanel"]'), panel("general"));
-        assert.deepEqual([...panel("general").children].map((node) => node.querySelector("legend").textContent),
+        assert.deepEqual([...panel("general").querySelectorAll(":scope > fieldset > legend, :scope > .row > fieldset > legend")].map((node) => node.textContent),
             ["Status", "Sweeper Playlists", "Exclude Playlists from Sweepers"]);
+        const sweeperColumn = document.getElementById("sweepers-playlist-toggle").closest("fieldset");
+        const excludedColumn = document.getElementById("sweepers-excluded-toggle").closest("fieldset").parentElement.closest("fieldset");
+        assert.ok(sweeperColumn.classList.contains("col-lg-6"));
+        assert.equal(sweeperColumn.parentElement, excludedColumn.parentElement, "Playlist sections share a responsive row");
+        assert.ok(document.querySelector(".sweepers-preview").closest("fieldset").classList.contains("col-lg-6"),
+            "Audio preview has its own responsive column");
         assert.doesNotMatch(document.querySelector(".sweepers-settings").textContent, /Changes apply immediately; no broadcasting restart is needed/);
         const save = document.querySelector('.sweepers-settings button[type="submit"]');
         assert.equal(document.querySelectorAll('.sweepers-settings button[type="submit"]').length, 1);
