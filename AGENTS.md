@@ -35,7 +35,8 @@
   replace the pending heading with `## X.Y.Z - YYYY-MM-DD` in the release PR before merging.
 - Group relevant user/product changes under Features, Fixes and Improvements; omit empty sections.
   Summarize related changes rather than enumerating code edits, tests or internal refactors. For a
-  small single-purpose release, one concise user-relevant bullet is sufficient.
+  small single-purpose release, one concise user-relevant bullet is sufficient. End each release with
+  an `### Update notes` section holding the restart statement and any update hints.
 - Every release and release PR must explicitly state **AzuraCast Broadcast (Liquidsoap) restart:
   Required / Not required**, with a short reason. Compare the shipped Liquidsoap module and generated
   configuration with the preceding release; distinguish a broadcast restart from frontend rebuilds

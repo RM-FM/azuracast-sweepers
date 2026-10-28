@@ -7,11 +7,6 @@ this is separate from rebuilding the frontend or reloading PHP/worker processes.
 
 ## 1.1.0 - 2026-10-28
 
-**AzuraCast Broadcast (Liquidsoap) restart: Not required** when upgrading from
-1.0.1. The Liquidsoap module code is unchanged and running stations are recognized
-as current. Rebuild the frontend and reload PHP/worker processes using the normal update steps.
-New same-playlist replacement is off by default.
-
 ### Features
 
 - The Settings page shows the installed plugin version, checks GitHub for newer
@@ -42,12 +37,14 @@ New same-playlist replacement is off by default.
 - Stations no longer ask for a broadcasting restart after updates that only changed
   comments in the Liquidsoap module.
 
-## 1.0.1 - 2026-10-28
+### Update notes
 
 **AzuraCast Broadcast (Liquidsoap) restart: Not required** when upgrading from
-1.0.0. This release changes the browser interface and media listing, not the
-Liquidsoap module or generated broadcast configuration. Rebuild the frontend and
-reload PHP/worker processes using the normal update steps.
+1.0.1. The Liquidsoap module code is unchanged and running stations are recognized
+as current. Rebuild the frontend and reload PHP/worker processes using the normal update steps.
+New same-playlist replacement is off by default.
+
+## 1.0.1 - 2026-10-28
 
 ### Features
 
@@ -62,13 +59,16 @@ reload PHP/worker processes using the normal update steps.
 - Clearer AutoCue documentation: existing resolved cue metadata is used; internal
   analysis is only a fallback for sweepers missing cue points, not intro detection.
 
+### Update notes
+
+**AzuraCast Broadcast (Liquidsoap) restart: Not required** when upgrading from
+1.0.0. This release changes the browser interface and media listing, not the
+Liquidsoap module or generated broadcast configuration. Rebuild the frontend and
+reload PHP/worker processes using the normal update steps.
+
 ## 1.0.0 - Baseline
 
 Historical baseline: the `main` commit immediately before PR #2.
-
-**AzuraCast Broadcast (Liquidsoap) restart: Required for initial installation**
-to load the sweeper module into each station. Tagging an already running installation
-does not itself require a restart.
 
 ### Features
 
@@ -77,3 +77,9 @@ does not itself require a restart.
 - Optional queued-song movement for better intro matching, longest-fit preference
   and reverb preview.
 - Waveform intro editing, a playback timeline and live settings.
+
+### Update notes
+
+**AzuraCast Broadcast (Liquidsoap) restart: Required for initial installation**
+to load the sweeper module into each station. Tagging an already running installation
+does not itself require a restart.
