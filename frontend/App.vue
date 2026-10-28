@@ -21,7 +21,7 @@
                     </div>
                 </div>
             </div>
-            <form class="sweepers-settings" @submit.prevent="saveSettings">
+            <form class="form sweepers-settings" @submit.prevent="saveSettings">
                 <div class="card-body">
                     <p class="card-text">Sweepers are short station drop-ins played over the instrumental intro of a song, while the music is ducked underneath. Configure them for {{ station.name || 'your station' }} below.</p>
                     <p v-if="moduleStatus.state === 'active'" class="card-text text-success" data-module-status="active">{{ moduleStatus.message }}</p>
@@ -38,7 +38,7 @@
                             </div>
                             <fieldset class="form-group col-md-12" aria-describedby="sweepers-playlists-help">
                                 <legend class="form-label">Sweeper playlists</legend>
-                                <div v-for="playlist in playlists" :key="playlist.id" class="form-check">
+                                <div v-for="playlist in playlists" :key="playlist.id" class="form-check form-check-inline">
                                     <input :id="'sweepers-playlist-' + playlist.id" v-model="settings.playlist_ids" class="form-check-input" type="checkbox" :value="playlist.id">
                                     <label class="form-check-label" :for="'sweepers-playlist-' + playlist.id">{{ playlistLabel(playlist) }}</label>
                                 </div>
@@ -82,7 +82,7 @@
                             </div>
                             <fieldset class="form-group col-md-12">
                                 <legend class="form-label">Additional jingle playlists</legend>
-                                <div v-for="playlist in jinglePlaylists" :key="playlist.id" class="form-check">
+                                <div v-for="playlist in jinglePlaylists" :key="playlist.id" class="form-check form-check-inline">
                                     <input :id="'sweepers-jingle-' + playlist.id" v-model="settings.jingle_playlist_ids" class="form-check-input" type="checkbox" :value="playlist.id">
                                     <label class="form-check-label" :for="'sweepers-jingle-' + playlist.id">{{ playlist.name }}{{ playlist.is_jingle ? ' (Jingle Mode)' : '' }}</label>
                                 </div>
@@ -96,7 +96,7 @@
                         <div class="row g-3">
                             <fieldset class="form-group col-md-12">
                                 <legend class="form-label">Exclude these playlists</legend>
-                                <div v-for="playlist in jinglePlaylists" :key="playlist.id" class="form-check">
+                                <div v-for="playlist in jinglePlaylists" :key="playlist.id" class="form-check form-check-inline">
                                     <input :id="'sweepers-excluded-' + playlist.id" v-model="settings.excluded_playlist_ids" class="form-check-input" type="checkbox" :value="playlist.id">
                                     <label class="form-check-label" :for="'sweepers-excluded-' + playlist.id">{{ playlist.name }}</label>
                                 </div>

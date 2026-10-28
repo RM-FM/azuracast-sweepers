@@ -21,9 +21,15 @@
     margin-left: .25rem;
 }
 
+.sweepers-page .sweepers-settings > .card-body > fieldset + fieldset {
+    margin-top: 2rem;
+}
+
 .sweepers-page .sweepers-settings legend.form-label {
     float: none;
     margin-bottom: .5rem;
+    padding-bottom: 0;
+    border-bottom: 0;
     font-size: 1rem;
     font-weight: 500;
 }
@@ -43,19 +49,28 @@
 
 .sweepers-page:not(.embedded) .sweepers-settings > .card-body > fieldset {
     min-width: 0;
-    margin: 0 0 1.5rem;
-    padding: 0 0 1.25rem;
+    margin: 0 0 1rem;
+    padding: 0;
     border: 0;
-    border-bottom: 1px solid var(--bs-border-color, #d7dde5);
+}
+
+.sweepers-page:not(.embedded) .sweepers-settings > .card-body > fieldset + fieldset {
+    margin-top: 2rem;
 }
 
 .sweepers-page:not(.embedded) .sweepers-settings > .card-body > fieldset > legend {
     float: none;
-    width: auto;
+    width: 100%;
     margin: 0 0 .75rem;
-    padding: 0;
-    font-size: 1.05rem;
-    font-weight: 600;
+    padding: 0 0 .5rem;
+    border-bottom: 2px dotted;
+    font-size: 1.25rem;
+    font-weight: 500;
+}
+
+.sweepers-page:not(.embedded) .sweepers-settings .form-check-inline {
+    display: inline-block;
+    margin-right: 1rem;
 }
 
 .sweepers-page .sweepers-settings .form-text {

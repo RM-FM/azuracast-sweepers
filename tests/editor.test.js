@@ -520,6 +520,9 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
             await settle();
         };
         assert.ok([...document.querySelectorAll("legend.form-label")].some((node) => node.textContent === "Sweeper playlists"));
+        assert.ok(document.querySelector("form.sweepers-settings").classList.contains("form"), "Settings use the native AzuraCast form styles");
+        assert.ok([...document.querySelectorAll('input[id^="sweepers-"][type="checkbox"]:not([role])')]
+            .every((node) => node.parentElement.classList.contains("form-check-inline")), "Playlist checkboxes sit side by side");
         assert.deepEqual(checkboxLabels("sweepers-playlist-"), ["Sweepers", "Christmas (scheduled)", "Retired (disabled)"],
             "Several sweeper playlists can be selected");
         await check("sweepers-playlist-10");
