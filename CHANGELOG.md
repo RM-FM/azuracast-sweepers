@@ -5,16 +5,12 @@ increment PATCH; features normally increment MINOR. Major versions require expli
 agreement. Each release states whether AzuraCast Broadcast (Liquidsoap) must restart;
 this is separate from rebuilding the frontend or reloading PHP/worker processes.
 
-## 1.1.0 - Pending testing approval
-
-Not released. The next `develop` -> `main` PR (expected #3), tag and GitHub Release
-are on hold until testing is approved.
+## 1.1.0 - 2026-10-28
 
 **AzuraCast Broadcast (Liquidsoap) restart: Not required** when upgrading from
 1.0.1. The Liquidsoap module code is unchanged and running stations are recognized
 as current. Rebuild the frontend and reload PHP/worker processes using the normal update steps.
-New same-playlist replacement is off by default; validate station playback before
-enabling it.
+New same-playlist replacement is off by default.
 
 ### Features
 

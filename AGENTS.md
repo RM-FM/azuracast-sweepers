@@ -51,5 +51,4 @@
 - Agreed baseline: `1.0.0` is `bda1c3e69206f0b0a922aa2fb6dc7541b5f71395`;
   `1.0.1` is PR #2's merge `ecd7ff209d48f28951cdb1b77898d99e8af17183`.
   This historical `1.0.1` assignment is explicit even though it contains features.
-  The matching/longest-fit changes are planned for `1.1.0` (next release PR, expected #3);
-  that PR and release remain on hold until the user's testing approval. GitHub assigns PR numbers.
+  `1.1.0` is the merge of the following `develop` -> `main` release PR.
