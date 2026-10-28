@@ -498,6 +498,16 @@ check(
     Selection::unavailable($pending, 1, 4) === [8] && Selection::unavailable($pending, 2, 4) === [8, 5],
     'A sweeper reserved for an upcoming song plays first and counts towards the gap.'
 );
+check(
+    Selection::unavailable($pending, 1, 4, []) === [8, 5] && Selection::unavailable($pending, 1, 4, ['9']) === [8],
+    'Only reservations that will play relax the repeat protection; dropped ones stay blocked.'
+);
+$prefetched = [$song(20, true, extra: ['planned' => true]), $song(23, true), $song(21)];
+check(
+    Arrangement::playing($prefetched, $due, $gapSettings) === ['20']
+        && Arrangement::playing($prefetched, $fresh, $gapSettings) === [],
+    'A sent song keeps its reservation only when the spacing rules let its sweeper play.'
+);
 $reverbDefaults = Settings::fromArray([]);
 check(
     !$reverbDefaults->reverb && $reverbDefaults->reverbIntensity === 25.0 && $reverbDefaults->reverbLevel() === 0.0,

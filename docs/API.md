@@ -57,7 +57,7 @@ before all tracks were listed, when the sweeper started), `song` and `sweeper`
 `move_sequential`, `replace_none`, `replace_ineligible`, `replace_duplicates`,
 `replace_changed`, `replace_timeout`, `replace_busy`, or `null`).
 `result` is `played`, `scheduled` (sweeper not started yet) or the reason for no
-sweeper: `no_intro`, `intro_zero`, `intro_before_cue`, `no_fit`, `repeat`, `no_sweepers`,
+sweeper: `no_intro`, `intro_zero`, `intro_before_cue`, `no_fit`, `repeat`, `reserved`, `no_sweepers`,
 `off_schedule`, `jingle_follows`, `excluded`, `after_jingle`, `after_sweeper`, `jingle`, `other`,
 `live`, `disabled`, `late`, `skipped`, `settings`, `unavailable`, `error` or
 `not_planned`.
@@ -67,7 +67,7 @@ The reverb preview reads `GET /sweepers/{station_id}/media?playlist={playlist_id
 `id`, `title`, `artist`, `path`, `cue_in`/`cue_out` (the AutoCue range Liquidsoap
 plays) and `audio_url`, each file once. The browser applies the reflections itself; nothing is saved.
 `GET /sweepers/{station_id}/media?id={media_id}` returns that single library file in
-the Intros row format, so the timeline can open the intro editor on it.
+the Intro Manager row format, so the timeline can open the intro editor on it.
 
 `GET /sweepers/{station_id}/media?search={query}&page={page}&per_page={size}` lists all
 matching library files, ordered by path then media ID. `page` is one-based (default 1);

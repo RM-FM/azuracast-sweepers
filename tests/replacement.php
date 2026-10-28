@@ -277,11 +277,32 @@ namespace {
     $before = $flags();
     $nativeLock = $locks->createLock('nowplaying_' . $station->short_name, 60);
     $nativeLock->acquire();
+    $started = hrtime(true);
     $check(
         $replace(static fn(): bool => true) === null && $reason === 'replace_busy',
         'The native NowPlaying queue-builder lock prevents concurrent rotation selection.'
     );
+    $check(hrtime(true) - $started >= 300_000_000, 'A held lock is retried until the budget nearly expires.');
     $nativeLock->release();
+    if (function_exists('pcntl_fork') && function_exists('posix_kill')) {
+        $holder = pcntl_fork();
+        if ($holder === 0) {
+            $briefLock = $locks->createLock('nowplaying_' . $station->short_name, 60);
+            $briefLock->acquire();
+            usleep(150_000);
+            $briefLock->release();
+            // A regular exit would close the database connection shared with the parent.
+            posix_kill(posix_getpid(), SIGKILL);
+        }
+        usleep(30_000);
+        $check(
+            $replace(static fn(): bool => false) === null && $reason === 'replace_none',
+            'A queue build that finishes within the budget does not block replacement.'
+        );
+        pcntl_waitpid($holder, $status);
+    } else {
+        echo "pcntl unavailable; lock release retry not exercised.\n";
+    }
     $check($replace(static function (): bool {
         usleep(510_000);
 
@@ -291,7 +312,6 @@ namespace {
     $check($replace(static fn(): bool => false) === null && $reason === 'replace_none', 'No match is a no-op.');
     $check($flags() === $before, 'Unmatched candidates are not consumed.');
     $check($replace(static fn(int $id): bool => in_array($id, [1, 2, 5], true)) === null, 'Current and queued excluded.');
-    $check($replace(static fn(int $id): bool => $id === 7) === null, 'Consumed shuffle slots are not reused.');
     $target->autodj_custom_uri = 'custom:protected';
     $em->flush();
     $check($replace(static fn(): bool => true) === null, 'Custom URI queue entries are never overwritten.');
@@ -455,11 +475,32 @@ namespace {
         ) === $target->media_id && $em->isOpen(),
         'Queue identity and both rotation slots roll back together after a late database failure.'
     );
+    $em->refresh($target);
+    $connection->executeStatement('UPDATE station_playlist_media SET is_queued = (media_id = 6)');
+    $check($replace(static fn(): bool => true) === 6, 'The remaining round is used before songs already played.');
+    $em->refresh($target);
+    $connection->executeStatement('UPDATE station_playlist_media SET is_queued = 0');
+    $weights = array_column($flags(), 'weight', 'id');
+    $oldest = (int)$connection->fetchOne(
+        'SELECT media_id FROM station_playlist_media WHERE media_id NOT IN (?, 2, 5) ORDER BY last_played, weight LIMIT 1',
+        [$target->media_id]
+    );
+    $check(
+        $replace(static fn(): bool => true) === $oldest,
+        'An exhausted round continues with the song played longest ago, without reshuffling.'
+    );
+    $check(
+        (int)$connection->fetchOne('SELECT COUNT(*) FROM station_playlist_media WHERE is_queued = 1') === 1
+            && array_column($flags(), 'weight', 'id') === $weights,
+        'Only the displaced song returns to the round; AzuraCast still resets and reshuffles it.'
+    );
+    $em->refresh($target);
     $connection->executeStatement('UPDATE station_playlist_media SET is_queued = 0');
     $before = $flags();
     $check(
-        $replace(static fn(): bool => true) === null && $reason === 'replace_none' && $flags() === $before,
-        'An exhausted rotation is not reset to force a candidate.'
+        $replace(static fn(int $id): bool => in_array($id, [2, 5], true)) === null && $reason === 'replace_none'
+            && $flags() === $before,
+        'Queued and current songs stay excluded when the round wraps.'
     );
     echo $checks . " replacement checks passed using native AzuraCast repositories, entities and duplicate prevention.\n";
 }

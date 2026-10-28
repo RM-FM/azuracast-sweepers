@@ -1,5 +1,41 @@
 # Release notes
 
+## 1.2.0 - 2026-10-28
+
+### Features
+
+- One setup script handles installation and updates, preserves existing Compose
+  plugin settings and asks before a required container recreation interrupts broadcasting.
+
+### Improvements
+
+- Settings use four tabs, native half-width and full-width inputs, and removable
+  playlist source tags with a checkbox dropdown and one shared save action.
+- The intro-editing page is named Intro Manager.
+- Saving settings no longer cancels a sweeper already prepared for an upcoming song;
+  only switching sweepers off does.
+- Same-playlist replacement also considers songs already played in the current
+  shuffle/sequential round when none of the remaining songs fits, instead of giving up
+  near the end of a round.
+
+### Fixes
+
+- A song counts as fitting for a move or replacement only when a sweeper is actually
+  free for it: reservations the spacing rules will drop do not relax the repeat
+  protection.
+- Same-playlist replacement waits for AzuraCast's queue builder within the matching
+  budget instead of giving up at once.
+- Replacement runs on its own when queued-song moving is off.
+- The timeline tells sweepers reserved for upcoming songs apart from a recent repeat.
+
+### Update notes
+
+- **AzuraCast Broadcast (Liquidsoap) restart: Required** when upgrading from 1.1.0,
+  to load the updated prepared-sweeper handling and queue-matching request budget.
+  Until then, stations keep the previous module behaviour.
+- Run `bash bin/setup.sh` to rebuild the frontend and reload PHP/worker processes.
+  This does not replace the required station broadcasting restart.
+
 ## 1.1.0 - 2026-10-28
 
 ### Features

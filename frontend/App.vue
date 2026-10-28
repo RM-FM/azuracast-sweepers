@@ -21,19 +21,24 @@
             <div class="card-header text-bg-primary">
                 <h2 id="sweepers-settings-heading" class="card-title my-0">Sweeper Settings</h2>
             </div>
-            <form class="form sweepers-settings" @submit.prevent="saveSettings">
+            <form class="form sweepers-settings" @submit.prevent="saveSettings" @invalid.capture="revealInvalidSetting">
                 <div class="card-body">
-                    <p v-if="moduleStatus.state === 'active'" class="card-text text-success" data-module-status="active">{{ moduleStatus.message }}</p>
-                    <p v-if="release" class="card-text text-muted small" data-plugin-version>Plugin version {{ installedLabel }}</p>
-                    <div v-if="release?.latest" class="alert alert-info" role="status" data-plugin-update>
-                        <p class="mb-1">Version {{ release.latest.version }} is available. {{ updateRestartText }}</p>
-                        <a class="alert-link" :href="release.latest.url" target="_blank" rel="noopener">Release notes</a>
-                        ·
-                        <a class="alert-link" :href="release.repository_url + '#updating'" target="_blank" rel="noopener">Update steps</a>
-                    </div>
-
+                    <nav class="nav nav-default nav-tabs mb-3" role="tablist" aria-label="Sweeper settings" @keydown="settingsTabKey">
+                        <div v-for="[key, label] in settingsTabs" :key="key" class="nav-item" role="presentation">
+                            <button :id="'sweepers-tab-' + key" class="nav-link" :class="{ active: settingsTab === key }" type="button" role="tab" :aria-selected="settingsTab === key" :aria-controls="'sweepers-panel-' + key" :tabindex="settingsTab === key ? 0 : -1" @click="settingsTab = key">{{ label }}</button>
+                        </div>
+                    </nav>
+                    <div id="sweepers-panel-general" v-show="settingsTab === 'general'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-general" data-settings-tab="general">
                     <fieldset class="form-group">
-                        <legend>General</legend>
+                        <legend>Status</legend>
+                        <p v-if="moduleStatus.state === 'active'" class="card-text text-success" data-module-status="active">{{ moduleStatus.message }}</p>
+                        <p v-if="release" class="card-text text-muted small" data-plugin-version>Plugin version {{ installedLabel }}</p>
+                        <div v-if="release?.latest" class="alert alert-info" role="status" data-plugin-update>
+                            <p class="mb-1">Version {{ release.latest.version }} is available. {{ updateRestartText }}</p>
+                            <a class="alert-link" :href="release.latest.url" target="_blank" rel="noopener">Release notes</a>
+                            ·
+                            <a class="alert-link" :href="release.repository_url + '#updating'" target="_blank" rel="noopener">Update steps</a>
+                        </div>
                         <div class="row g-3">
                             <div class="form-group col-md-12">
                                 <div class="form-check form-switch">
@@ -42,32 +47,45 @@
                                 </div>
                                 <div class="form-text">Switches sweepers on or off for this station.</div>
                             </div>
-                            <fieldset class="form-group col-md-12" aria-describedby="sweepers-playlists-help">
-                                <legend class="form-label">Sweeper playlists</legend>
-                                <div v-for="playlist in playlists" :key="playlist.id" class="form-check form-check-inline">
-                                    <input :id="'sweepers-playlist-' + playlist.id" v-model="settings.playlist_ids" class="form-check-input" type="checkbox" :value="playlist.id">
-                                    <label class="form-check-label" :for="'sweepers-playlist-' + playlist.id">{{ playlistLabel(playlist) }}</label>
-                                </div>
+                        </div>
+                    </fieldset>
+                    <div class="row g-4 mt-0">
+                    <fieldset class="form-group col-12" aria-describedby="sweepers-playlists-help">
+                        <legend>Sweeper Playlists</legend>
+                                <PlaylistPicker id="sweepers-playlist" v-model="settings.playlist_ids" title="Sweeper playlists" :playlists="playlists" :label="playlistLabel" />
                                 <div id="sweepers-playlists-help" class="form-text">One or more <strong>Advanced</strong> playlists with the sweepers, so they do not also play as normal songs. Playlists with a schedule are used only in their time slots; without a schedule they are always used. All playlists active at the same time share one rotation. Disabled playlists are skipped.</div>
+                    </fieldset>
+
+                    <fieldset class="form-group col-12">
+                        <legend>Exclude Playlists from Sweepers</legend>
+                        <div class="row g-3">
+                            <fieldset class="form-group col-md-12">
+                                <legend class="form-label">Exclude these playlists</legend>
+                                <PlaylistPicker id="sweepers-excluded" v-model="settings.excluded_playlist_ids" title="Excluded playlists" :playlists="jinglePlaylists" />
+                                <div class="form-text">Tracks from these playlists never get a sweeper and are never moved, for example news or pre-recorded shows. Selecting a playlist group covers all playlists in it.</div>
                             </fieldset>
                         </div>
                     </fieldset>
+                    </div>
+                    </div>
 
-                    <fieldset class="form-group">
+                    <div id="sweepers-panel-spacing" v-show="settingsTab === 'spacing'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-spacing" data-settings-tab="spacing">
+                    <div class="row g-4">
+                    <fieldset class="form-group col-12">
                         <legend>Song Spacing</legend>
                         <p>A song only gets a sweeper if all three rules allow it. <strong>0</strong> switches a rule off.</p>
                         <div class="row g-3">
-                            <div class="form-group col-md-4">
+                            <div class="form-group col-12 col-md-6">
                                 <label class="form-label" for="sweepers-after-jingle">Songs without sweeper after a jingle</label>
                                 <input id="sweepers-after-jingle" v-model.number="settings.songs_after_jingle" class="form-control" type="number" min="0" max="1000" step="1" required>
                                 <div class="form-text">Complete songs that must play after a jingle before the next sweeper.</div>
                             </div>
-                            <div class="form-group col-md-4">
+                            <div class="form-group col-12 col-md-6">
                                 <label class="form-label" for="sweepers-after-sweeper">Songs without sweeper after a sweeper</label>
                                 <input id="sweepers-after-sweeper" v-model.number="settings.songs_after_sweeper" class="form-control" type="number" min="0" max="1000" step="1" required>
                                 <div class="form-text">Songs that must play without a sweeper after a song that carried one. That song itself does not count.</div>
                             </div>
-                            <div class="form-group col-md-4">
+                            <div class="form-group col-12 col-md-6">
                                 <label class="form-label" for="sweepers-before-jingle">Songs without sweeper before a jingle</label>
                                 <input id="sweepers-before-jingle" v-model.number="settings.songs_before_jingle" class="form-control" type="number" min="0" :max="queueLength" step="1" required>
                                 <div class="form-text">No sweeper if a jingle is queued within this many following tracks. Maximum: the AutoDJ queue length ({{ queueLength }}).</div>
@@ -75,43 +93,30 @@
                         </div>
                     </fieldset>
 
-                    <fieldset class="form-group">
+                    <fieldset class="form-group col-12">
                         <legend>Jingle Recognition</legend>
                         <p>Which tracks count as jingles for the spacing rules. Jingles never get a sweeper themselves.</p>
                         <div class="row g-3">
-                            <div class="form-group col-md-12">
+                            <div class="form-group col-12">
                                 <div class="form-check form-switch">
                                     <input id="sweepers-count-jingle-mode" v-model="settings.count_jingle_mode" class="form-check-input" type="checkbox" role="switch">
                                     <label class="form-check-label" for="sweepers-count-jingle-mode">Count Jingle Mode playlists</label>
                                 </div>
                                 <div class="form-text">Tracks from playlists that use AzuraCast's <em>Jingle Mode</em> count as jingles.</div>
                             </div>
-                            <fieldset class="form-group col-md-12">
+                            <fieldset class="form-group col-12">
                                 <legend class="form-label">Additional jingle playlists</legend>
-                                <div v-for="playlist in jinglePlaylists" :key="playlist.id" class="form-check form-check-inline">
-                                    <input :id="'sweepers-jingle-' + playlist.id" v-model="settings.jingle_playlist_ids" class="form-check-input" type="checkbox" :value="playlist.id">
-                                    <label class="form-check-label" :for="'sweepers-jingle-' + playlist.id">{{ playlist.name }}{{ playlist.is_jingle ? ' (Jingle Mode)' : '' }}</label>
-                                </div>
+                                <PlaylistPicker id="sweepers-jingle" v-model="settings.jingle_playlist_ids" title="Additional jingle playlists" :playlists="jinglePlaylists" :label="(playlist) => playlist.name + (playlist.is_jingle ? ' (Jingle Mode)' : '')" />
                                 <div class="form-text">Other playlists whose tracks count as jingles. The sweeper playlists always count.</div>
                             </fieldset>
                         </div>
                     </fieldset>
+                    </div>
+                    </div>
 
-                    <fieldset class="form-group">
-                        <legend>Playlists Without Sweepers</legend>
-                        <div class="row g-3">
-                            <fieldset class="form-group col-md-12">
-                                <legend class="form-label">Exclude these playlists</legend>
-                                <div v-for="playlist in jinglePlaylists" :key="playlist.id" class="form-check form-check-inline">
-                                    <input :id="'sweepers-excluded-' + playlist.id" v-model="settings.excluded_playlist_ids" class="form-check-input" type="checkbox" :value="playlist.id">
-                                    <label class="form-check-label" :for="'sweepers-excluded-' + playlist.id">{{ playlist.name }}</label>
-                                </div>
-                                <div class="form-text">Tracks from these playlists never get a sweeper and are never moved, for example news or pre-recorded shows. Selecting a playlist group covers all playlists in it.</div>
-                            </fieldset>
-                        </div>
-                    </fieldset>
-
-                    <fieldset class="form-group">
+                    <div id="sweepers-panel-selection" v-show="settingsTab === 'selection'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-selection" data-settings-tab="selection">
+                    <div class="row g-4">
+                    <fieldset class="form-group col-12">
                         <legend>Sweeper Selection</legend>
                         <div class="row g-3">
                             <div class="form-group col-md-6">
@@ -137,7 +142,7 @@
                         </div>
                     </fieldset>
 
-                    <fieldset class="form-group">
+                    <fieldset class="form-group col-12">
                         <legend>Improve Sweeper-to-Song Matching</legend>
                         <div class="row g-3">
                             <div class="form-group col-md-12">
@@ -167,7 +172,8 @@
                         </div>
                     </fieldset>
 
-                    <fieldset class="form-group">
+                    </div>
+                    <fieldset class="form-group mt-4">
                         <legend>Timing</legend>
                         <p>A sweeper is normally timed so that its voice ends just before the singing starts. Any echo or reverb tail may continue over the vocals.</p>
                         <div class="row g-3">
@@ -201,7 +207,10 @@
                         </div>
                     </fieldset>
 
-                    <fieldset class="form-group">
+                    </div>
+                    <div id="sweepers-panel-audio" v-show="settingsTab === 'audio'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-audio" data-settings-tab="audio">
+                    <div class="row g-4">
+                    <fieldset class="form-group col-12">
                         <legend>Sound</legend>
                         <div class="row g-3">
                             <div class="form-group col-md-6">
@@ -226,7 +235,12 @@
                                 <input id="sweepers-reverb-intensity" v-model.number="settings.reverb_intensity" class="form-control" type="number" min="0" max="100" step="5" required>
                                 <div class="form-text">How much reverb is mixed in.</div>
                             </div>
-                            <div class="form-group col-md-12 sweepers-preview">
+                        </div>
+                    </fieldset>
+                    <fieldset class="form-group col-12">
+                        <legend>Preview</legend>
+                        <div class="row g-3">
+                            <div class="form-group col-12 col-md-6 sweepers-preview">
                                 <label class="form-label" for="sweepers-preview">Preview sweeper</label>
                                 <div class="input-group">
                                     <select id="sweepers-preview" v-model="previewId" class="form-select" :disabled="!previewSweepers.length">
@@ -239,16 +253,19 @@
                                 </div>
                                 <div class="form-text">
                                     <template v-if="!previewSupported">This browser cannot play the preview.</template>
-                                    <template v-else-if="!settings.playlist_ids.length">Choose a sweeper playlist above to preview its sweepers.</template>
+                                    <template v-else-if="!settings.playlist_ids.length">Choose a sweeper playlist in General to preview its sweepers.</template>
                                     <template v-else>Plays the sweeper in your browser with the reverb as set above, before saving. Switching the reverb or changing the intensity is heard right away. Volume and ducking are not part of the preview.</template>
                                 </div>
                                 <div v-if="previewError" class="invalid-feedback d-block" role="alert">{{ previewError }}</div>
                             </div>
                         </div>
                     </fieldset>
+                    </div>
 
-                    <button type="submit" class="btn btn-primary mt-3" :disabled="saving">Save Changes</button>
-                    <div class="form-text">Changes apply immediately; no broadcasting restart is needed.</div>
+                    </div>
+                    <div class="buttons mt-3">
+                        <button type="submit" class="btn btn-lg btn-primary" :disabled="saving">Save Changes</button>
+                    </div>
                 </div>
             </form>
         </section>
@@ -256,7 +273,7 @@
         <section v-if="!loading && current === 'intros'" class="card mb-3" role="region" aria-labelledby="sweepers-cues-heading">
             <div class="card-header text-bg-primary">
                 <div class="d-lg-flex align-items-center">
-                    <h2 id="sweepers-cues-heading" class="card-title flex-fill my-0">Intro Cues</h2>
+                    <h2 id="sweepers-cues-heading" class="card-title flex-fill my-0">Intro Manager</h2>
                     <div class="flex-shrink buttons ms-lg-2 mt-2 mt-lg-0">
                         <button
                             class="btn btn-dark sweepers-scan"
@@ -482,11 +499,12 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { VueDatePicker } from "@vuepic/vue-datepicker";
 import DataToolbar from "./DataToolbar.vue";
 import Icon from "./Icon.vue";
 import Pagination from "./Pagination.vue";
+import PlaylistPicker from "./PlaylistPicker.vue";
 import Waveform from "./Waveform.vue";
 import { formatStationTime, lastDay, presetRanges, startOfDay } from "./dates.js";
 import { createReverbPreview, reverbLevel } from "./reverb.js";
@@ -497,8 +515,35 @@ const props = defineProps({
     view: { type: String, default: "settings" },
     standalone: { type: Boolean, default: false },
 });
-const views = [["settings", "Settings"], ["intros", "Intros"], ["history", "Playback Timeline"]];
+const views = [["settings", "Settings"], ["intros", "Intro Manager"], ["history", "Playback Timeline"]];
 const current = ref(views.some(([key]) => key === props.view) ? props.view : "settings");
+const settingsTabs = [["general", "General"], ["spacing", "Spacing & Jingles"], ["selection", "Selection & Timing"], ["audio", "Audio & Preview"]];
+const settingsTab = ref("general");
+
+function settingsTabKey(event) {
+    if (event.target.getAttribute("role") !== "tab") return;
+    const index = settingsTabs.findIndex(([key]) => key === settingsTab.value);
+    let target;
+    if (event.key === "ArrowRight") target = (index + 1) % settingsTabs.length;
+    else if (event.key === "ArrowLeft") target = (index + settingsTabs.length - 1) % settingsTabs.length;
+    else if (event.key === "Home") target = 0;
+    else if (event.key === "End") target = settingsTabs.length - 1;
+    else return;
+    event.preventDefault();
+    settingsTab.value = settingsTabs[target][0];
+    document.getElementById("sweepers-tab-" + settingsTab.value)?.focus();
+}
+
+async function revealInvalidSetting(event) {
+    const input = event.target;
+    const tab = input.closest("[data-settings-tab]")?.dataset.settingsTab;
+    if (!tab || tab === settingsTab.value) return;
+    event.preventDefault();
+    settingsTab.value = tab;
+    await nextTick();
+    input.focus();
+    input.reportValidity();
+}
 const history = ref([]);
 const mediaLoaded = ref(false);
 const csrf = ref(props.csrf);
@@ -615,6 +660,7 @@ const reasons = {
     intro_before_cue: "Intro ends in the silence before the song starts",
     no_fit: "Intro too short for every sweeper",
     repeat: "Only fitting sweeper played too recently",
+    reserved: "Fitting sweepers are reserved for upcoming songs",
     no_sweepers: "No sweepers ready (empty playlist or not measured yet)",
     off_schedule: "No sweeper playlist scheduled now",
     jingle_follows: "A jingle follows soon",
@@ -649,7 +695,7 @@ const unmovedReasons = {
     move_none: "Not moved forward: no queued song has a fitting intro",
     move_jingle: "Not moved forward: a jingle would follow too soon",
     move_sequential: "Not moved forward: sequential playlist order",
-    replace_none: "Not replaced: no fitting song left in this playlist rotation",
+    replace_none: "Not replaced: no fitting song in this playlist",
     replace_ineligible: "Not replaced: this queue entry cannot be replaced",
     replace_duplicates: "Not replaced: repetition rules exclude the fitting songs",
     replace_changed: "Not replaced: the queue or playlist changed during selection",

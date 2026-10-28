@@ -75,15 +75,13 @@ def sweepers.load(~version, s) =
     end
 end
 
-def sweepers.current(token, revision) =
-    s = sweepers.settings()
-    s.enabled and revision == s.revision and not list.mem(token, sweepers.blocked())
+# A prepared plan carries its own timing, so later settings changes only cancel it by disabling sweepers.
+def sweepers.current(token) =
+    sweepers.settings().enabled and not list.mem(token, sweepers.blocked())
 end
 
 def sweepers.stale_reason(token) =
-    if list.mem(token, sweepers.blocked()) then "jingle_follows"
-    elsif not sweepers.settings().enabled then "disabled"
-    else "settings" end
+    if list.mem(token, sweepers.blocked()) then "jingle_follows" else "disabled" end
 end
 
 def sweepers.event(event, token, detail, m) =
@@ -149,7 +147,7 @@ def sweepers.next_overlay() =
     music_clock = sweepers.now()
     now = music_clock()
     list.iter(fun (entry) -> begin
-        if not sweepers.current(fst(entry), snd(entry).revision) then
+        if not sweepers.current(fst(entry)) then
             sweepers.notify(detail=sweepers.stale_reason(fst(entry)), "release", fst(entry))
         end
     end, sweepers.plans())
@@ -161,7 +159,7 @@ def sweepers.next_overlay() =
         (source.fail() : source)
     elsif null.defined(sweepers.pending()) then
         p = null.get(sweepers.pending())
-        if azuracast.live_enabled() or not sweepers.current(p.token, p.revision) then
+        if azuracast.live_enabled() or not sweepers.current(p.token) then
             sweepers.notify(
                 detail=if azuracast.live_enabled() then "live" else sweepers.stale_reason(p.token) end,
                 "release", p.token
@@ -340,8 +338,9 @@ end
 def sweepers.arrange() =
     if sweepers.settings().enabled and sweepers.counted() != "" and not azuracast.live_enabled() then
         try
-            response = sweepers.api_call(timeout=1., "sweepers/arrange", json.stringify({
+            response = sweepers.api_call(timeout=2., "sweepers/arrange", json.stringify({
                 counted=sweepers.counted(),
+                budget=1.5,
                 songs_since_jingle=sweepers.songs_since_jingle(),
                 songs_since_sweeper=sweepers.songs_since_sweeper(),
                 previous_song=sweepers.previous_song(),
@@ -388,13 +387,13 @@ def sweepers.next_song() =
                     response = sweepers.api_call(timeout=1., "sweepers/plan", body)
                     if null.defined(response) then
                         let json.parse (p : {
-                            token: string, revision: string, uri: string, offset: float,
+                            token: string, uri: string, offset: float,
                             duck_duration: float, gain: float, duck_gain: float, reverb?: float, length?: float
                         }) = null.get(response)
                         ready = ref(false)
                         overlay = source.fail()
                         overlay =
-                            if p.uri != "" and sweepers.current(p.token, p.revision) then
+                            if p.uri != "" and sweepers.current(p.token) then
                                 jr = request.create(resolve_metadata=false, p.uri)
                                 if request.resolve(timeout=1., jr) then
                                     ready := true
@@ -414,12 +413,12 @@ def sweepers.next_song() =
                             else
                                 overlay
                             end
-                        if ready() and sweepers.current(p.token, p.revision) then
+                        if ready() and sweepers.current(p.token) then
                             log(label="sweepers", "Sweeper prepared for queue #{token}: starts #{p.offset} s after cue-in")
                             list.iter(fun (entry) -> sweepers.notify("release", fst(entry)), list.slice(offset=15, sweepers.plans()))
                             sweepers.plans := [(token, {
                                 source=overlay, ready=true, offset=p.offset,
-                                duration=p.duck_duration, duck_gain=p.duck_gain, revision=p.revision
+                                duration=p.duck_duration, duck_gain=p.duck_gain
                             }), ...list.assoc.remove(token, sweepers.plans())]
                         elsif ready() then
                             sweepers.notify(detail=sweepers.stale_reason(p.token), "release", p.token)
@@ -518,7 +517,7 @@ def sweepers.mix(music) =
                 else
                     p = list.assoc(token, sweepers.plans())
                     if not p.ready then "unavailable"
-                    elsif sweepers.current(token, p.revision) then "scheduled"
+                    elsif sweepers.current(token) then "scheduled"
                     else sweepers.stale_reason(token) end
                 end
             sweepers.event("start", token, outcome, m)
@@ -530,8 +529,7 @@ def sweepers.mix(music) =
                         source=p.source,
                         due=now() + p.offset,
                         duck_end=now() + p.offset + p.duration,
-                        token=token,
-                        revision=p.revision
+                        token=token
                     }
                 else
                     if p.ready and reason != "" then

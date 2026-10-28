@@ -104,14 +104,26 @@ final class Arrangement
         return false;
     }
 
-    private static function target(
-        array $rows,
-        array $gap,
-        Settings $settings,
-        callable $usable,
-        ?string &$blocked
-    ): ?int {
-        $blocked = null;
+    /**
+     * @return list<string> Tokens of sent songs whose reservation survives the spacing rules.
+     */
+    public static function playing(array $rows, array $gap, Settings $settings): array
+    {
+        $playing = [];
+        foreach (self::walk($rows, $gap, $settings) as $step) {
+            if ($step['row']['sent'] && $step['allowed'] && $step['row']['planned']) {
+                $playing[] = (string)$step['row']['id'];
+            }
+        }
+
+        return $playing;
+    }
+
+    /**
+     * @return iterable<int, array{row: array, song: bool, allowed: bool}>
+     */
+    private static function walk(array $rows, array $gap, Settings $settings): iterable
+    {
         $sinceJingle = $gap['songs_since_jingle'];
         $sinceSweeper = $gap['songs_since_sweeper'];
         $previousSong = $gap['previous_song'];
@@ -119,11 +131,10 @@ final class Arrangement
         $playlists = $settings->runtime()['jingle_playlists'];
         $isJingle = static fn(array $row): bool => ($settings->countJingleMode && $row['is_jingle'])
             || in_array($row['playlist_id'], $playlists, true);
-        $isSong = static fn(array $row): bool => $row['media_id'] !== null && !$isJingle($row);
 
         // Must match sweepers.track_reason in the Liquidsoap module.
         foreach ($rows as $index => $row) {
-            $song = $isSong($row);
+            $song = $row['media_id'] !== null && !$isJingle($row);
             if ($isJingle($row)) {
                 $sinceJingle = 0;
             } elseif (!$song) {
@@ -137,16 +148,28 @@ final class Arrangement
             $previousClear = $song;
             $allowed = $song && $sinceJingle >= $settings->songsAfterJingle
                 && $sinceSweeper >= $settings->songsAfterSweeper;
+            yield $index => ['row' => $row, 'song' => $song, 'allowed' => $allowed];
+            // Already sent: its saved plan decides.
+            if ($row['sent'] && $allowed && $row['planned']) {
+                $sinceSweeper = 0;
+                $previousClear = false;
+            }
+        }
+    }
 
+    private static function target(
+        array $rows,
+        array $gap,
+        Settings $settings,
+        callable $usable,
+        ?string &$blocked
+    ): ?int {
+        $blocked = null;
+        foreach (self::walk($rows, $gap, $settings) as $index => $step) {
+            ['row' => $row, 'song' => $song, 'allowed' => $allowed] = $step;
             if ($row['sent']) {
-                // Already sent: its saved plan decides.
-                if ($allowed && $row['planned']) {
-                    $sinceSweeper = 0;
-                    $previousClear = false;
-                }
                 continue;
             }
-
             if (
                 !$allowed || $row['planned'] || ($row['excluded'] ?? false)
                 || $usable((int)$row['media_id'])

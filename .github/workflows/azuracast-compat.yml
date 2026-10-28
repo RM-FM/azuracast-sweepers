@@ -1,0 +1,224 @@
+name: AzuraCast compatibility
+
+# Daily check of the develop branch against AzuraCast's rolling release (main).
+# GitHub runs schedules from the default branch only; the job still tests develop.
+on:
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/azuracast-compat.yml
+      - tests/compat.php
+
+permissions:
+  contents: read
+
+concurrency:
+  group: azuracast-compat
+  cancel-in-progress: false
+
+env:
+  AZURACAST_IMAGE: ghcr.io/azuracast/azuracast:latest
+
+jobs:
+  target:
+    runs-on: ubuntu-latest
+    outputs:
+      commit: ${{ steps.commit.outputs.commit }}
+      date: ${{ steps.commit.outputs.date }}
+      plugin: ${{ steps.plugin.outputs.commit }}
+      changed: ${{ github.event_name != 'schedule' || steps.checked.outputs.cache-hit != 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - id: plugin
+        run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Read the AzuraCast commit of the rolling image
+        id: commit
+        run: |
+          docker pull --quiet "$AZURACAST_IMAGE"
+          info=$(docker run --rm --entrypoint cat "$AZURACAST_IMAGE" /var/azuracast/www/.gitinfo || true)
+          commit=$(sed -n 's/^COMMIT_LONG="\{0,1\}\([0-9a-f]\{40\}\)"\{0,1\}$/\1/p' <<<"$info")
+          date=$(sed -n 's/^COMMIT_DATE="\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' <<<"$info")
+          if [[ -z "$commit" ]]; then
+            commit=$(git ls-remote https://github.com/AzuraCast/AzuraCast.git refs/heads/main | cut -f1)
+          fi
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "date=$date" >> "$GITHUB_OUTPUT"
+          echo "AzuraCast $commit ($date)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Skip if this AzuraCast commit already passed
+        id: checked
+        uses: actions/cache/restore@v4
+        with:
+          path: .compat-passed
+          key: compat-${{ steps.commit.outputs.commit }}
+          lookup-only: true
+      - if: github.event_name == 'schedule' && steps.checked.outputs.cache-hit == 'true'
+        run: echo "No AzuraCast change since the last passing check." >> "$GITHUB_STEP_SUMMARY"
+
+  php:
+    needs: target
+    if: needs.target.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: 'yes'
+          MARIADB_DATABASE: sweepers_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: Check the AzuraCast classes, methods, routes and Liquidsoap hooks used by the plugin
+        run: |
+          docker run --rm --entrypoint php -v "$PWD:/plugin:ro" "$AZURACAST_IMAGE" /plugin/tests/compat.php
+      - name: Check replacement against native AzuraCast playlist selection
+        run: |
+          docker run --rm --network host --entrypoint php -v "$PWD:/plugin:ro" "$AZURACAST_IMAGE" \
+            /plugin/tests/replacement.php
+
+  frontend:
+    needs: target
+    if: needs.target.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the sidebar and page markup the navigation script attaches to
+        env:
+          COMMIT: ${{ needs.target.outputs.commit }}
+        run: |
+          base="https://raw.githubusercontent.com/AzuraCast/AzuraCast/$COMMIT/frontend/components"
+          expect() {
+            curl --fail --silent --show-error --location "$base/$1" | grep -qF -- "$2" \
+              || { echo "FAIL $1 no longer contains: $2"; exit 1; }
+          }
+          expect Common/SidebarMenu.vue "'sidebar-submenu-'+category.key"
+          expect Common/SidebarMenu.vue 'class="navdrawer-nav"'
+          expect Layout/DashboardWithSidebar.vue 'id="content"'
+          expect Stations/menu.ts 'key: "media"'
+
+  liquidsoap:
+    needs: target
+    if: needs.target.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    env:
+      LIQUIDSOAP_IMAGE: ghcr.io/azuracast/azuracast:latest
+      LIQUIDSOAP_BIN: /usr/bin/liquidsoap
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: Fetch the matching AzuraCast runtime
+        env:
+          COMMIT: ${{ needs.target.outputs.commit }}
+        run: |
+          mkdir -p /tmp/azuracast-runtime
+          for file in azuracast crossfade utilities; do
+            curl --fail --silent --show-error --location \
+              "https://raw.githubusercontent.com/AzuraCast/AzuraCast/$COMMIT/util/docker/stations/liquidsoap/$file.liq" \
+              --output "/tmp/azuracast-runtime/$file.liq"
+          done
+      - run: docker pull --quiet "$LIQUIDSOAP_IMAGE"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check the native Liquidsoap source types
+        run: |
+          docker run --rm --entrypoint "$LIQUIDSOAP_BIN" -v "$PWD:/plugin:ro" -v /tmp/azuracast-runtime:/azuracast:ro \
+            "$LIQUIDSOAP_IMAGE" --check /plugin/tests/liquidsoap.liq
+      - name: Check song spacing policy
+        run: |
+          docker run --rm --entrypoint "$LIQUIDSOAP_BIN" -v "$PWD:/plugin:ro" -v /tmp/azuracast-runtime:/azuracast:ro \
+            "$LIQUIDSOAP_IMAGE" /plugin/tests/spacing.liq
+      - name: Verify fail-safe rollback
+        run: bash tests/failsafe.sh /tmp/azuracast-runtime
+      - name: Render playback with AzuraCast's AutoDJ factory
+        run: |
+          for scenario in normal skip live unavailable spacing playlist-spacing hot-enable hot-disable hot-pending hot-change hot-error before-jingle computed-autocue provided-autocue arrange reverb; do
+            python3 tests/playback.py --scenario "$scenario" \
+              --runtime /tmp/azuracast-runtime \
+              --liquidsoap "docker run --rm --network host --user $(id -u):$(id -g) \
+                --entrypoint $LIQUIDSOAP_BIN -v $PWD:$PWD:ro -v /tmp:/tmp \
+                $LIQUIDSOAP_IMAGE" \
+              || { grep -vE 'Content type|decoder\.|startup:' ".checks/playback-$scenario.log" | tail -n 60; exit 1; }
+          done
+
+  report:
+    needs: [target, php, frontend, liquidsoap]
+    if: always() && (needs.target.result == 'failure' || needs.target.outputs.changed == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      actions: read
+    steps:
+      - name: Remember this passing AzuraCast commit
+        if: needs.php.result == 'success' && needs.frontend.result == 'success' && needs.liquidsoap.result == 'success'
+        run: touch .compat-passed
+      - if: needs.php.result == 'success' && needs.frontend.result == 'success' && needs.liquidsoap.result == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: .compat-passed
+          key: compat-${{ needs.target.outputs.commit }}
+      - name: Open, update or close the compatibility issue
+        uses: actions/github-script@v7
+        env:
+          COMMIT: ${{ needs.target.outputs.commit }}
+          DATE: ${{ needs.target.outputs.date }}
+          PLUGIN: ${{ needs.target.outputs.plugin }}
+        with:
+          script: |
+            const label = 'azuracast-compat';
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const commit = process.env.COMMIT || 'unknown';
+            const short = commit.slice(0, 7);
+            const { data: { jobs } } = await github.rest.actions.listJobsForWorkflowRun({
+              ...context.repo, run_id: context.runId,
+            });
+            const failed = jobs.filter((job) => job.name !== 'report' && job.conclusion === 'failure');
+            const lines = [];
+            for (const job of failed) {
+              lines.push(`- **${job.name}**: ${job.steps.filter((s) => s.conclusion === 'failure').map((s) => s.name).join(', ') || 'failed'}`);
+              try {
+                const { data: log } = await github.rest.actions.downloadJobLogsForWorkflowRun({ ...context.repo, job_id: job.id });
+                const hits = String(log).split('\n').filter((l) => /FAIL |Error|error:|rejected/.test(l)).slice(-8);
+                if (hits.length) lines.push('  ```', ...hits.map((l) => '  ' + l.replace(/^\S+Z /, '').slice(0, 300)), '  ```');
+              } catch (e) { /* log download is optional */ }
+            }
+            const { data: open } = await github.rest.issues.listForRepo({ ...context.repo, labels: label, state: 'open' });
+            const issue = open[0];
+
+            if (failed.length === 0) {
+              await core.summary.addRaw(`Compatible with AzuraCast ${short}.`).write();
+              if (issue) {
+                await github.rest.issues.createComment({ ...context.repo, issue_number: issue.number,
+                  body: `Compatible again with AzuraCast \`${short}\` ([run](${run})).` });
+                await github.rest.issues.update({ ...context.repo, issue_number: issue.number, state: 'closed' });
+              }
+              return;
+            }
+
+            const report = [
+              `AzuraCast \`main\` at [\`${short}\`](https://github.com/AzuraCast/AzuraCast/commit/${commit})${process.env.DATE ? ` (${process.env.DATE})` : ''}`
+                + ` breaks plugin \`develop\` at \`${(process.env.PLUGIN || '').slice(0, 7)}\`.`,
+              '', ...lines, '',
+              `Run: ${run}`,
+            ].join('\n');
+            await core.summary.addRaw(report).write();
+            if (!issue) {
+              await github.rest.issues.create({ ...context.repo, labels: [label],
+                title: `AzuraCast ${short} breaks the plugin`, body: report });
+            } else if (!issue.body.includes(commit)) {
+              const { data: comments } = await github.rest.issues.listComments({ ...context.repo, issue_number: issue.number, per_page: 100 });
+              if (!comments.some((c) => c.body.includes(commit))) {
+                await github.rest.issues.createComment({ ...context.repo, issue_number: issue.number, body: report });
+              }
+            }
+            core.setFailed('AzuraCast compatibility check failed.');

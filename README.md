@@ -9,314 +9,146 @@ and rolling releases with Liquidsoap 2.5.
 > [!TIP]
 > Hear it in action on any [RadioMonster.FM](https://www.radiomonster.fm) station.
 
-## Features
+## Quick Start
 
-- Sweepers timed to the song intro using Liquidsoap's resolved cue and crossfade metadata
-- Music ducking that follows the sweeper voice
-- Several sweeper playlists, following their AzuraCast schedules, rotated as one pool
-- Rotation by oldest play, optionally preferring the longest fitting sweeper
-- Spacing rules around jingles and sweepers, and playlists that never get a sweeper
-- Optionally moves a queued song with a fitting intro forward when a sweeper is due
-- Optional same-playlist replacement using AzuraCast's native rotation and repetition rules
-- Optional reverb on the sweeper voice, with a browser preview
-- Waveform editor for the intro end of each song
-- Five-second intro auditioning per track or continuously across all result pages
-- Live library search and an unknown-intro filter, with complete server-side pagination
-- Playback timeline showing for every track whether a sweeper played and why not, with
-  date range, search and pagination over the last 7 days
-- All settings apply live; a station never fails to start because of the plugin
+Run these commands on your AzuraCast server.
 
-## Installation
-
-On the AzuraCast host (default path `/var/azuracast`):
+### Install
 
 ```bash
 mkdir -p /var/azuracast/plugins
 git clone --branch main https://github.com/RM-FM/azuracast-sweepers.git /var/azuracast/plugins/azuracast-sweepers
 cd /var/azuracast/plugins/azuracast-sweepers
-docker run --rm --user "$(id -u):$(id -g)" -e npm_config_cache=/tmp/npm-cache \
-  -v "$PWD:/plugin" -w /plugin node:24-alpine sh -c 'npm ci --ignore-scripts && npm run build'
+bash bin/setup.sh
 ```
 
-Keep the directory name `azuracast-sweepers`. Add to `/var/azuracast/docker-compose.override.yml`:
+The script handles installation for you.
 
-```yaml
-services:
-  web:
-    environment:
-      COMPOSER_PLUGIN_MODE: "true"
-    volumes:
-      - ./plugins/azuracast-sweepers:/var/azuracast/www/plugins/azuracast-sweepers:ro
+> [!WARNING]
+> If installation requires interrupting broadcasting, the script asks first.
+> Confirm only when ready.
+
+Continue with [First station setup](#first-station-setup).
+For other installation options, see [manual installation](docs/ADVANCED.md#manual-installation).
+
+<a id="updating"></a>
+
+### Update
+
+Read the [release notes](CHANGELOG.md), then run:
+
+```bash
+cd /var/azuracast/plugins/azuracast-sweepers
+git pull --ff-only origin main
+bash bin/setup.sh
 ```
 
-`COMPOSER_PLUGIN_MODE` is an AzuraCast setting: on start, the web container runs
-`composer update` with the plugins' `composer.json` merged in, so AzuraCast can load the
-plugin's PHP classes. This makes the container start a little slower.
+Settings and intro values are kept. If an interruption is needed, the script asks first.
 
-Then run `docker compose up -d` in `/var/azuracast`. This briefly interrupts broadcasting
-and loads the plugin's Liquidsoap module on all stations.
+**Sweepers → Settings** shows the installed version and available updates.
+After updating, check whether Settings asks you to **Restart Broadcasting**.
+AzuraCast's own updater does not update this plugin.
 
-## Setup
+The [manual update procedure](docs/ADVANCED.md#manual-update) is available if you
+do not want to use the setup script.
 
-1. Create one or more **Advanced** playlists with your sweepers (Advanced keeps them out
-   of the normal rotation). Add a schedule to use a playlist only at certain times.
-2. Open **Sweepers → Settings** in the station sidebar (below Media), select the
-   playlists and save. The page also shows whether the module runs on the station.
-3. Set the intro ends (see [Intro end](#intro-end)).
+## First station setup
 
-Settings apply live; no restart is needed.
+1. Keep sweepers disabled while preparing the station.
+2. Create one or more **Advanced** playlists containing your sweepers. Advanced
+   playlists keep them out of the normal music rotation. Add schedules if a set
+   should only be used at certain times.
+3. Open **Sweepers → Settings** in the station sidebar below Media. Select your
+   **Sweeper Playlists** and use **Exclude Playlists from Sweepers** for news,
+   shows or other content that should never carry a sweeper. Click **Save Changes**.
+4. Set the songs' [intro ends](#intro-end). Songs with an unknown intro or no intro
+   do not receive a sweeper.
+5. Check the module status at the top of Settings. If it requests a broadcasting
+   restart, arrange a suitable time and restart before testing.
+6. Enable sweepers for a controlled playback test. Check the sound and
+   **Playback Timeline** before leaving the feature enabled for normal operation.
 
-The pages need station Media permission; changing settings also needs Broadcasting
-permission.
+Settings changes apply live after saving; changing settings alone does not require
+a broadcasting restart.
 
-## Pages
+The pages require station Media permission; changing settings and restarting
+broadcasting also require Broadcasting permission.
 
-| Page | Contents |
+## Everyday use
+
+| Page | Use it to |
 | --- | --- |
-| **Settings** | All options with help texts, module status, plugin version, update notice and sweeper preview |
-| **Intros** | Search songs and set the intro end on a waveform |
-| **Playback Timeline** | Every played track with its sweeper status, intro end and start offset |
+| **Settings** | Select playlists, adjust spacing, timing and sound, preview a sweeper, and check module/update status |
+| **Intro Manager** | Search songs, edit intro ends on a waveform, or listen through saved intro points |
+| **Playback Timeline** | See which tracks carried a sweeper and why others did not |
 
-The timeline marks each track:
+### Intro end
 
-- **Played** (green): a sweeper played; the sweeper and its start offset are shown.
-- **Missed** (red): a sweeper was due but could not play, for example "No intro end set"
-  or "Intro too short for every sweeper".
-- **Upcoming** (blue): the sweeper of the current song is still to come.
-- No tag: the rules skip this track by design, for example jingles, "Too soon after a
-  jingle" or "No intro".
-
-Songs moved forward show which song they overtook; when a needed move was not possible,
-the reason is shown. Click the intro value (or **Set**) to open the editor on that song.
-
-Like AzuraCast's Song Playback Timeline, the header selects the time range (default:
-last 24 hours; presets for today, yesterday and the last 7 days, or any custom range),
-shown in the station's time zone. The table offers live search, the grey refresh
-button, page sizes and a filter for songs with a sweeper. The timeline keeps 7 days in
-the station file `sweepers-history.json`.
-
-## Intro end
-
-`intro_end` is a custom field the plugin creates automatically. It holds seconds from
-the start of the file:
+The plugin automatically creates the `intro_end` custom field. It records where
+the vocals start, in seconds from the **original file start**:
 
 | Value | Meaning |
 | --- | --- |
 | Blank | Unknown, no sweeper |
 | `0` | No intro, no sweeper |
-| Number | The vocals start here |
+| Positive number | The vocals start here |
 
-Ways to set it:
+Open **Sweepers → Intro Manager**, select a song and drag the waveform marker, set it at
+the playhead, or enter the seconds. You can also open the editor from a track's intro
+value in the Playback Timeline.
 
-- **Intro editor**: **Sweepers → Intros**, or click the intro value in the Playback
-  Timeline. Drag the marker on the waveform, set it at the playhead or type the seconds.
-- **AzuraCast file editor**: Music Files → edit a file → Custom Fields → `intro_end`.
-- **CSV import/export**: AzuraCast's bulk media CSV (Music Files → Bulk Media
-  Import/Export) contains the column `custom_field_intro_end`. Export, fill in the values
-  and import the file again to set many intros at once.
-- **API**: `POST /api/station/{station_id}/sweepers/intro/{media_id}` with body
-  `{"intro_end": 14.5}` and an AzuraCast API key, for example from an external intro
-  detector. See [docs/API.md](docs/API.md).
+Search updates as you type. **Only unknown/untagged tracks** shows songs with blank
+intro ends; a saved zero counts as tagged. Pagination covers all matching songs.
 
-On **Sweepers → Intros**, search updates automatically after typing, without a Search
-button. All matching files are available with AzuraCast's page controls (25 per page by
-default, up to all files), without a 100-file limit. The
-**Only unknown/untagged tracks** switch beside the search box limits the list to files with a missing or blank
-`intro_end`; a saved zero still counts as tagged. Search and pagination apply to
-the filtered results. Saving an intro removes that track from the filtered list.
-**Intro** (play icon) plays a track directly from its saved `intro_end` for 5 seconds
-without opening the editor. **Scan Intros** in the card header starts at the first playable
-track on the current page and continues automatically through subsequent matching
-pages, stopping after the last result. Blank intro ends are skipped; zero starts at
-the beginning of the file. A track ending sooner advances immediately.
-The same button changes to **Stop** during playback. Pressing it, changing the search
-or page, opening an editor, or leaving the
-Intros page stops the preview. Audio or page-loading failures stop scanning and show
-an error. These previews only play in the browser and do not affect station playback.
+- **Intro** plays five seconds starting at the saved intro end, without opening the editor.
+- **Scan Intros** listens through the current page and subsequent result pages
+  automatically. Blank values are skipped; zero starts at the file beginning.
+  Press **Stop** to end scanning. Changing the search/page, opening an editor or
+  leaving the page also stops it.
+
+Previews play only in your browser and do not affect the station.
+
+For bulk editing, use AzuraCast's **Music Files → Bulk Media Import/Export** and the
+CSV column `custom_field_intro_end`. Individual values can also be edited under
+**Music Files → Edit → Custom Fields**. External tools can use the [Intro cue API](docs/API.md).
 
 > [!WARNING]
-> Deleting a custom field in AzuraCast deletes all its values on all stations. The plugin
-> therefore blocks deleting `Intro End` and changing its programmatic name. Still export
-> the media CSV regularly as a backup.
+> Deleting a custom field in AzuraCast deletes its values on all stations. The plugin
+> protects `Intro End` from deletion and renaming, but you should still export the
+> media CSV regularly as a backup.
 
-## Settings
+### Settings
 
-Defaults for a new installation:
+The four tabs are **General**, **Spacing & Jingles**, **Selection & Timing** and
+**Audio & Preview**. **Save Changes** saves all tabs together.
 
-| Setting | Default |
-| --- | --- |
-| Enable sweepers | On |
-| Sweeper playlists | None (nothing plays until one is selected) |
-| Songs without sweeper after a jingle / after a sweeper / before a jingle | 1 / 1 / 0 |
-| Count Jingle Mode playlists | On |
-| Other sweepers before a repeat | 1 |
-| Prefer the longest fitting sweepers | Off (tolerance 20%) |
-| Move a song with an intro forward | Off (sequential playlists: off) |
-| Swap with another song from same playlist | Off |
-| Playlists without sweepers | None |
-| Handover margin | 0.5 s |
-| Limit start delay | Off (maximum 10 s, early start 2 s) |
-| Reverb on the sweeper voice | Off (intensity 25%) |
-| Maximum ducking | −7 dB |
-| Jingle gain | 100% |
+- Select playlists with **Add Playlist**; uncheck an entry or remove its tag to deselect it.
+- Set spacing around jingles and sweepers. A value of `0` turns that spacing rule off.
+- Optionally move or swap songs to find a fitting intro; both options are off by default.
+- Adjust ducking and optional reverb, using the preview to check the sound.
 
-Notes on the less obvious options:
+Scheduled sweeper playlists follow their AzuraCast schedules. Several active
+playlists share one rotation; live DJs are never overlaid. You do not need to change
+your station's AutoCue setup.
 
-- **Sweeper playlists**: select one or more Advanced playlists. A playlist with an
-  AzuraCast schedule is used only during its time slots; one without a schedule is
-  always used. All playlists active at the same time share one rotation and one repeat
-  rule, and a sweeper in several of them counts once. Disabled playlists are skipped.
-  Example: everyday sweepers without a schedule plus a scheduled morning-show set.
-- **Spacing rules**: a song carries a sweeper only if all three rules allow it; `0`
-  turns a rule off. "Before a jingle" looks ahead in the AutoDJ queue, so its maximum
-  is the AutoDJ queue length.
-- **Jingles** are tracks from Jingle Mode playlists, the additional jingle playlists and
-  the sweeper playlists. They never get a sweeper.
-- **Playlists without sweepers**, for example news or shows, never get a sweeper and are
-  never moved or replaced. Selecting a playlist group covers all its playlists.
-- **Other sweepers before a repeat**: if no other sweeper fits, the song gets none. With
-  a single sweeper, repeats are always allowed.
-- **Prefer the longest fitting sweepers**: a preference, not an extra eligibility
-  rule. At 20% tolerance, bodies filling 80–100% of the available intro are preferred,
-  rotating by oldest actual play within that range. The available intro is
-  `intro_end` minus the song cue-in and handover margin. If no eligible sweeper is in
-  range, regular oldest-played rotation chooses any other fitting sweeper, not just
-  the longest remaining one. For example, if the long sweepers are blocked by repeat
-  protection or reservations, an eligible shorter sweeper can still play.
-  Tolerance never bypasses timing, schedules, reservations or repetition protection;
-  if none is eligible under the regular rules either, no sweeper plays.
-- **Move a song with an intro forward**: when a sweeper is due but the next song has no
-  fitting intro, it changes places with the next queued song that has one. Jingles,
-  excluded playlists and songs already sent to Liquidsoap never move; sequential
-  playlists only when allowed.
-- **Swap with another song from same playlist**: optionally replaces that next song
-  with a fitting candidate returned by AzuraCast's native playlist queue, respecting
-  sequential/shuffle/random order and the playlist's repetition protection, including
-  inherited group rules. Both matching options work independently; moving an already
-  queued song is tried first when both are on. Requests, merged playlists/groups,
-  excluded playlists and entries already sent to Liquidsoap are never replaced.
-  **Also move or swap songs from sequential playlists** applies to both options.
-  The displaced song returns to its existing playlist rotation slot, keeping its
-  weight and history; it is not appended directly to the playback queue. It may be
-  replaced again when encountered later. No full playlist reset or relaxed repetition
-  fallback is used: an exhausted rotation, no eligible match, a busy native queue
-  builder or an expired 500 ms matching budget leaves the original song in place.
-  Matching improves the chance of a sweeper; it does not guarantee one. AzuraCast
-  continues rebuilding the queue's expected times. The timeline distinguishes
-  a forward move from a same-playlist replacement and explains an unsuccessful match.
-- **Limit start delay**: normally the sweeper ends at the intro end minus the margin.
-  If that would start it later than the maximum delay, it starts at the early start
-  instead.
-- **Reverb** is computed live; the sweeper files are not changed.
+The page provides help for each option. See [settings reference](docs/ADVANCED.md#settings-reference)
+for defaults, matching rules and timing details.
 
-Settings take effect within five seconds without a restart. Sweepers already prepared
-for upcoming songs are dropped; a sweeper on air finishes normally.
+### Playback Timeline
 
-## How playback works
+- **Played**: a sweeper played.
+- **Missed**: a sweeper was due but could not play; the reason is shown.
+- **Upcoming**: the current song's sweeper is still to come.
+- No tag: the rules deliberately skipped the track.
 
-AzuraCast schedules the playlists and builds the playback queue. Optional matching
-either exchanges two queued songs or replaces the next unsent song with a candidate
-from the same native playlist rotation; it does not run a separate scheduler.
-The plugin plans a sweeper when Liquidsoap fetches
-the next song and mixes it in after the crossfade, before the station's audio
-processing. Live DJs are never overlaid.
+Use the date range, live search and sweeper filter to check playback over the last
+seven days. Times use the station's time zone.
 
-Timing uses the effective cue and crossfade metadata resolved by Liquidsoap, including
-manual cue points and cached annotations. Song cue-in is taken into account. The
-sweeper's handover, not its file end, must fit the intro; its tail may continue into
-the song.
+## More documentation
 
-You do not need to enable or change your station's AutoCue setup. The plugin uses the
-resolved metadata regardless of whether it comes from manual settings, AzuraCast's
-built-in AutoCue or an external integration such as Moonbase.
-
-Only when a **sweeper** lacks a complete pair of cue-in and cue-out values does the
-plugin use Liquidsoap's internal AutoCue analysis as a fallback. This finds cue and
-mix points so leading/trailing silence or very quiet artefacts do not distort the
-sweeper's timing. The fallback runs on sweepers only, not songs, and does not write
-its results to AzuraCast's cue fields or AutoCue cache. It does not detect song intros:
-those still come from the song's `intro_end` field.
-
-The station's Liquidsoap log shows the decisions under the `sweepers` label.
-
-### Safe start
-
-- If the plugin cannot read its settings, the station starts with sweepers off.
-- AzuraCast's configuration is checked with `liquidsoap --check`. If the sweeper module
-  breaks it (for example after an AzuraCast upgrade), the station starts without
-  sweepers and the Settings page shows why.
-- Any runtime error leaves the music playing without a sweeper.
-
-## Updating
-
-The Settings page shows the installed version (from the release notes, plus the checked-out
-branch and commit) and checks GitHub's releases every few hours. When a newer release exists,
-it links the release notes and states whether the update applies without restarting
-broadcasting. Updates are installed on the host, as below; AzuraCast's own web updater only
-updates AzuraCast itself, and the plugin directory is read-only inside the container.
-
-Read the [release notes](CHANGELOG.md) before updating. Every release explicitly
-states whether an **AzuraCast Broadcast (Liquidsoap) restart** is required.
-Frontend rebuilds and PHP/worker reloads are separate and do not restart broadcasting.
-
-```bash
-(
-  set -e
-  cd /var/azuracast/plugins/azuracast-sweepers
-  git pull --ff-only origin main
-  docker run --rm --user "$(id -u):$(id -g)" -e npm_config_cache=/tmp/npm-cache \
-    -v "$PWD:/plugin" -w /plugin node:24-alpine sh -c 'npm ci --ignore-scripts && npm run build'
-  cd /var/azuracast
-  docker compose exec web supervisorctl signal USR2 php-fpm
-  docker compose exec web supervisorctl restart php-worker-fast php-worker-slow php-nowplaying
-  sleep 10
-  docker compose exec web rm -f /var/azuracast/www_tmp/app_routes.cache.php
-)
-```
-
-This does not interrupt broadcasting. Only if the Liquidsoap module's code changed (comments
-do not count), the Settings page asks for one broadcasting restart per station and offers a
-**Restart Broadcasting** button to users with Broadcasting permission. Settings, media and
-intro ends are kept.
-
-> [!IMPORTANT]
-> Keep the order: delete the route cache only after all PHP processes run the new code.
-> Otherwise an old process can rebuild it and plugin routes stop working.
-
-## Troubleshooting
-
-If AzuraCast does not start after installing, check `docker compose logs --tail=120 web`.
-To disable the plugin temporarily, keeping its data:
-
-```bash
-mv /var/azuracast/plugins/azuracast-sweepers/events.php{,.disabled}
-cd /var/azuracast && docker compose restart web
-```
-
-Rename the file back and restart `web` to enable it again.
-
-## Removal
-
-Disable sweepers, remove the plugin's entries from the Compose override and run
-`docker compose up -d`; the stations then start without the module. Afterwards delete
-the plugin directory. The plugin creates no database tables; `intro_end` and the
-station files `sweepers.json` and `sweepers-history.json` stay in place until you
-delete them.
-
-## Development
-
-```bash
-./bin/check.sh --liquidsoap
-```
-
-Runs PHP lint and tests (run `composer install` first for the full set), the frontend
-tests and build, and the Liquidsoap type check in containers. CI additionally runs
-`vendor/bin/phpcs` and native playback tests. Code follows AzuraCast's conventions
-(PSR-12, strict types).
-
-`tests/replacement.php` runs separately in CI's pinned AzuraCast image with an
-isolated MariaDB `sweepers_test` database (`SWEEPER_TEST_DB_HOST`). It uses the real
-playlist repositories, duplicate prevention, queue and rotation entities with
-minimal station/library fixtures. Never point integration tests at a station database.
+- [Advanced guide](docs/ADVANCED.md): Compose setup and backups, settings reference,
+  playback internals, troubleshooting, removal and development.
+- [Intro cue API](docs/API.md): authenticated integration for external tools.
+- [Release notes](CHANGELOG.md): changes and broadcasting restart requirements.
 
 AGPL-3.0-or-later. Copyright 2026 RM-FM. Independent of the AzuraCast project.

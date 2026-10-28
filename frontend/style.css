@@ -2,6 +2,35 @@
     overflow-x: auto;
 }
 
+.sweepers-page .sweepers-playlist-options {
+    max-height: 24rem;
+    overflow-y: auto;
+}
+
+.sweepers-page .sweepers-playlist-choices {
+    min-width: min(300px, calc(100vw - 3rem));
+    max-width: calc(100vw - 3rem);
+}
+
+.sweepers-page .sweepers-playlist-picker .btn-close {
+    flex-shrink: 0;
+    font-size: .65rem;
+}
+
+.sweepers-page .sweepers-playlist-picker .playlist-source-badge {
+    max-width: 100%;
+}
+
+.sweepers-page .sweepers-playlist-picker .playlist-source-badge .sweepers-icon {
+    flex-shrink: 0;
+    width: 1em;
+    height: 1em;
+}
+
+.sweepers-page .sweepers-playlist-picker .playlist-source-badge .sweepers-icon + span {
+    margin-left: 0;
+}
+
 .sweepers-page .media-list .file-name {
     overflow-wrap: anywhere;
 }
@@ -21,8 +50,12 @@
     margin-left: .25rem;
 }
 
-.sweepers-page .sweepers-settings > .card-body > fieldset + fieldset {
+.sweepers-page .sweepers-settings-panel > fieldset + fieldset {
     margin-top: 2rem;
+}
+
+.sweepers-page .sweepers-settings-panel fieldset {
+    min-width: 0;
 }
 
 .sweepers-page .sweepers-settings legend.form-label {
