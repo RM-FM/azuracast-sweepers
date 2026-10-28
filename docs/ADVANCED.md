@@ -56,6 +56,11 @@ If an error prints a restore command, use the exact backup path it names.
 
 ### Container lifecycle
 
+Setup shows short progress messages instead of build and service output. On failure,
+it prints the path to a private technical log in the host's temporary directory.
+Successful runs remove that log. Broadcasting interruption warnings and confirmation
+prompts remain visible.
+
 - **Running and already configured:** reload PHP-FPM, restart PHP workers and
   NowPlaying, wait, then clear the route cache. Broadcasting is not restarted.
 - **Running but missing the mount or environment flag:** ask before running

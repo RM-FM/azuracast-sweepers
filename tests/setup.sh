@@ -15,6 +15,8 @@ cat > "$work/bin/docker" <<'SH'
 #!/usr/bin/env bash
 set -eu
 printf '%s\n' "$*" >> "$TEST_ROOT/commands"
+if [[ "$1" == run || "$*" == *supervisorctl* ]]; then printf 'TECHNICAL_OUTPUT_TEST\n'; fi
+printf 'TECHNICAL_ERROR_TEST\n' >&2
 if [[ "$1" == run && "$*" == *setup-compose.mjs* ]]; then
     exec "$REAL_DOCKER" run -v "$TEST_SOURCE:$TEST_SOURCE:ro" "${@:2}"
 elif [[ "$1" == run ]]; then
@@ -55,6 +57,9 @@ grep -q "service 'web' not found" "$work/result"
 ! grep -q '^run ' "$TEST_ROOT/commands"
 bash "$setup" > "$work/result"
 grep -q 'Plugin installed/updated' "$work/result"
+grep -q 'Preparing plugin files' "$work/result"
+grep -q 'Applying plugin update' "$work/result"
+! grep -q 'TECHNICAL_' "$work/result"
 grep -q 'supervisorctl restart php-worker-fast php-worker-slow php-nowplaying' "$TEST_ROOT/commands"
 ! grep -q 'compose up' "$TEST_ROOT/commands"
 cp "$TEST_ROOT/docker-compose.override.yml" "$work/expected"
@@ -96,6 +101,10 @@ if command -v script >/dev/null; then
         echo 'Container start failure unexpectedly reported success' >&2; exit 1
     fi
     grep -q 'To revert it: cp -p' "$work/result"
+        log=$(grep -o '/[^[:space:]]*sweepers-setup\.[^[:space:]]*\.log' "$work/result" | tail -1 | tr -d '\r')
+        [[ -f "$log" ]]
+        grep -q 'Injected container start failure' "$log"
+        rm -f "$log"
     restore=$(grep -o 'cp -p "[^"]*" "[^"]*"' "$work/result" | tail -1)
     eval "$restore"
     grep -q 'OTHER: keep' "$TEST_ROOT/docker-compose.override.yml"

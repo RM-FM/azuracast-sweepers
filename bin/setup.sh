@@ -5,15 +5,34 @@ plugin_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 azuracast_dir=$(cd "$plugin_dir/../.." && pwd -P)
 override="$azuracast_dir/docker-compose.override.yml"
 
-fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+log=$(mktemp "${TMPDIR:-/tmp}/sweepers-setup.XXXXXX.log")
+exec 3>&1 4>&2
+exec >> "$log" 2>&1
+status() { printf "$@" >&3; }
+fail() {
+    printf 'ERROR: %s\n' "$*" >&4
+    on_error
+    exit 1
+}
 backup=""
 on_error() {
-    printf 'Setup failed at line %s. Read the error above before retrying.\n' "$1" >&2
+    printf 'Setup could not be completed. Technical details: %s\n' "$log" >&4
     if [[ -n "$backup" ]]; then
-        printf 'The Compose override was already replaced. To revert it: cp -p "%s" "%s"\n' "$backup" "$override" >&2
+        printf 'The Compose override was already replaced. To revert it: cp -p "%s" "%s"\n' "$backup" "$override" >&4
     fi
 }
-trap 'on_error "$LINENO"' ERR
+trap on_error ERR
+work=""
+cleanup() {
+    result=$?
+    if [[ -n "$work" ]]; then
+        rm -f "$work/original" "$work/docker-compose.override.yml" "$work/services"
+        rmdir "$work"
+    fi
+    if [[ "$result" == 0 ]]; then rm -f "$log"; fi
+}
+trap cleanup EXIT
+status 'Checking installation...\n'
 
 [[ $# == 0 ]] || fail "Usage: bash bin/setup.sh (run after cloning or pulling the plugin)."
 [[ "$plugin_dir" == "$azuracast_dir/plugins/azuracast-sweepers" ]] ||
@@ -35,11 +54,6 @@ grep -Fxq web <<< "$services" ||
     fail "Expected AzuraCast service 'web' not found. No files were changed; custom service names require manual setup."
 
 work=$(mktemp -d "$azuracast_dir/.sweepers-setup.XXXXXX")
-cleanup() {
-    rm -f "$work/original" "$work/docker-compose.override.yml" "$work/services"
-    rmdir "$work"
-}
-trap cleanup EXIT
 had_override=false
 if [[ -e "$override" ]]; then
     [[ -f "$override" ]] || fail "The Compose override must be a regular file."
@@ -47,12 +61,13 @@ if [[ -e "$override" ]]; then
     had_override=true
 fi
 
-printf 'Building the plugin frontend...\n'
+status 'Preparing plugin files...\n'
 docker run --rm --user "$(id -u):$(id -g)" -e npm_config_cache=/tmp/npm-cache \
     -v "$plugin_dir:/plugin" -w /plugin node:24-alpine \
     sh -c 'npm ci --include=dev --ignore-scripts && npm run build'
 [[ -s "$plugin_dir/dist/app.js" ]] || fail "The frontend bundle is missing."
 
+status 'Checking plugin configuration...\n'
 docker run --rm --user "$(id -u):$(id -g)" \
     -v "$plugin_dir:/plugin:ro" -v "$azuracast_dir:$azuracast_dir" -w /plugin \
     node:24-alpine node bin/setup-compose.mjs "$azuracast_dir" "$work/docker-compose.override.yml"
@@ -71,7 +86,6 @@ if ! $had_override || ! cmp -s "$override" "$work/docker-compose.override.yml"; 
         printf 'Original Compose override backed up to %s\n' "$backup"
     fi
     mv "$work/docker-compose.override.yml" "$override"
-    printf 'Compose override prepared; other plugins and services were preserved.\n'
 fi
 
 container=$(docker compose ps -a -q web)
@@ -99,21 +113,23 @@ else
 fi
 if $recreate; then
     if [[ "$running" == true ]]; then
-        printf '\nThe web container needs to be recreated to load the plugin mount or environment.\n'
-        printf 'WARNING: This interrupts broadcasting on all stations in this container.\n'
+        status '\nAzuraCast needs to apply the plugin configuration.\n'
+        status 'WARNING: This interrupts broadcasting on all stations in this container.\n'
     else
-        printf '\nAzuraCast is not running. All services will be started to load the plugin.\n'
+        status '\nAzuraCast is not running. All services will be started to load the plugin.\n'
     fi
     if [[ ! -t 0 ]]; then
         fail "Interactive confirmation is required. Run: cd \"$azuracast_dir\" && ${up_command[*]}"
     fi
-    read -r -p 'Apply now? [y/N] ' answer || answer=""
+    status 'Apply now? [y/N] '
+    read -r answer || answer=""
     if [[ "$answer" != y && "$answer" != Y && "$answer" != yes ]]; then
-        printf 'Prepared only; NOT applied. When ready, run:\n  cd "%s" && %s\n' "$azuracast_dir" "${up_command[*]}"
+        status 'Prepared only; NOT applied. When ready, run:\n  cd "%s" && %s\n' "$azuracast_dir" "${up_command[*]}"
         exit 0
     fi
+    status 'Applying plugin configuration...\n'
     "${up_command[@]}"
-    printf 'Waiting for AzuraCast PHP services (up to 10 minutes; the first start runs composer update)...\n'
+    status 'Waiting for AzuraCast to be ready (up to 10 minutes)...\n'
     ready=false
     for ((attempt=0; attempt<120; attempt++)); do
         if docker compose exec -T web supervisorctl status php-fpm php-worker-fast php-worker-slow php-nowplaying \
@@ -126,11 +142,11 @@ if $recreate; then
     rm "$work/services"
     $ready || fail "AzuraCast did not become ready. Inspect docker compose logs web; setup is incomplete."
 else
+    status 'Applying plugin update...\n'
     docker compose exec -T web supervisorctl signal USR2 php-fpm
     docker compose exec -T web supervisorctl restart php-worker-fast php-worker-slow php-nowplaying
     sleep 10
 fi
 docker compose exec -T web rm -f /var/azuracast/www_tmp/app_routes.cache.php
-printf '\nPlugin installed/updated. Station settings and intro values were not changed.\n'
-printf 'Open Sweepers > Settings to check module status. If it reports an older module,\n'
-printf 'restart that station broadcasting when convenient. Setup never enables sweepers.\n'
+status '\nPlugin installed/updated. Station settings and intro values were not changed.\n'
+status 'Open Sweepers > Settings to check module status and any required broadcasting restart.\n'
