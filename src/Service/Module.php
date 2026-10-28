@@ -16,6 +16,8 @@ final class Module
     private const string LOAD = 'sweepers.load(';
     // Heartbeats are recorded at most every 30 s and sent every 5 s.
     private const int ACTIVE_SECONDS = 90;
+    // Raw-file hashes reported by stations started before version() ignored comments.
+    private const array EQUIVALENT = ['8d4ccec460ff' => ['dc51bce33df9', 'a1fea449701c']];
 
     public static function includeLine(): string
     {
@@ -42,10 +44,26 @@ final class Module
     {
         $code = '';
         foreach (['sweepers.liq', 'sidechain.liq'] as $file) {
-            $code .= (string)@file_get_contents(dirname(__DIR__, 2) . '/liquidsoap/' . $file);
+            $code .= (string)@file_get_contents(dirname(__DIR__, 2) . '/liquidsoap/' . $file) . "\n";
         }
 
-        return substr(hash('sha256', $code), 0, 12);
+        return self::fingerprint($code);
+    }
+
+    // Comments and layout do not change what Liquidsoap runs, so they never ask for a restart.
+    public static function fingerprint(string $code): string
+    {
+        $lines = array_filter(
+            array_map('trim', preg_split('/\R/', $code)),
+            static fn(string $line): bool => $line !== '' && !str_starts_with($line, '#')
+        );
+
+        return substr(hash('sha256', implode("\n", $lines)), 0, 12);
+    }
+
+    private static function running(string $version): bool
+    {
+        return in_array($version, [self::version(), ...self::EQUIVALENT[self::version()] ?? []], true);
     }
 
     /**
@@ -79,14 +97,14 @@ final class Module
         $heartbeat = $data['heartbeat'] ?? null;
         $module = $data['module'] ?? null;
         $recent = is_array($heartbeat) && $now - (int)($heartbeat['at'] ?? 0) <= self::ACTIVE_SECONDS;
-        if ($recent && ($heartbeat['version'] ?? null) === self::version()) {
-            return ['state' => 'active', 'message' => 'The sweeper module is running on this station.'];
+        if ($recent && self::running((string)($heartbeat['version'] ?? ''))) {
+            return ['state' => 'active', 'message' => 'The sweeper module is loaded and active on this station.'];
         }
         if ($recent) {
             return [
                 'state' => 'outdated',
-                'message' => 'This station still runs an earlier plugin version. '
-                    . 'Restart broadcasting once to load the update.',
+                'message' => 'This station runs an older sweeper module than the installed plugin. '
+                    . 'Restart broadcasting once to load it.',
             ];
         }
         if (is_array($module) && !($module['loaded'] ?? false)) {
@@ -98,8 +116,8 @@ final class Module
 
         return [
             'state' => 'restart',
-            'message' => 'The sweeper module is not running. Restart broadcasting once after installing or '
-                . 'updating the plugin, or start the station if it is offline.',
+            'message' => 'The sweeper module is not running. Restart broadcasting once after installing the '
+                . 'plugin, or start the station if it is offline.',
         ];
     }
 }

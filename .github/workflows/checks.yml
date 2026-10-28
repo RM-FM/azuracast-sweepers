@@ -36,6 +36,12 @@ jobs:
       - run: composer test
       - run: php tests/media.php
       - run: php tests/queue.php
+      - name: Check replacement against native AzuraCast playlist selection
+        run: |
+          docker run --rm --network host --entrypoint php \
+            -v "$PWD:/plugin:ro" \
+            ghcr.io/azuracast/azuracast@sha256:00514c7e5f96e4142a162955905591108750594c849730e3ab1485ef26a292a1 \
+            /plugin/tests/replacement.php
 
   frontend:
     runs-on: ubuntu-latest

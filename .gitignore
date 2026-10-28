@@ -12,3 +12,5 @@
 *.md
 !README.md
 !LICENSE.md
+!/AGENTS.md
+!/CHANGELOG.md

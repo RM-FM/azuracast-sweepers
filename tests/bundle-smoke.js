@@ -10,11 +10,11 @@ const fetch = async (url) => ({
     ok: true,
     json: async () => url.endsWith("/state")
         ? { station: { id: 1, name: "Test" }, settings: {}, playlists: [], jingle_playlists: [] }
-        : { rows: [], total: 0, page: 1, limit: 25 },
+        : { rows: [], total: 0, page: 1, per_page: 25 },
 });
 
 const bundle = readFileSync(new URL("../dist/app.js", import.meta.url), "utf8");
-const exported = bundle.match(/(\w+) as mountSweepers/);
+const exported = bundle.match(/([$\w]+) as mountSweepers/);
 assert.ok(exported);
 const executable = bundle.replace(/export\s*\{[\s\S]*\};?\s*$/, "");
 vm.runInNewContext(executable, {
@@ -23,7 +23,7 @@ vm.runInNewContext(executable, {
 });
 await new Promise((resolve) => setTimeout(resolve, 30));
 assert.match(document.body.textContent, /Sweeper Settings/);
-assert.match(document.body.textContent, /Test/);
+assert.match(document.body.textContent, /Enable sweepers/);
 assert.equal(document.documentElement.getAttribute("data-bs-theme"), "dark");
 
 const embedded = parseHTML('<html><body><div id="app" class="sweepers-page embedded" data-base="/sweepers/1" data-csrf="test"></div></body></html>');

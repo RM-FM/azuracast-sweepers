@@ -29,7 +29,8 @@ final readonly class Settings
         public float $reverbIntensity = 25.0,
         public bool $swapSequential = false,
         public array $excludedPlaylistIds = [],
-        public int $sweeperGap = 1
+        public int $sweeperGap = 1,
+        public bool $swapFromPlaylist = false
     ) {
         foreach ([$maxWait, $margin, $duckDb, $jingleGain, $lengthTolerance, $earlyStart, $reverbIntensity] as $value) {
             if (!is_finite($value)) {
@@ -61,7 +62,7 @@ final readonly class Settings
         $booleans = [];
         $flags = [
             'enabled' => true, 'count_jingle_mode' => true, 'longest_fit' => false, 'swap_for_intro' => false,
-            'reverb' => false, 'swap_sequential' => false,
+            'reverb' => false, 'swap_sequential' => false, 'swap_from_playlist' => false,
         ];
         foreach ($flags as $key => $default) {
             $value = $data[$key] ?? $default;
@@ -143,7 +144,8 @@ final readonly class Settings
             reverbIntensity: $values['reverb_intensity'],
             swapSequential: $booleans['swap_sequential'],
             excludedPlaylistIds: $excludedIds,
-            sweeperGap: $gaps['sweeper_gap']
+            sweeperGap: $gaps['sweeper_gap'],
+            swapFromPlaylist: $booleans['swap_from_playlist']
         );
     }
 
@@ -183,6 +185,7 @@ final readonly class Settings
             'length_tolerance' => $this->lengthTolerance,
             'early_start' => $this->earlyStart,
             'swap_for_intro' => $this->swapForIntro,
+            'swap_from_playlist' => $this->swapFromPlaylist,
             'reverb' => $this->reverb,
             'reverb_intensity' => $this->reverbIntensity,
             'swap_sequential' => $this->swapSequential,

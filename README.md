@@ -17,9 +17,13 @@ and rolling releases with Liquidsoap 2.5.
 - Rotation by oldest play, optionally preferring the longest fitting sweeper
 - Spacing rules around jingles and sweepers, and playlists that never get a sweeper
 - Optionally moves a queued song with a fitting intro forward when a sweeper is due
+- Optional same-playlist replacement using AzuraCast's native rotation and repetition rules
 - Optional reverb on the sweeper voice, with a browser preview
 - Waveform editor for the intro end of each song
-- Playback timeline showing for every track whether a sweeper played and why not
+- Five-second intro auditioning per track or continuously across all result pages
+- Live library search and an unknown-intro filter, with complete server-side pagination
+- Playback timeline showing for every track whether a sweeper played and why not, with
+  date range, search and pagination over the last 7 days
 - All settings apply live; a station never fails to start because of the plugin
 
 ## Installation
@@ -69,7 +73,7 @@ permission.
 
 | Page | Contents |
 | --- | --- |
-| **Settings** | All options with help texts, module status and sweeper preview |
+| **Settings** | All options with help texts, module status, plugin version, update notice and sweeper preview |
 | **Intros** | Search songs and set the intro end on a waveform |
 | **Playback Timeline** | Every played track with its sweeper status, intro end and start offset |
 
@@ -84,7 +88,12 @@ The timeline marks each track:
 
 Songs moved forward show which song they overtook; when a needed move was not possible,
 the reason is shown. Click the intro value (or **Set**) to open the editor on that song.
-The newest 300 tracks are kept per station.
+
+Like AzuraCast's Song Playback Timeline, the header selects the time range (default:
+last 24 hours; presets for today, yesterday and the last 7 days, or any custom range),
+shown in the station's time zone. The table offers live search, the grey refresh
+button, page sizes and a filter for songs with a sweeper. The timeline keeps 7 days in
+the station file `sweepers-history.json`.
 
 ## Intro end
 
@@ -110,12 +119,13 @@ Ways to set it:
   detector. See [docs/API.md](docs/API.md).
 
 On **Sweepers → Intros**, search updates automatically after typing, without a Search
-button. All matching files are available in pages of 25, without a 100-file limit.
-**Show unknown/untagged tracks** limits the list to files with a missing or blank
+button. All matching files are available with AzuraCast's page controls (25 per page by
+default, up to all files), without a 100-file limit. The
+**Only unknown/untagged tracks** switch beside the search box limits the list to files with a missing or blank
 `intro_end`; a saved zero still counts as tagged. Search and pagination apply to
 the filtered results. Saving an intro removes that track from the filtered list.
 **Intro** (play icon) plays a track directly from its saved `intro_end` for 5 seconds
-without opening the editor. **Scan Intros** in the table header starts at the first playable
+without opening the editor. **Scan Intros** in the card header starts at the first playable
 track on the current page and continues automatically through subsequent matching
 pages, stopping after the last result. Blank intro ends are skipped; zero starts at
 the beginning of the file. A track ending sooner advances immediately.
@@ -142,6 +152,7 @@ Defaults for a new installation:
 | Other sweepers before a repeat | 1 |
 | Prefer the longest fitting sweepers | Off (tolerance 20%) |
 | Move a song with an intro forward | Off (sequential playlists: off) |
+| Swap with another song from same playlist | Off |
 | Playlists without sweepers | None |
 | Handover margin | 0.5 s |
 | Limit start delay | Off (maximum 10 s, early start 2 s) |
@@ -162,15 +173,37 @@ Notes on the less obvious options:
 - **Jingles** are tracks from Jingle Mode playlists, the additional jingle playlists and
   the sweeper playlists. They never get a sweeper.
 - **Playlists without sweepers**, for example news or shows, never get a sweeper and are
-  never moved. Selecting a playlist group covers all its playlists.
+  never moved or replaced. Selecting a playlist group covers all its playlists.
 - **Other sweepers before a repeat**: if no other sweeper fits, the song gets none. With
   a single sweeper, repeats are always allowed.
-- **Prefer the longest fitting sweepers**: picks from the sweepers within the tolerance
-  of the available intro length.
+- **Prefer the longest fitting sweepers**: a preference, not an extra eligibility
+  rule. At 20% tolerance, bodies filling 80–100% of the available intro are preferred,
+  rotating by oldest actual play within that range. The available intro is
+  `intro_end` minus the song cue-in and handover margin. If no eligible sweeper is in
+  range, regular oldest-played rotation chooses any other fitting sweeper, not just
+  the longest remaining one. For example, if the long sweepers are blocked by repeat
+  protection or reservations, an eligible shorter sweeper can still play.
+  Tolerance never bypasses timing, schedules, reservations or repetition protection;
+  if none is eligible under the regular rules either, no sweeper plays.
 - **Move a song with an intro forward**: when a sweeper is due but the next song has no
   fitting intro, it changes places with the next queued song that has one. Jingles,
   excluded playlists and songs already sent to Liquidsoap never move; sequential
   playlists only when allowed.
+- **Swap with another song from same playlist**: optionally replaces that next song
+  with a fitting candidate returned by AzuraCast's native playlist queue, respecting
+  sequential/shuffle/random order and the playlist's repetition protection, including
+  inherited group rules. Both matching options work independently; moving an already
+  queued song is tried first when both are on. Requests, merged playlists/groups,
+  excluded playlists and entries already sent to Liquidsoap are never replaced.
+  **Also move or swap songs from sequential playlists** applies to both options.
+  The displaced song returns to its existing playlist rotation slot, keeping its
+  weight and history; it is not appended directly to the playback queue. It may be
+  replaced again when encountered later. No full playlist reset or relaxed repetition
+  fallback is used: an exhausted rotation, no eligible match, a busy native queue
+  builder or an expired 500 ms matching budget leaves the original song in place.
+  Matching improves the chance of a sweeper; it does not guarantee one. AzuraCast
+  continues rebuilding the queue's expected times. The timeline distinguishes
+  a forward move from a same-playlist replacement and explains an unsuccessful match.
 - **Limit start delay**: normally the sweeper ends at the intro end minus the margin.
   If that would start it later than the maximum delay, it starts at the early start
   instead.
@@ -181,7 +214,10 @@ for upcoming songs are dropped; a sweeper on air finishes normally.
 
 ## How playback works
 
-AzuraCast still picks every song. The plugin plans a sweeper when Liquidsoap fetches
+AzuraCast schedules the playlists and builds the playback queue. Optional matching
+either exchanges two queued songs or replaces the next unsent song with a candidate
+from the same native playlist rotation; it does not run a separate scheduler.
+The plugin plans a sweeper when Liquidsoap fetches
 the next song and mixes it in after the crossfade, before the station's audio
 processing. Live DJs are never overlaid.
 
@@ -213,6 +249,16 @@ The station's Liquidsoap log shows the decisions under the `sweepers` label.
 
 ## Updating
 
+The Settings page shows the installed version (from the release notes, plus the checked-out
+branch and commit) and checks GitHub's releases every few hours. When a newer release exists,
+it links the release notes and states whether the update applies without restarting
+broadcasting. Updates are installed on the host, as below; AzuraCast's own web updater only
+updates AzuraCast itself, and the plugin directory is read-only inside the container.
+
+Read the [release notes](CHANGELOG.md) before updating. Every release explicitly
+states whether an **AzuraCast Broadcast (Liquidsoap) restart** is required.
+Frontend rebuilds and PHP/worker reloads are separate and do not restart broadcasting.
+
 ```bash
 (
   set -e
@@ -228,8 +274,10 @@ The station's Liquidsoap log shows the decisions under the `sweepers` label.
 )
 ```
 
-This does not interrupt broadcasting. If the Liquidsoap module changed, the Settings page
-asks for one broadcasting restart per station. Settings, media and intro ends are kept.
+This does not interrupt broadcasting. Only if the Liquidsoap module's code changed (comments
+do not count), the Settings page asks for one broadcasting restart per station and offers a
+**Restart Broadcasting** button to users with Broadcasting permission. Settings, media and
+intro ends are kept.
 
 > [!IMPORTANT]
 > Keep the order: delete the route cache only after all PHP processes run the new code.
@@ -252,7 +300,8 @@ Rename the file back and restart `web` to enable it again.
 Disable sweepers, remove the plugin's entries from the Compose override and run
 `docker compose up -d`; the stations then start without the module. Afterwards delete
 the plugin directory. The plugin creates no database tables; `intro_end` and the
-station file `sweepers.json` stay in place until you delete them.
+station files `sweepers.json` and `sweepers-history.json` stay in place until you
+delete them.
 
 ## Development
 
@@ -264,5 +313,10 @@ Runs PHP lint and tests (run `composer install` first for the full set), the fro
 tests and build, and the Liquidsoap type check in containers. CI additionally runs
 `vendor/bin/phpcs` and native playback tests. Code follows AzuraCast's conventions
 (PSR-12, strict types).
+
+`tests/replacement.php` runs separately in CI's pinned AzuraCast image with an
+isolated MariaDB `sweepers_test` database (`SWEEPER_TEST_DB_HOST`). It uses the real
+playlist repositories, duplicate prevention, queue and rotation entities with
+minimal station/library fixtures. Never point integration tests at a station database.
 
 AGPL-3.0-or-later. Copyright 2026 RM-FM. Independent of the AzuraCast project.

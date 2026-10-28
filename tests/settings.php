@@ -66,8 +66,16 @@ namespace App\Http {
 
     final class ServerRequest
     {
-        public function __construct(private \App\Entity\Station $station, private array $body)
+        public function __construct(
+            private \App\Entity\Station $station,
+            private array $body,
+            private array $query = []
+        ) {
+        }
+
+        public function getQueryParam(string $name, mixed $default = null): mixed
         {
+            return $this->query[$name] ?? $default;
         }
 
         public function getStation(): \App\Entity\Station
@@ -387,7 +395,7 @@ namespace {
 
         $state->update($directory, static fn(array $data) => ['log' => [
             ['at' => 300.0, 'token' => '8', 'song_id' => null, 'title' => 'Live show', 'artist' => '', 'result' => 'other'],
-            ['at' => 200.5, 'song_id' => 7, 'jingle_id' => 42, 'offset' => 9.66],
+            ['at' => 200.5, 'song_id' => 7, 'jingle_id' => 42, 'offset' => 9.66, 'replaced_before' => 42],
             ['at' => 100.0, 'song_id' => 99, 'jingle_id' => 42, 'offset' => null, 'unmoved' => 'move_none'],
         ]] + $data);
         $history = json_decode((string)$controller->historyAction(
@@ -395,7 +403,11 @@ namespace {
             new Response(),
             []
         )->getBody(), true, flags: JSON_THROW_ON_ERROR);
-        expect($history['limit'] === 300 && count($history['rows']) === 3, 'History endpoint returns the log.');
+        expect(
+            $history['total'] === 3 && count($history['rows']) === 3 && $history['per_page'] === 25
+                && $history['retention_days'] === 7,
+            'History endpoint returns the log.'
+        );
         expect(
             $history['rows'][0]['song'] === ['title' => 'Live show', 'artist' => null, 'path' => '', 'intro' => null]
                 && $history['rows'][0]['result'] === 'other' && $history['rows'][0]['sweeper'] === null,
@@ -405,10 +417,57 @@ namespace {
         expect($history['rows'][1]['song']['artist'] === 'ABBA' && $history['rows'][1]['offset'] === 9.66, 'Song and offset.');
         expect($history['rows'][1]['sweeper']['title'] === 'Dropin 03', 'Sweeper name.');
         expect($history['rows'][1]['result'] === 'played', 'Earlier entries are played sweepers.');
+        expect(
+            $history['rows'][1]['replaced'] && !$history['rows'][1]['moved']
+                && $history['rows'][1]['replaced_before']['title'] === 'Dropin 03',
+            'Same-playlist replacements resolve the displaced file without claiming a forward move.'
+        );
         expect($history['rows'][2]['song'] === null && $history['rows'][2]['offset'] === null, 'Deleted files stay listed.');
         expect(
             $history['rows'][2]['unmoved'] === 'move_none' && $history['rows'][1]['unmoved'] === null,
             'Why a song could not be moved forward is included.'
+        );
+        $query = static fn(array $query): array => json_decode((string)$controller->historyAction(
+            new ServerRequest($station, [], $query),
+            new Response(),
+            []
+        )->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        $range = $query(['start' => '1970-01-01T00:02:00Z', 'end' => '1970-01-01T00:04:00Z']);
+        expect(
+            $range['total'] === 1 && $range['rows'][0]['at'] === 200.5,
+            'The timeline is limited to the selected date range.'
+        );
+        $found = $query(['search' => 'abba']);
+        expect(
+            $found['total'] === 1 && $found['rows'][0]['song']['title'] === 'Voulez-Vous',
+            'Search matches song artist, title and path without case.'
+        );
+        expect($query(['search' => 'dropin'])['total'] === 2, 'Search also matches the sweeper.');
+        $paged = $query(['per_page' => '10', 'page' => '1']);
+        expect($paged['total'] === 3 && count($paged['rows']) === 3, 'A page holds up to its size.');
+        expect($query(['per_page' => '10', 'page' => '2'])['rows'] === [], 'Pages past the end are empty.');
+        expect($query(['per_page' => '0'])['total'] === 3, 'Page size 0 shows all rows.');
+        expect($query(['played' => '1'])['total'] === 2, 'Only songs with a played sweeper can be selected.');
+        foreach ([['per_page' => '7'], ['page' => '0'], ['start' => 'yesterday-ish'], ['played' => 'yes']] as $invalid) {
+            try {
+                $query($invalid);
+                throw new RuntimeException('Invalid history query accepted.');
+            } catch (InvalidArgumentException) {
+            }
+        }
+        $state->update($directory, static fn(array $data) => ['log' => [
+            ['at' => 400.0, 'song_id' => 7, 'jingle_id' => 42, 'result' => 'scheduled'],
+            ...$data['log'],
+        ]] + $data);
+        $upcoming = $query(['per_page' => '10']);
+        expect(
+            $upcoming['rows'][0]['upcoming'] && !$upcoming['rows'][1]['upcoming'],
+            'Only the newest song can still wait for its sweeper.'
+        );
+        expect(
+            is_file($directory . '/sweepers-history.json')
+                && !array_key_exists('log', json_decode(file_get_contents($directory . '/sweepers.json'), true)),
+            'The timeline is stored apart from the state.'
         );
 
         $now = 1_000_000;

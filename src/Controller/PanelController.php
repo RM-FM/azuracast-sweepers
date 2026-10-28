@@ -6,11 +6,14 @@ namespace Plugin\AzuracastSweepers\Controller;
 
 use App\Entity\Station;
 use App\Entity\StationMedia;
+use App\Enums\StationPermissions;
 use App\Http\Response;
 use App\Http\RouterInterface;
 use App\Http\ServerRequest;
+use App\Middleware\Auth\ApiAuth;
 use InvalidArgumentException;
 use Plugin\AzuracastSweepers\Service\Arranger;
+use Plugin\AzuracastSweepers\Service\History;
 use Plugin\AzuracastSweepers\Service\Media;
 use Plugin\AzuracastSweepers\Service\Module;
 use Plugin\AzuracastSweepers\Service\Planner;
@@ -73,10 +76,20 @@ final readonly class PanelController
     {
         $station = $request->getStation();
         $data = $this->state->read($station->getRadioConfigDir());
+        $canRestart = $request->getAcl()->isAllowed(StationPermissions::Broadcasting, $station);
 
         return $response->withHeader('Cache-Control', 'no-store')->withJson([
             'csrf' => $request->getCsrf()->generate('sweepers'),
-            'station' => ['id' => $station->id, 'name' => $station->name, 'needs_restart' => $station->needs_restart],
+            'station' => [
+                'id' => $station->id,
+                'name' => $station->name,
+                'timezone' => $station->timezone,
+                'needs_restart' => $station->needs_restart,
+            ],
+            'restart' => $canRestart ? [
+                'url' => $request->getRouter()->named('api:stations:restart', ['station_id' => $station->id]),
+                'csrf' => $request->getCsrf()->generate(ApiAuth::API_CSRF_NAMESPACE),
+            ] : null,
             'queue_length' => Queue::length($station),
             'module' => Module::status($data),
             'settings' => Settings::fromArray($data['settings'] ?? [])->toArray(),
@@ -132,32 +145,40 @@ final readonly class PanelController
     public function historyAction(ServerRequest $request, Response $response, array $params): ResponseInterface
     {
         $station = $request->getStation();
-        $log = $this->state->read($station->getRadioConfigDir())['log'] ?? [];
-        $files = $this->media->describe($station, [
-            ...array_column($log, 'song_id'),
-            ...array_column($log, 'jingle_id'),
-            ...array_column($log, 'moved_before'),
-        ]);
-        $rows = array_map(static fn(array $entry): array => [
-            'at' => (float)$entry['at'],
-            // Live and remote tracks are not in the media library.
-            'song' => $files[(int)($entry['song_id'] ?? 0)] ?? (($entry['title'] ?? '') !== '' ? [
-                'title' => $entry['title'],
-                'artist' => ($entry['artist'] ?? '') !== '' ? $entry['artist'] : null,
-                'path' => '',
-                'intro' => null,
-            ] : null),
-            'sweeper' => $files[(int)($entry['jingle_id'] ?? 0)] ?? null,
-            'offset' => isset($entry['offset']) ? (float)$entry['offset'] : null,
-            // Older entries only recorded played sweepers.
-            'result' => (string)($entry['result'] ?? 'played'),
-            'moved' => array_key_exists('moved_before', $entry),
-            'moved_before' => $files[(int)($entry['moved_before'] ?? 0)] ?? null,
-            'unmoved' => $entry['unmoved'] ?? null,
-        ], $log);
+        $start = History::time($request->getQueryParam('start'));
+        $end = History::time($request->getQueryParam('end'));
+        $search = mb_substr((string)$request->getQueryParam('search', ''), 0, 200);
+        $page = History::page((string)$request->getQueryParam('page', '1'));
+        $perPage = History::pageSize((string)$request->getQueryParam('per_page', '25'));
+        $played = (string)$request->getQueryParam('played', '0');
+        if (!in_array($played, ['0', '1'], true)) {
+            throw new InvalidArgumentException('Invalid sweeper filter.');
+        }
 
-        return $response->withHeader('Cache-Control', 'no-store')
-            ->withJson(['rows' => $rows, 'limit' => Planner::LOG_LIMIT]);
+        $log = History::select(
+            $this->state->read($station->getRadioConfigDir())['log'] ?? [],
+            $start,
+            $end,
+            $played === '1'
+        );
+        if (trim($search) === '') {
+            $total = count($log);
+            $log = History::slice($log, $page, $perPage);
+            $rows = History::rows($log, $this->media->describe($station, History::mediaIds($log)));
+        } else {
+            $files = $this->media->describe($station, History::mediaIds($log));
+            $rows = History::search(History::rows($log, $files), $search);
+            $total = count($rows);
+            $rows = History::slice($rows, $page, $perPage);
+        }
+
+        return $response->withHeader('Cache-Control', 'no-store')->withJson([
+            'rows' => $rows,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'retention_days' => intdiv(Planner::LOG_RETENTION, 86400),
+        ]);
     }
 
     public function mediaAction(ServerRequest $request, Response $response, array $params): ResponseInterface
@@ -180,15 +201,13 @@ final readonly class PanelController
                 ->withJson(['rows' => [$this->mediaRow($station, $router, $media)]]);
         }
         $search = substr((string)$request->getQueryParam('search', ''), 0, 200);
-        $page = (string)$request->getQueryParam('page', '1');
-        if (!preg_match('/^[1-9]\d{0,7}$/D', $page)) {
-            throw new InvalidArgumentException('Invalid media page.');
-        }
+        $page = History::page((string)$request->getQueryParam('page', '1'));
+        $perPage = History::pageSize((string)$request->getQueryParam('per_page', '25'));
         $unknown = (string)$request->getQueryParam('unknown', '0');
         if (!in_array($unknown, ['0', '1'], true)) {
             throw new InvalidArgumentException('Invalid unknown intro filter.');
         }
-        $result = $this->media->list($station, $search, (int)$page, $unknown === '1');
+        $result = $this->media->list($station, $search, $page, $unknown === '1', $perPage);
         $rows = array_map(
             fn(StationMedia $media): array => $this->mediaRow($station, $router, $media),
             $result['rows']
@@ -197,8 +216,8 @@ final readonly class PanelController
         return $response->withHeader('Cache-Control', 'no-store')->withJson([
             'rows' => $rows,
             'total' => $result['total'],
-            'page' => (int)$page,
-            'limit' => 25,
+            'page' => $page,
+            'per_page' => $perPage,
         ]);
     }
 

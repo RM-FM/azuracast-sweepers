@@ -178,10 +178,34 @@ $rotation = [
 ];
 check(Selection::order($rotation, 30, new Settings())[0]['id'] === 1, 'Default rotates all fitting sweepers.');
 $longest = new Settings(longestFit: true);
-check(array_column(Selection::order($rotation, 30, $longest), 'id') === [2, 3], '20% includes 24 to 30 seconds.');
-check(Selection::order($rotation, 30, new Settings(longestFit: true, lengthTolerance: 0))[0]['id'] === 3,
-    'If no exact-length body exists, choose the longest fitting one.');
-check(Selection::order($rotation, 100, $longest)[0]['id'] === 3, 'No candidate in tolerance falls back to longest.');
+check(
+    array_column(Selection::order($rotation, 30, $longest), 'id') === [2, 3, 1],
+    '20% prefers 24 to 30 seconds without discarding shorter fitting sweepers.'
+);
+check(Selection::order($rotation, 30, new Settings(longestFit: true, lengthTolerance: 0))[0]['id'] === 1,
+    'If no exact-length body exists, regular oldest-played rotation applies.');
+check(
+    Selection::order($rotation, 100, $longest) === Selection::order($rotation, 100, new Settings()),
+    'No candidate in tolerance falls back to regular rotation, not the longest remaining body.'
+);
+foreach ([
+    ['log' => [['result' => 'played', 'jingle_id' => 2], ['result' => 'played', 'jingle_id' => 3]]],
+    ['plans' => ['a' => ['jingle_id' => 2, 'played' => false], 'b' => ['jingle_id' => 3, 'played' => false]]],
+] as $unavailable) {
+    $blockedIds = Selection::unavailable($unavailable, 2, 3);
+    $eligible = array_values(array_filter(
+        $rotation,
+        static fn(array $row): bool => !in_array($row['id'], $blockedIds, true)
+    ));
+    check(
+        array_column(Selection::order($eligible, 30, $longest), 'id') === [1],
+        'Unavailable preferred sweepers do not block an eligible shorter sweeper.'
+    );
+}
+check(
+    array_column(Selection::order([$rotation[1], $rotation[0]], 30, $longest), 'id') === [2, 1],
+    'A preferred eligible sweeper still precedes the older short sweeper.'
+);
 check(Selection::order([], 30, $longest) === [], 'No fitting sweeper remains empty.');
 $rotation[1]['last_played'] = 4;
 check(Selection::order($rotation, 30, $longest)[0]['id'] === 3, 'Within tolerance actual playback advances rotation.');
@@ -491,6 +515,57 @@ rejects(static fn() => Settings::fromArray(['reverb_intensity' => 101]));
 rejects(static fn() => Settings::fromArray(['reverb' => 1]));
 check(Settings::fromArray(['swap_for_intro' => true])->swapForIntro, 'Moving songs forward can be switched on.');
 rejects(static fn() => Settings::fromArray(['swap_for_intro' => 'yes']));
+check(!Settings::fromArray([])->swapFromPlaylist, 'Same-playlist replacement is off by default.');
+$replacementOnly = Settings::fromArray(['swap_from_playlist' => true]);
+check(
+    $replacementOnly->swapFromPlaylist && !$replacementOnly->swapForIntro
+        && Settings::fromArray($replacementOnly->toArray())->swapFromPlaylist
+        && $replacementOnly->revision() !== Settings::fromArray([])->revision(),
+    'Replacement is independent, persists and refreshes the runtime revision.'
+);
+rejects(static fn() => Settings::fromArray(['swap_from_playlist' => 'yes']));
+check(
+    Arrangement::replacement([$song(21), $song(22)], $due, $replacementOnly, 3, $intros())['id'] === 21,
+    'Only the next unsent song is proposed for replacement.'
+);
+foreach ([
+    ['request_id' => 3], ['playlist_id' => null], ['planned' => true],
+    ['playlist_order' => 'sequential'], ['excluded' => true], ['is_jingle' => true],
+] as $extra) {
+    check(
+        Arrangement::replacement([$song(21, extra: $extra)], $due, $replacementOnly, 3, $intros()) === null,
+        'Protected entries cannot be replaced: ' . json_encode($extra)
+    );
+}
+check(
+    Arrangement::replacement([$song(21, extra: $sequential)], $due, $withSequential, 3, $intros())['id'] === 21,
+    'The shared sequential opt-in also allows replacement.'
+);
+check(
+    Arrangement::replacement([$song(21)], $fresh, $gapSettings, 3, $intros()) === null
+        && Arrangement::replacement([$song(21)], $due, $gapSettings, 3, $intros(21)) === null,
+    'Replacement respects spacing and leaves an already usable intro alone.'
+);
+check(
+    Arrangement::replacement(
+        [$song(21), $song(22, extra: ['is_jingle' => true])],
+        $due,
+        new Settings(songsBeforeJingle: 1),
+        3,
+        $intros(),
+        $blocked
+    ) === null && $blocked === 'move_jingle',
+    'Replacement cannot bypass the before-jingle spacing rule.'
+);
+$replaced = Planner::apply(
+    ['moved' => ['13' => ['at' => 1, 'before' => 9, 'replacement' => true]]],
+    $start('13', 'none')
+);
+check(
+    $replaced['log'][0]['replaced_before'] === 9 && !isset($replaced['log'][0]['moved_before'])
+        && !isset($replaced['moved']['13']),
+    'The replacement is distinguished from a forward move only when the song actually starts.'
+);
 
 $directory = sys_get_temp_dir() . '/sweepers-test-' . bin2hex(random_bytes(6));
 mkdir($directory);
@@ -505,6 +580,24 @@ try {
     }
     check($state->read($directory)['history'][42] === 100, 'An interrupted update preserves the previous state.');
     check(glob($directory . '/sweepers-*') === [], 'No abandoned temporary state.');
+    file_put_contents($directory . '/sweepers.json', json_encode(['history' => ['42' => 100], 'log' => [['at' => 5.5]]]));
+    check($state->read($directory)['log'] === [['at' => 5.5]], 'An existing timeline is still read.');
+    check(
+        json_decode(file_get_contents($directory . '/sweepers-history.json'), true) === [['at' => 5.5]]
+            && json_decode(file_get_contents($directory . '/sweepers.json'), true) === ['history' => ['42' => 100]],
+        'An existing timeline moves into its own file.'
+    );
+    $state->update($directory, static fn(array $data) => ['history' => ['42' => 200]] + $data);
+    check(
+        $state->read($directory)['log'] === [['at' => 5.5]] && $state->read($directory)['history'][42] === 200,
+        'State changes keep the timeline.'
+    );
+    $state->update($directory, static function (array $data): array {
+        unset($data['log']);
+
+        return $data;
+    });
+    check(!isset($state->read($directory)['log']), 'A cleared timeline stays cleared.');
 } finally {
     foreach (glob($directory . '/*') as $path) {
         unlink($path);
