@@ -389,6 +389,51 @@ test("empty intro pages are skipped and media failures stop scanning explicitly"
     }
 });
 
+test("unknown intro switch filters server-side, resets pages and removes newly tagged tracks", async () => {
+    let tagged = false;
+    mediaResponse = async (url) => {
+        const query = new URL(url, "http://localhost").searchParams;
+        if (query.get("unknown") === "1") {
+            return mediaResult(tagged ? [] : [track(3, null)], tagged ? 0 : 1);
+        }
+        return mediaResult([track(1)], 51);
+    };
+    const app = await mountIntros();
+    const toggle = async (checked) => {
+        const node = document.querySelector("#unknown-intros");
+        node.checked = checked;
+        node.dispatchEvent(new Event("change", { bubbles: true }));
+        await settle();
+    };
+    try {
+        assert.equal(document.querySelector('label[for="search"]'), null);
+        assert.equal(document.querySelector("#search").getAttribute("aria-label"), "Search tracks");
+        assert.ok([...document.querySelectorAll("strong")].some((node) => node.textContent === "empty"));
+        await click("Next");
+        await click("Intro");
+        await toggle(true);
+        assert.equal(lastAudio().paused, true);
+        assert.ok(mediaRequests.at(-1).includes("unknown=1&page=1"));
+        assert.ok(document.body.textContent.includes("1 / 1"));
+        assert.ok(document.body.textContent.includes("Track 3"));
+        await typeSearch("test");
+        await debounceSearch();
+        assert.ok(mediaRequests.at(-1).includes("search=test&unknown=1&page=1"));
+        await click("Edit intro");
+        await setInput("12");
+        tagged = true;
+        await save();
+        assert.equal(document.querySelector("article"), null);
+        assert.ok(document.body.textContent.includes("No matching files"));
+        await toggle(false);
+        assert.ok(!mediaRequests.at(-1).includes("unknown="));
+        assert.ok(document.body.textContent.includes("Track 1"));
+    } finally {
+        app.unmount();
+        mediaResponse = null;
+    }
+});
+
 test("settings save spacing, playlist selection, longest fit and nullable delay", async () => {
     const app = createApp(App, { base: "/sweepers/1", csrf: "session-token" });
     app.mount(document.querySelector("#app"));

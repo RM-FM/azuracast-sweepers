@@ -244,13 +244,16 @@
                     <h2 id="sweepers-cues-heading" class="card-title mb-0">Intro Cues</h2>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted">The intro end is where the singing starts. <strong>0</strong> = no usable intro, empty = not known yet. Songs without an intro end get no sweeper.</p>
+                    <p class="text-muted">The intro end is where the singing starts. <strong>0</strong> = no usable intro, <strong>empty</strong> = not known yet. Songs without an intro end get no sweeper.</p>
                     <form class="search" @submit.prevent>
-                        <label class="form-label" for="search">Find audio</label>
                         <div class="input-group">
-                            <input id="search" v-model="search" class="form-control" type="search" placeholder="Artist, title or filename">
+                            <input id="search" v-model="search" class="form-control" type="search" aria-label="Search tracks" placeholder="Artist, title or filename">
                         </div>
                     </form>
+                    <div class="form-check form-switch mt-3">
+                        <input id="unknown-intros" v-model="unknownOnly" class="form-check-input" type="checkbox" role="switch">
+                        <label class="form-check-label" for="unknown-intros">Show unknown/untagged tracks</label>
+                    </div>
                 </div>
                 <div class="table-responsive media-list">
                     <table class="table align-middle table-striped table-hover mb-0">
@@ -440,6 +443,7 @@ const mediaLoading = ref(false);
 const pageCount = computed(() => Math.max(1, Math.ceil(total.value / pageSize)));
 const visibleRows = computed(() => rows.value);
 const search = ref("");
+const unknownOnly = ref(false);
 const selected = ref(null);
 const waveform = ref(null);
 watch(page, () => { selected.value = null; }, { flush: "sync" });
@@ -785,6 +789,13 @@ watch(search, () => {
     mediaLoading.value = true;
     searchTimer = setTimeout(() => { void loadMedia(); }, 300);
 }, { flush: "sync" });
+watch(unknownOnly, () => {
+    if (settingSearch) return;
+    clearTimeout(searchTimer);
+    stopListening();
+    mediaLoaded.value = false;
+    void loadMedia();
+}, { flush: "sync" });
 watch(current, () => {
     stopListening();
     clearTimeout(searchTimer);
@@ -802,7 +813,7 @@ async function loadMedia(target = 1) {
     mediaLoading.value = true;
     error.value = "";
     try {
-        const result = await api(`media?search=${encodeURIComponent(search.value)}&page=${target}`);
+        const result = await api(`media?search=${encodeURIComponent(search.value)}${unknownOnly.value ? "&unknown=1" : ""}&page=${target}`);
         if (request !== mediaRequest) return false;
         rows.value = result.rows;
         total.value = result.total;
@@ -834,6 +845,7 @@ async function editIntro(id) {
         const [row] = (await api(`media?id=${encodeURIComponent(id)}`)).rows;
         if (request !== mediaRequest) return;
         settingSearch = true;
+        unknownOnly.value = false;
         search.value = row.path;
         settingSearch = false;
         rows.value = [row];
@@ -867,6 +879,11 @@ async function saveIntro() {
             if (marker.value === value) draft.value = result.intro_end ?? "";
         }
         notice.value = "Intro end saved.";
+        if (unknownOnly.value) {
+            const target = rows.value.length === 1 && page.value > 1 && result.intro_end !== null
+                ? page.value - 1 : page.value;
+            await loadMedia(target);
+        }
     });
 }
 

@@ -58,6 +58,9 @@ the Intros row format, so the timeline can open the intro editor on it.
 library files in pages of 25 (one-based, default 1), ordered by path then media ID.
 It returns `rows`, `total` (all matching files), `page` and `limit` (25).
 Search matches filename/path, title or artist; there is no 100-result ceiling.
+The optional `unknown=1` filter returns only files with a missing, null or blank
+`intro_end` custom field, excluding saved zeroes. Default `unknown=0` includes all
+files; `total` and pagination reflect the filter.
 These session-authenticated requests require station Media permission.
 
 ## Using the native media API

@@ -199,6 +199,30 @@ namespace {
     if ($empty !== ['rows' => [], 'total' => 127] || $all['total'] !== 129) {
         throw new RuntimeException('Empty pages or unfiltered media totals are incorrect.');
     }
+    $zero = $em->find(StationMedia::class, 3);
+    $mediaService->saveIntro($zero, 0);
+    $whitespace = new StationMediaCustomField($em->find(StationMedia::class, 4), $mediaService->ensureField());
+    $whitespace->value = '   ';
+    $em->persist($whitespace);
+    $emptyCue = new StationMediaCustomField($em->find(StationMedia::class, 5), $mediaService->ensureField());
+    $emptyCue->value = '';
+    $em->persist($emptyCue);
+    $em->flush();
+    $unknownIds = [];
+    for ($page = 1; $page <= 6; $page++) {
+        $result = $mediaService->list($station, '', $page, true);
+        if ($result['total'] !== 127) {
+            throw new RuntimeException('Unknown filter must exclude positive and zero cues, not blank or missing ones.');
+        }
+        array_push($unknownIds, ...array_map(static fn(StationMedia $file): int => $file->id, $result['rows']));
+    }
+    if ($unknownIds !== [2, ...range(4, 129)]) {
+        throw new RuntimeException('Unknown filter lost blank/missing cues or included tagged/foreign tracks.');
+    }
+    $filteredSearch = $mediaService->list($station, 'Title lookup', 1, true);
+    if ($filteredSearch !== ['rows' => [], 'total' => 0]) {
+        throw new RuntimeException('Unknown filter must combine with search before pagination.');
+    }
     try {
         $mediaService->saveIntro($recording, 999.0);
         throw new RuntimeException('An out-of-file cue was accepted.');

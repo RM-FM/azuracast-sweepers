@@ -184,7 +184,11 @@ final readonly class PanelController
         if (!preg_match('/^[1-9]\d{0,7}$/D', $page)) {
             throw new InvalidArgumentException('Invalid media page.');
         }
-        $result = $this->media->list($station, $search, (int)$page);
+        $unknown = (string)$request->getQueryParam('unknown', '0');
+        if (!in_array($unknown, ['0', '1'], true)) {
+            throw new InvalidArgumentException('Invalid unknown intro filter.');
+        }
+        $result = $this->media->list($station, $search, (int)$page, $unknown === '1');
         $rows = array_map(
             fn(StationMedia $media): array => $this->mediaRow($station, $router, $media),
             $result['rows']

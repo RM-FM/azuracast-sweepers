@@ -252,7 +252,7 @@ final readonly class Media
         return $intros;
     }
 
-    public function list(Station $station, string $search, int $page = 1): array
+    public function list(Station $station, string $search, int $page = 1, bool $unknownOnly = false): array
     {
         $query = $this->em->createQueryBuilder()
             ->select('m')
@@ -267,6 +267,17 @@ final readonly class Media
         if ($search !== '') {
             $query->andWhere('m.path LIKE :search OR m.title LIKE :search OR m.artist LIKE :search')
                 ->setParameter('search', '%' . $search . '%');
+        }
+        if ($unknownOnly) {
+            $query->andWhere(
+                <<<'DQL'
+                    NOT EXISTS (
+                        SELECT v.id FROM App\Entity\StationMediaCustomField v JOIN v.field f
+                        WHERE v.media = m AND f.short_name = 'intro_end'
+                        AND v.value IS NOT NULL AND TRIM(v.value) <> ''
+                    )
+                DQL
+            );
         }
 
         $paginator = new Paginator($query, false);
