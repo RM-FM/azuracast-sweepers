@@ -52,7 +52,9 @@ validated with Docker Compose before replacing the override.
 Conflicting plugin mounts, ambiguous YAML aliases/merge keys and custom `COMPOSE_FILE`
 configurations stop setup with an error instead of being overwritten. Resolve those
 manually, then rerun the script. Standard AzuraCast `docker-compose.yml` and optional
-`docker-compose.override.yml` files are supported.
+`docker-compose.override.yml` files with a `web` service are supported. A missing
+`web` service stops setup before building or changing files; custom service names
+require manual setup.
 
 `COMPOSER_PLUGIN_MODE` is an AzuraCast setting: on start, the web container runs
 `composer update` with the plugins' `composer.json` merged in, so AzuraCast can load the

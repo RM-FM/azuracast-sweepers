@@ -26,6 +26,10 @@ elif [[ "$1" == inspect ]]; then
     printf 'COMPOSER_PLUGIN_MODE=true\n'
 elif [[ "$1" == compose && "$2" == ps ]]; then
     [[ "${TEST_RECREATE:-false}" == true ]] || printf 'container\n'
+elif [[ "$*" == *'config --services'* && "${TEST_NO_WEB:-false}" == true ]]; then
+    printf 'custom-web\nredis\n'
+elif [[ "$*" == *'config --services'* ]]; then
+    exec "$REAL_DOCKER" "$@"
 elif [[ "$*" == *'config --quiet'* && "$*" == *'.sweepers-setup.'* && "${TEST_INVALID:-false}" == true ]]; then
     echo 'Injected invalid Compose configuration' >&2
     exit 1
@@ -40,6 +44,10 @@ chmod +x "$work/bin/docker" "$work/bin/sleep"
 export PATH="$work/bin:$PATH"
 setup="$TEST_ROOT/plugins/azuracast-sweepers/bin/setup.sh"
 bash -n "$source_dir/bin/setup.sh"
+if TEST_NO_WEB=true bash "$setup" > "$work/result" 2>&1; then echo 'Missing web service unexpectedly accepted' >&2; exit 1; fi
+grep -q "service 'web' not found" "$work/result"
+[[ ! -e "$TEST_ROOT/docker-compose.override.yml" ]]
+! grep -q '^run ' "$TEST_ROOT/commands"
 bash "$setup" > "$work/result"
 grep -q 'Plugin installed/updated' "$work/result"
 grep -q 'supervisorctl restart php-worker-fast php-worker-slow php-nowplaying' "$TEST_ROOT/commands"

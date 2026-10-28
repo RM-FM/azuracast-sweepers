@@ -23,6 +23,9 @@ command -v docker >/dev/null || fail "Docker is required."
 docker compose version >/dev/null
 cd "$azuracast_dir"
 docker compose config --quiet
+services=$(docker compose config --services)
+grep -Fxq web <<< "$services" ||
+    fail "Expected AzuraCast service 'web' not found. No files were changed; custom service names require manual setup."
 
 work=$(mktemp -d "$azuracast_dir/.sweepers-setup.XXXXXX")
 cleanup() {
