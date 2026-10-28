@@ -72,7 +72,7 @@ test("adds one top-level Sweepers group after Media and does not loop on its own
     assert.equal(submenu.className, "collapse pb-2");
     assert.deepEqual([...submenu.querySelectorAll("a")].map((a) => [a.textContent, a.getAttribute("href"), a.className]), [
         ["Settings", "/station/1?sweepers=settings", "nav-link ps-4 py-2"],
-        ["Intros", "/station/1?sweepers=intros", "nav-link ps-4 py-2"],
+        ["Intro Manager", "/station/1?sweepers=intros", "nav-link ps-4 py-2"],
         ["Playback Timeline", "/station/1?sweepers=history", "nav-link ps-4 py-2"],
     ]);
     assert.equal(f.item().parentElement.id, "station-menu");

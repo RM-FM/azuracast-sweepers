@@ -273,7 +273,7 @@
         <section v-if="!loading && current === 'intros'" class="card mb-3" role="region" aria-labelledby="sweepers-cues-heading">
             <div class="card-header text-bg-primary">
                 <div class="d-lg-flex align-items-center">
-                    <h2 id="sweepers-cues-heading" class="card-title flex-fill my-0">Intro Cues</h2>
+                    <h2 id="sweepers-cues-heading" class="card-title flex-fill my-0">Intro Manager</h2>
                     <div class="flex-shrink buttons ms-lg-2 mt-2 mt-lg-0">
                         <button
                             class="btn btn-dark sweepers-scan"
@@ -515,7 +515,7 @@ const props = defineProps({
     view: { type: String, default: "settings" },
     standalone: { type: Boolean, default: false },
 });
-const views = [["settings", "Settings"], ["intros", "Intros"], ["history", "Playback Timeline"]];
+const views = [["settings", "Settings"], ["intros", "Intro Manager"], ["history", "Playback Timeline"]];
 const current = ref(views.some(([key]) => key === props.view) ? props.view : "settings");
 const settingsTabs = [["general", "General"], ["spacing", "Spacing & Jingles"], ["selection", "Selection & Timing"], ["audio", "Audio & Preview"]];
 const settingsTab = ref("general");

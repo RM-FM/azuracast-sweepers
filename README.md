@@ -79,7 +79,7 @@ broadcasting also require Broadcasting permission.
 | Page | Use it to |
 | --- | --- |
 | **Settings** | Select playlists, adjust spacing, timing and sound, preview a sweeper, and check module/update status |
-| **Intros** | Search songs, edit intro ends on a waveform, or listen through saved intro points |
+| **Intro Manager** | Search songs, edit intro ends on a waveform, or listen through saved intro points |
 | **Playback Timeline** | See which tracks carried a sweeper and why others did not |
 
 ### Intro end
@@ -93,7 +93,7 @@ the vocals start, in seconds from the **original file start**:
 | `0` | No intro, no sweeper |
 | Positive number | The vocals start here |
 
-Open **Sweepers → Intros**, select a song and drag the waveform marker, set it at
+Open **Sweepers → Intro Manager**, select a song and drag the waveform marker, set it at
 the playhead, or enter the seconds. You can also open the editor from a track's intro
 value in the Playback Timeline.
 

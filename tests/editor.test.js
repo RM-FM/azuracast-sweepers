@@ -372,7 +372,7 @@ test("live search debounces, resets pagination, stops playback and ignores stale
         await click("Intro");
         await click("Settings");
         assert.equal(lastAudio().paused, true, "Leaving Intros stops listening");
-        await click("Intros");
+        await click("Intro Manager");
         assert.ok(document.body.textContent.includes("Track 9"), "Returning keeps the latest results");
     } finally {
         app.unmount();
@@ -939,7 +939,7 @@ test("standalone page switches between Settings, Intros and Playback Timeline wi
         await settle();
         assert.equal(document.querySelector("form.sweepers-settings"), null);
         assert.match(document.querySelector("#app").textContent, /Voulez-Vous/);
-        tab("Intros").dispatchEvent(new Event("click", { bubbles: true }));
+        tab("Intro Manager").dispatchEvent(new Event("click", { bubbles: true }));
         await settle();
         await settle();
         assert.ok(document.querySelector(".media-track"));
