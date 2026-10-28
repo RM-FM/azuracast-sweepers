@@ -49,15 +49,15 @@ jobs:
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
           echo "date=$date" >> "$GITHUB_OUTPUT"
           echo "AzuraCast $commit ($date)" >> "$GITHUB_STEP_SUMMARY"
-      - name: Skip if this pair already passed
+      - name: Skip if this AzuraCast commit already passed
         id: checked
         uses: actions/cache/restore@v4
         with:
           path: .compat-passed
-          key: compat-${{ steps.commit.outputs.commit }}-${{ steps.plugin.outputs.commit }}
+          key: compat-${{ steps.commit.outputs.commit }}
           lookup-only: true
       - if: github.event_name == 'schedule' && steps.checked.outputs.cache-hit == 'true'
-        run: echo "No AzuraCast or plugin change since the last passing check." >> "$GITHUB_STEP_SUMMARY"
+        run: echo "No AzuraCast change since the last passing check." >> "$GITHUB_STEP_SUMMARY"
 
   php:
     needs: target
@@ -159,14 +159,14 @@ jobs:
       issues: write
       actions: read
     steps:
-      - name: Remember this passing pair
+      - name: Remember this passing AzuraCast commit
         if: needs.php.result == 'success' && needs.frontend.result == 'success' && needs.liquidsoap.result == 'success'
         run: touch .compat-passed
       - if: needs.php.result == 'success' && needs.frontend.result == 'success' && needs.liquidsoap.result == 'success'
         uses: actions/cache/save@v4
         with:
           path: .compat-passed
-          key: compat-${{ needs.target.outputs.commit }}-${{ needs.target.outputs.plugin }}
+          key: compat-${{ needs.target.outputs.commit }}
       - name: Open, update or close the compatibility issue
         uses: actions/github-script@v7
         env:

@@ -323,8 +323,8 @@ CI tests every push against pinned AzuraCast versions. The daily **AzuraCast
 compatibility** workflow tests `develop` against AzuraCast's rolling `latest` image and the
 matching `main` sources: the classes, methods, routes and Liquidsoap lines the plugin uses
 (`tests/compat.php`), the sidebar markup, the Liquidsoap module and playback scenarios.
-Scheduled runs skip the checks when neither the AzuraCast commit nor `develop` changed since
-the last passing run; failed runs are retried daily, manual runs always check.
+Scheduled runs skip the checks when the AzuraCast commit has not changed since the last
+passing run; failed runs are retried daily, manual runs always check.
 On failure it opens an issue labelled `azuracast-compat` with a short report, which
 notifies the repository owner by email; a new AzuraCast commit that still fails adds a
 comment, and a later passing run closes the issue. GitHub starts scheduled workflows from
