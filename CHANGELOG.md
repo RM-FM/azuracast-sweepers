@@ -1,10 +1,5 @@
 # Release notes
 
-Tags use `MAJOR.MINOR.PATCH` without a `v` prefix. Fixes and improvements normally
-increment PATCH; features normally increment MINOR. Major versions require explicit
-agreement. Each release states whether AzuraCast Broadcast (Liquidsoap) must restart;
-this is separate from rebuilding the frontend or reloading PHP/worker processes.
-
 ## 1.1.0 - 2026-10-28
 
 ### Features
