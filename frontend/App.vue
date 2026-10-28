@@ -14,12 +14,7 @@
 
         <section v-if="!loading && current === 'settings'" class="card mb-3" role="region" aria-labelledby="sweepers-settings-heading">
             <div class="card-header text-bg-primary">
-                <div class="d-lg-flex align-items-center">
-                    <h2 id="sweepers-settings-heading" class="card-title flex-fill my-0">Sweeper Settings</h2>
-                    <div class="flex-shrink buttons ms-lg-2 mt-2 mt-lg-0">
-                        <a class="btn btn-dark" :href="stationUrl">Station Dashboard</a>
-                    </div>
-                </div>
+                <h2 id="sweepers-settings-heading" class="card-title my-0">Sweeper Settings</h2>
             </div>
             <form class="form sweepers-settings" @submit.prevent="saveSettings">
                 <div class="card-body">
@@ -519,7 +514,6 @@ const loading = ref(true);
 const saving = ref(false);
 const notice = ref("");
 const error = ref("");
-const stationUrl = computed(() => `${props.base.replace(/\/sweepers\/[^/]+$/, "")}/station/${station.value.id ?? ""}`);
 const validDraft = computed(() => draft.value === "" || (
     draft.value !== null && draft.value !== undefined
     && Number.isFinite(Number(draft.value))
