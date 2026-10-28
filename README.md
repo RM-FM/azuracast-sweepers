@@ -22,7 +22,8 @@ and rolling releases with Liquidsoap 2.5.
 - Waveform editor for the intro end of each song
 - Five-second intro auditioning per track or continuously across all result pages
 - Live library search and an unknown-intro filter, with complete server-side pagination
-- Playback timeline showing for every track whether a sweeper played and why not
+- Playback timeline showing for every track whether a sweeper played and why not, with
+  date range, search and pagination over the last 7 days
 - All settings apply live; a station never fails to start because of the plugin
 
 ## Installation
@@ -87,7 +88,12 @@ The timeline marks each track:
 
 Songs moved forward show which song they overtook; when a needed move was not possible,
 the reason is shown. Click the intro value (or **Set**) to open the editor on that song.
-The newest 300 tracks are kept per station.
+
+Like AzuraCast's Song Playback Timeline, the header selects the time range (default:
+last 24 hours; presets for today, yesterday and the last 7 days, or any custom range),
+shown in the station's time zone. The table offers live search, the grey refresh
+button, page sizes and a filter for songs with a sweeper. The timeline keeps 7 days in
+the station file `sweepers-history.json`.
 
 ## Intro end
 
@@ -113,12 +119,13 @@ Ways to set it:
   detector. See [docs/API.md](docs/API.md).
 
 On **Sweepers → Intros**, search updates automatically after typing, without a Search
-button. All matching files are available in pages of 25, without a 100-file limit.
-**Show unknown/untagged tracks** limits the list to files with a missing or blank
+button. All matching files are available with AzuraCast's page controls (25 per page by
+default, up to all files), without a 100-file limit. The filter menu's
+**Only unknown/untagged tracks** limits the list to files with a missing or blank
 `intro_end`; a saved zero still counts as tagged. Search and pagination apply to
 the filtered results. Saving an intro removes that track from the filtered list.
 **Intro** (play icon) plays a track directly from its saved `intro_end` for 5 seconds
-without opening the editor. **Scan Intros** in the table header starts at the first playable
+without opening the editor. **Scan Intros** in the card header starts at the first playable
 track on the current page and continues automatically through subsequent matching
 pages, stopping after the last result. Blank intro ends are skipped; zero starts at
 the beginning of the file. A track ending sooner advances immediately.
@@ -285,7 +292,8 @@ Rename the file back and restart `web` to enable it again.
 Disable sweepers, remove the plugin's entries from the Compose override and run
 `docker compose up -d`; the stations then start without the module. Afterwards delete
 the plugin directory. The plugin creates no database tables; `intro_end` and the
-station file `sweepers.json` stay in place until you delete them.
+station files `sweepers.json` and `sweepers-history.json` stay in place until you
+delete them.
 
 ## Development
 

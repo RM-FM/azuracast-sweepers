@@ -29,6 +29,13 @@ enabling it.
   Repeat, reservation and timing protection still apply.
 - Clearer matching controls and timeline explanations, a compact tolerance field,
   and updated guidance on selection and queue behavior.
+- The Playback Timeline matches AzuraCast's Song Playback Timeline: date range in the
+  header (default last 24 hours, station time zone), live search, refresh button,
+  page sizes and pagination. It now keeps 7 days instead of the newest 300 tracks,
+  stored separately in `sweepers-history.json`; existing entries move there
+  automatically.
+- Settings and Intros follow AzuraCast's form and data-table layout; playlist choices
+  are checkbox lists instead of multi-select boxes, and Intros offers page sizes.
 
 ## 1.0.1 - 2026-10-28
 

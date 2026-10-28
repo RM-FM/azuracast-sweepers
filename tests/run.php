@@ -580,6 +580,24 @@ try {
     }
     check($state->read($directory)['history'][42] === 100, 'An interrupted update preserves the previous state.');
     check(glob($directory . '/sweepers-*') === [], 'No abandoned temporary state.');
+    file_put_contents($directory . '/sweepers.json', json_encode(['history' => ['42' => 100], 'log' => [['at' => 5.5]]]));
+    check($state->read($directory)['log'] === [['at' => 5.5]], 'An existing timeline is still read.');
+    check(
+        json_decode(file_get_contents($directory . '/sweepers-history.json'), true) === [['at' => 5.5]]
+            && json_decode(file_get_contents($directory . '/sweepers.json'), true) === ['history' => ['42' => 100]],
+        'An existing timeline moves into its own file.'
+    );
+    $state->update($directory, static fn(array $data) => ['history' => ['42' => 200]] + $data);
+    check(
+        $state->read($directory)['log'] === [['at' => 5.5]] && $state->read($directory)['history'][42] === 200,
+        'State changes keep the timeline.'
+    );
+    $state->update($directory, static function (array $data): array {
+        unset($data['log']);
+
+        return $data;
+    });
+    check(!isset($state->read($directory)['log']), 'A cleared timeline stays cleared.');
 } finally {
     foreach (glob($directory . '/*') as $path) {
         unlink($path);

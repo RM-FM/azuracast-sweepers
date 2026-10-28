@@ -11,7 +11,8 @@ use Plugin\AzuracastSweepers\ValueObject\Settings;
 
 final readonly class Planner
 {
-    public const int LOG_LIMIT = 300;
+    public const int LOG_RETENTION = 7 * 86400;
+    public const int LOG_LIMIT = 10000;
     private const int DECISION_LIMIT = 64;
 
     public function __construct(
@@ -271,7 +272,7 @@ final readonly class Planner
             $unmoved = $data['unmoved'][$token]['reason'] ?? null;
             unset($data['moved'][$token], $data['unmoved'][$token], $data['decisions'][$token]);
             $mediaId = (string)($event['media_id'] ?? '');
-            $data['log'] = array_slice([[
+            $data['log'] = self::retain([[
                 'at' => microtime(true),
                 'token' => $token,
                 'song_id' => preg_match('/^\d{1,10}$/D', $mediaId) ? (int)$mediaId : null,
@@ -283,7 +284,7 @@ final readonly class Planner
                     ($moved['replacement'] ?? false) ? 'replaced_before' : 'moved_before' => $moved['before'] ?? null,
                 ]),
                 ...($unmoved === null ? [] : ['unmoved' => $unmoved]),
-            ], ...$log], 0, self::LOG_LIMIT);
+            ], ...$log]);
 
             return $data;
         }
@@ -316,7 +317,7 @@ final readonly class Planner
             // Older modules send no start events.
             $moved = $data['moved'][$token] ?? null;
             unset($data['moved'][$token]);
-            $data['log'] = array_slice([[
+            $data['log'] = self::retain([[
                 'at' => $now,
                 'token' => $token,
                 'song_id' => $plan['song_id'] ?? null,
@@ -324,12 +325,23 @@ final readonly class Planner
                 ...($moved === null ? [] : [
                     ($moved['replacement'] ?? false) ? 'replaced_before' : 'moved_before' => $moved['before'] ?? null,
                 ]),
-            ], ...$log], 0, self::LOG_LIMIT);
+            ], ...$log]);
         } elseif ($type === 'release') {
             unset($data['plans'][$token]);
         }
 
         return $data;
+    }
+
+    /**
+     * @param list<array> $log newest first
+     */
+    private static function retain(array $log): array
+    {
+        $oldest = microtime(true) - self::LOG_RETENTION;
+        $kept = array_filter($log, static fn(array $entry): bool => (float)($entry['at'] ?? 0) >= $oldest);
+
+        return array_slice(array_values($kept), 0, self::LOG_LIMIT);
     }
 
     private static function emptyPlan(string $token, string $revision): array

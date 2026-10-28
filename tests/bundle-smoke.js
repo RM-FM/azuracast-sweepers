@@ -10,7 +10,7 @@ const fetch = async (url) => ({
     ok: true,
     json: async () => url.endsWith("/state")
         ? { station: { id: 1, name: "Test" }, settings: {}, playlists: [], jingle_playlists: [] }
-        : { rows: [], total: 0, page: 1, limit: 25 },
+        : { rows: [], total: 0, page: 1, per_page: 25 },
 });
 
 const bundle = readFileSync(new URL("../dist/app.js", import.meta.url), "utf8");

@@ -5,294 +5,309 @@
                 <button class="nav-link" :class="{ active: current === key }" type="button" role="tab" :aria-selected="current === key" @click="show(key)">{{ label }}</button>
             </li>
         </ul>
-        <p v-if="error" class="alert alert-danger" role="alert">{{ error }}</p>
-        <p v-if="notice" class="alert alert-info" role="status">{{ notice }}</p>
-        <p v-if="loading" class="text-muted">Loading…</p>
-        <p v-if="!loading && moduleStatus.state && moduleStatus.state !== 'active'" class="alert alert-warning" role="status" :data-module-status="moduleStatus.state">{{ moduleStatus.message }}</p>
+        <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
+        <div v-if="notice" class="alert alert-info" role="status">{{ notice }}</div>
+        <div v-if="loading" class="d-flex justify-content-center py-3">
+            <div class="spinner-border" role="status"><span class="visually-hidden">Loading…</span></div>
+        </div>
+        <div v-if="!loading && moduleStatus.state && moduleStatus.state !== 'active'" class="alert alert-warning" role="status" :data-module-status="moduleStatus.state">{{ moduleStatus.message }}</div>
 
         <section v-if="!loading && current === 'settings'" class="card mb-3" role="region" aria-labelledby="sweepers-settings-heading">
-            <div class="card-header text-bg-primary d-flex justify-content-between align-items-center">
-                <h2 id="sweepers-settings-heading" class="card-title mb-0">Sweeper Settings</h2>
-                <a class="btn btn-sm btn-outline-light" :href="stationUrl">Station dashboard</a>
+            <div class="card-header text-bg-primary">
+                <div class="d-lg-flex align-items-center">
+                    <h2 id="sweepers-settings-heading" class="card-title flex-fill my-0">Sweeper Settings</h2>
+                    <div class="flex-shrink buttons ms-lg-2 mt-2 mt-lg-0">
+                        <a class="btn btn-dark" :href="stationUrl">Station Dashboard</a>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-            <p class="text-muted mb-2">Sweepers are short station drop-ins played over the instrumental intro of a song, while the music is ducked underneath. Configure them for {{ station.name || 'your station' }} below.</p>
-            <p v-if="moduleStatus.state === 'active'" class="text-success small mb-3" data-module-status="active">{{ moduleStatus.message }}</p>
             <form class="sweepers-settings" @submit.prevent="saveSettings">
-                <fieldset>
-                    <legend>General</legend>
-                    <div class="form-check form-switch">
-                        <input id="sweepers-enabled" v-model="settings.enabled" class="form-check-input" type="checkbox" role="switch">
-                        <label class="form-check-label" for="sweepers-enabled">Enable sweepers</label>
-                    </div>
-                    <div class="form-text mb-3">Switches sweepers on or off for this station.</div>
-                    <label class="form-label d-block mb-0">
-                        Sweeper playlists
-                        <select v-model="settings.playlist_ids" class="form-select" multiple size="5">
-                            <option v-for="playlist in playlists" :key="playlist.id" :value="playlist.id">
-                                {{ playlistLabel(playlist) }}
-                            </option>
-                        </select>
-                    </label>
-                    <div class="form-text">One or more <strong>Advanced</strong> playlists with the sweepers, so they do not also play as normal songs. Playlists with a schedule are used only in their time slots; without a schedule they are always used. All playlists active at the same time share one rotation. Disabled playlists are skipped. Hold <kbd>Ctrl</kbd> (<kbd>Cmd</kbd> on Mac) to select several.</div>
-                </fieldset>
+                <div class="card-body">
+                    <p class="card-text">Sweepers are short station drop-ins played over the instrumental intro of a song, while the music is ducked underneath. Configure them for {{ station.name || 'your station' }} below.</p>
+                    <p v-if="moduleStatus.state === 'active'" class="card-text text-success" data-module-status="active">{{ moduleStatus.message }}</p>
 
-                <fieldset>
-                    <legend>Song spacing</legend>
-                    <p class="form-text mt-0">A song only gets a sweeper if all three rules allow it. <strong>0</strong> switches a rule off.</p>
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <label class="form-label d-block mb-0">
-                                Songs without sweeper after a jingle
-                                <input v-model.number="settings.songs_after_jingle" class="form-control" type="number" min="0" max="1000" step="1" required>
-                            </label>
-                            <div class="form-text">Complete songs that must play after a jingle before the next sweeper.</div>
+                    <fieldset class="form-group">
+                        <legend>General</legend>
+                        <div class="row g-3">
+                            <div class="form-group col-md-12">
+                                <div class="form-check form-switch">
+                                    <input id="sweepers-enabled" v-model="settings.enabled" class="form-check-input" type="checkbox" role="switch">
+                                    <label class="form-check-label" for="sweepers-enabled">Enable sweepers</label>
+                                </div>
+                                <div class="form-text">Switches sweepers on or off for this station.</div>
+                            </div>
+                            <fieldset class="form-group col-md-12" aria-describedby="sweepers-playlists-help">
+                                <legend class="form-label">Sweeper playlists</legend>
+                                <div v-for="playlist in playlists" :key="playlist.id" class="form-check">
+                                    <input :id="'sweepers-playlist-' + playlist.id" v-model="settings.playlist_ids" class="form-check-input" type="checkbox" :value="playlist.id">
+                                    <label class="form-check-label" :for="'sweepers-playlist-' + playlist.id">{{ playlistLabel(playlist) }}</label>
+                                </div>
+                                <div id="sweepers-playlists-help" class="form-text">One or more <strong>Advanced</strong> playlists with the sweepers, so they do not also play as normal songs. Playlists with a schedule are used only in their time slots; without a schedule they are always used. All playlists active at the same time share one rotation. Disabled playlists are skipped.</div>
+                            </fieldset>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label d-block mb-0">
-                                Songs without sweeper after a sweeper
-                                <input v-model.number="settings.songs_after_sweeper" class="form-control" type="number" min="0" max="1000" step="1" required>
-                            </label>
-                            <div class="form-text">Songs that must play without a sweeper after a song that carried one. That song itself does not count.</div>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label d-block mb-0">
-                                Songs without sweeper before a jingle
-                                <input v-model.number="settings.songs_before_jingle" class="form-control" type="number" min="0" :max="queueLength" step="1" required>
-                            </label>
-                            <div class="form-text">No sweeper if a jingle is queued within this many following tracks. Maximum: the AutoDJ queue length ({{ queueLength }}).</div>
-                        </div>
-                    </div>
-                </fieldset>
+                    </fieldset>
 
-                <fieldset>
-                    <legend>Jingle recognition</legend>
-                    <p class="form-text mt-0">Which tracks count as jingles for the spacing rules. Jingles never get a sweeper themselves.</p>
-                    <div class="form-check form-switch">
-                        <input id="sweepers-count-jingle-mode" v-model="settings.count_jingle_mode" class="form-check-input" type="checkbox" role="switch">
-                        <label class="form-check-label" for="sweepers-count-jingle-mode">Count Jingle Mode playlists</label>
-                    </div>
-                    <div class="form-text mb-3">Tracks from playlists that use AzuraCast's <em>Jingle Mode</em> count as jingles.</div>
-                    <label class="form-label d-block mb-0">
-                        Additional jingle playlists
-                        <select v-model="settings.jingle_playlist_ids" class="form-select" multiple size="5">
-                            <option v-for="playlist in jinglePlaylists" :key="playlist.id" :value="playlist.id">
-                                {{ playlist.name }}{{ playlist.is_jingle ? ' (Jingle Mode)' : '' }}
-                            </option>
-                        </select>
-                    </label>
-                    <div class="form-text">Other playlists whose tracks count as jingles. Hold <kbd>Ctrl</kbd> (<kbd>Cmd</kbd> on Mac) to select several. The sweeper playlists always count.</div>
-                </fieldset>
+                    <fieldset class="form-group">
+                        <legend>Song Spacing</legend>
+                        <p>A song only gets a sweeper if all three rules allow it. <strong>0</strong> switches a rule off.</p>
+                        <div class="row g-3">
+                            <div class="form-group col-md-4">
+                                <label class="form-label" for="sweepers-after-jingle">Songs without sweeper after a jingle</label>
+                                <input id="sweepers-after-jingle" v-model.number="settings.songs_after_jingle" class="form-control" type="number" min="0" max="1000" step="1" required>
+                                <div class="form-text">Complete songs that must play after a jingle before the next sweeper.</div>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label class="form-label" for="sweepers-after-sweeper">Songs without sweeper after a sweeper</label>
+                                <input id="sweepers-after-sweeper" v-model.number="settings.songs_after_sweeper" class="form-control" type="number" min="0" max="1000" step="1" required>
+                                <div class="form-text">Songs that must play without a sweeper after a song that carried one. That song itself does not count.</div>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label class="form-label" for="sweepers-before-jingle">Songs without sweeper before a jingle</label>
+                                <input id="sweepers-before-jingle" v-model.number="settings.songs_before_jingle" class="form-control" type="number" min="0" :max="queueLength" step="1" required>
+                                <div class="form-text">No sweeper if a jingle is queued within this many following tracks. Maximum: the AutoDJ queue length ({{ queueLength }}).</div>
+                            </div>
+                        </div>
+                    </fieldset>
 
-                <fieldset>
-                    <legend>Playlists without sweepers</legend>
-                    <label class="form-label d-block mb-0">
-                        Exclude these playlists
-                        <select v-model="settings.excluded_playlist_ids" class="form-select" multiple size="5">
-                            <option v-for="playlist in jinglePlaylists" :key="playlist.id" :value="playlist.id">{{ playlist.name }}</option>
-                        </select>
-                    </label>
-                    <div class="form-text">Tracks from these playlists never get a sweeper and are never moved, for example news or pre-recorded shows. Selecting a playlist group covers all playlists in it. Hold <kbd>Ctrl</kbd> (<kbd>Cmd</kbd> on Mac) to select several.</div>
-                </fieldset>
+                    <fieldset class="form-group">
+                        <legend>Jingle Recognition</legend>
+                        <p>Which tracks count as jingles for the spacing rules. Jingles never get a sweeper themselves.</p>
+                        <div class="row g-3">
+                            <div class="form-group col-md-12">
+                                <div class="form-check form-switch">
+                                    <input id="sweepers-count-jingle-mode" v-model="settings.count_jingle_mode" class="form-check-input" type="checkbox" role="switch">
+                                    <label class="form-check-label" for="sweepers-count-jingle-mode">Count Jingle Mode playlists</label>
+                                </div>
+                                <div class="form-text">Tracks from playlists that use AzuraCast's <em>Jingle Mode</em> count as jingles.</div>
+                            </div>
+                            <fieldset class="form-group col-md-12">
+                                <legend class="form-label">Additional jingle playlists</legend>
+                                <div v-for="playlist in jinglePlaylists" :key="playlist.id" class="form-check">
+                                    <input :id="'sweepers-jingle-' + playlist.id" v-model="settings.jingle_playlist_ids" class="form-check-input" type="checkbox" :value="playlist.id">
+                                    <label class="form-check-label" :for="'sweepers-jingle-' + playlist.id">{{ playlist.name }}{{ playlist.is_jingle ? ' (Jingle Mode)' : '' }}</label>
+                                </div>
+                                <div class="form-text">Other playlists whose tracks count as jingles. The sweeper playlists always count.</div>
+                            </fieldset>
+                        </div>
+                    </fieldset>
 
-                <fieldset>
-                    <legend>Sweeper selection</legend>
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-6 col-xl-4">
-                            <label class="form-label d-block mb-0">
-                                Other sweepers before a repeat
-                                <input v-model.number="settings.sweeper_gap" class="form-control" type="number" min="0" max="100" step="1" required>
-                            </label>
-                            <div class="form-text">At least this many other sweepers play before the same sweeper is used again. If none of the others fits a song's intro, that song gets no sweeper. <strong>0</strong> allows repeats. A single sweeper can always repeat.</div>
+                    <fieldset class="form-group">
+                        <legend>Playlists Without Sweepers</legend>
+                        <div class="row g-3">
+                            <fieldset class="form-group col-md-12">
+                                <legend class="form-label">Exclude these playlists</legend>
+                                <div v-for="playlist in jinglePlaylists" :key="playlist.id" class="form-check">
+                                    <input :id="'sweepers-excluded-' + playlist.id" v-model="settings.excluded_playlist_ids" class="form-check-input" type="checkbox" :value="playlist.id">
+                                    <label class="form-check-label" :for="'sweepers-excluded-' + playlist.id">{{ playlist.name }}</label>
+                                </div>
+                                <div class="form-text">Tracks from these playlists never get a sweeper and are never moved, for example news or pre-recorded shows. Selecting a playlist group covers all playlists in it.</div>
+                            </fieldset>
                         </div>
-                    </div>
-                    <div class="form-check form-switch">
-                        <input id="sweepers-longest-fit" v-model="settings.longest_fit" class="form-check-input" type="checkbox" role="switch">
-                        <label class="form-check-label" for="sweepers-longest-fit">Prefer the longest fitting sweepers</label>
-                    </div>
-                    <div class="form-text" :class="{ 'mb-3': settings.longest_fit }">
-                        <strong>Off:</strong> all sweepers that fit the intro take turns; the one played longest ago comes next.
-                        <strong>On:</strong> prefer sweepers that fill most of the intro. How close they must come is set by the <em>intro length tolerance</em>, which appears when this is switched on.
-                    </div>
-                    <div v-if="settings.longest_fit" class="row g-3">
-                        <div class="col-md-6 col-xl-4">
-                            <label class="form-label d-block mb-0">
-                                Intro length tolerance (%)
-                                <input v-model.number="settings.length_tolerance" class="form-control" type="number" min="0" max="100" step="1" required>
-                            </label>
-                            <div class="form-text">Preferred sweepers may be this much shorter than the available intro. If none in this range is eligible, regular rotation chooses another fitting sweeper. Repeat, reservation and timing rules still apply.</div>
-                        </div>
-                    </div>
-                </fieldset>
+                    </fieldset>
 
-                <fieldset>
-                    <legend>Improve Sweeper-to-Song Matching</legend>
-                    <div class="form-check form-switch">
-                        <input id="sweepers-swap-for-intro" v-model="settings.swap_for_intro" class="form-check-input" type="checkbox" role="switch">
-                        <label class="form-check-label" for="sweepers-swap-for-intro">Move a song with an intro forward</label>
-                    </div>
-                    <div class="form-text">
-                        When a sweeper is due but the next song has no usable intro, it changes places with a later queued song that has one.
-                    </div>
-                    <div class="form-check form-switch mt-3">
-                        <input id="sweepers-swap-from-playlist" v-model="settings.swap_from_playlist" class="form-check-input" type="checkbox" role="switch">
-                        <label class="form-check-label" for="sweepers-swap-from-playlist">Swap with another song from same playlist</label>
-                    </div>
-                    <div class="form-text">
-                        If no queued song can be moved forward, try a fitting song from the same playlist using AzuraCast's playlist order and repetition rules.
-                        The replaced song returns to the playlist rotation, not directly to the end of the playback queue. Either option can be used on its own.
-                    </div>
-                    <template v-if="settings.swap_for_intro || settings.swap_from_playlist">
-                        <div class="form-check form-switch mt-2">
-                            <input id="sweepers-swap-sequential" v-model="settings.swap_sequential" class="form-check-input" type="checkbox" role="switch">
-                            <label class="form-check-label" for="sweepers-swap-sequential">Also move or swap songs from sequential playlists</label>
+                    <fieldset class="form-group">
+                        <legend>Sweeper Selection</legend>
+                        <div class="row g-3">
+                            <div class="form-group col-md-6">
+                                <label class="form-label" for="sweepers-gap">Other sweepers before a repeat</label>
+                                <input id="sweepers-gap" v-model.number="settings.sweeper_gap" class="form-control" type="number" min="0" max="100" step="1" required>
+                                <div class="form-text">At least this many other sweepers play before the same sweeper is used again. If none of the others fits a song's intro, that song gets no sweeper. <strong>0</strong> allows repeats. A single sweeper can always repeat.</div>
+                            </div>
+                            <div class="form-group col-md-12">
+                                <div class="form-check form-switch">
+                                    <input id="sweepers-longest-fit" v-model="settings.longest_fit" class="form-check-input" type="checkbox" role="switch">
+                                    <label class="form-check-label" for="sweepers-longest-fit">Prefer the longest fitting sweepers</label>
+                                </div>
+                                <div class="form-text">
+                                    <strong>Off:</strong> all sweepers that fit the intro take turns; the one played longest ago comes next.
+                                    <strong>On:</strong> prefer sweepers that fill most of the intro. How close they must come is set by the <em>intro length tolerance</em>, which appears when this is switched on.
+                                </div>
+                            </div>
+                            <div v-if="settings.longest_fit" class="form-group col-md-6">
+                                <label class="form-label" for="sweepers-tolerance">Intro length tolerance (%)</label>
+                                <input id="sweepers-tolerance" v-model.number="settings.length_tolerance" class="form-control" type="number" min="0" max="100" step="1" required>
+                                <div class="form-text">Preferred sweepers may be this much shorter than the available intro. If none in this range is eligible, regular rotation chooses another fitting sweeper. Repeat, reservation and timing rules still apply.</div>
+                            </div>
                         </div>
-                        <div class="form-text">Off: songs from sequential playlists keep their place. On: both matching options may change their order.</div>
-                    </template>
-                </fieldset>
+                    </fieldset>
 
-                <fieldset>
-                    <legend>Timing</legend>
-                    <p class="form-text mt-0">A sweeper is normally timed so that its voice ends just before the singing starts. Any echo or reverb tail may continue over the vocals.</p>
-                    <div class="row g-3">
-                        <div class="col-md-6 col-xl-4">
-                            <label class="form-label d-block mb-0">
-                                Handover margin (s)
-                                <input v-model.number="settings.margin" class="form-control" type="number" min="0" max="5" step="0.1" required>
-                            </label>
-                            <div class="form-text">Safety gap between the end of the sweeper's voice and the start of the vocals.</div>
+                    <fieldset class="form-group">
+                        <legend>Improve Sweeper-to-Song Matching</legend>
+                        <div class="row g-3">
+                            <div class="form-group col-md-12">
+                                <div class="form-check form-switch">
+                                    <input id="sweepers-swap-for-intro" v-model="settings.swap_for_intro" class="form-check-input" type="checkbox" role="switch">
+                                    <label class="form-check-label" for="sweepers-swap-for-intro">Move a song with an intro forward</label>
+                                </div>
+                                <div class="form-text">When a sweeper is due but the next song has no usable intro, it changes places with a later queued song that has one.</div>
+                            </div>
+                            <div class="form-group col-md-12">
+                                <div class="form-check form-switch">
+                                    <input id="sweepers-swap-from-playlist" v-model="settings.swap_from_playlist" class="form-check-input" type="checkbox" role="switch">
+                                    <label class="form-check-label" for="sweepers-swap-from-playlist">Swap with another song from same playlist</label>
+                                </div>
+                                <div class="form-text">
+                                    If no queued song can be moved forward, try a fitting song from the same playlist using AzuraCast's playlist order and repetition rules.
+                                    The replaced song returns to the playlist rotation, not directly to the end of the playback queue. Either option can be used on its own.
+                                </div>
+                            </div>
+                            <div v-if="settings.swap_for_intro || settings.swap_from_playlist" class="form-group col-md-12">
+                                <div class="form-check form-switch">
+                                    <input id="sweepers-swap-sequential" v-model="settings.swap_sequential" class="form-check-input" type="checkbox" role="switch">
+                                    <label class="form-check-label" for="sweepers-swap-sequential">Also move or swap songs from sequential playlists</label>
+                                </div>
+                                <div class="form-text">Off: songs from sequential playlists keep their place. On: both matching options may change their order.</div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="form-check form-switch mt-3">
-                        <input id="sweepers-limitDelay" v-model="settings.limit_delay" class="form-check-input" type="checkbox" role="switch">
-                        <label class="form-check-label" for="sweepers-limitDelay">Limit start delay</label>
-                    </div>
-                    <div class="form-text">
-                        <strong>Off:</strong> always time the sweeper to the end of the intro, even if it starts late in a long intro.
-                        <strong>On:</strong> if that would make the sweeper wait longer than the maximum start delay, it starts at the early start instead.
-                    </div>
-                    <div v-if="settings.limit_delay" class="row g-3 mt-0">
-                        <div class="col-md-6 col-xl-4">
-                            <label class="form-label d-block mb-0">
-                                Maximum start delay (s)
-                                <input v-model.number="settings.max_wait" class="form-control" type="number" min="0" max="3600" step="0.1" required>
-                            </label>
-                            <div class="form-text">Longest wait after the song starts for a sweeper timed to the end of the intro. <strong>0</strong> always uses the early start.</div>
-                        </div>
-                        <div class="col-md-6 col-xl-4">
-                            <label class="form-label d-block mb-0">
-                                Early start after song start (s)
-                                <input v-model.number="settings.early_start" class="form-control" type="number" min="0" max="60" step="0.1" required>
-                            </label>
-                            <div class="form-text">When the wait would be too long, the sweeper starts this many seconds into the song. It never starts later than the timed position, so it still ends before the vocals.</div>
-                        </div>
-                    </div>
-                </fieldset>
+                    </fieldset>
 
-                <fieldset>
-                    <legend>Sound</legend>
-                    <div class="row g-3">
-                        <div class="col-md-6 col-xl-4">
-                            <label class="form-label d-block mb-0">
-                                Maximum ducking (dB)
-                                <input v-model.number="settings.duck_db" class="form-control" type="number" min="-20" max="0" step="0.5" required>
-                            </label>
-                            <div class="form-text">How far the music is lowered under the sweeper's voice at most. Lower values make the voice clearer; values closer to 0 are more subtle. The music dips only while the sweeper speaks and comes back right after.</div>
+                    <fieldset class="form-group">
+                        <legend>Timing</legend>
+                        <p>A sweeper is normally timed so that its voice ends just before the singing starts. Any echo or reverb tail may continue over the vocals.</p>
+                        <div class="row g-3">
+                            <div class="form-group col-md-6">
+                                <label class="form-label" for="sweepers-margin">Handover margin (s)</label>
+                                <input id="sweepers-margin" v-model.number="settings.margin" class="form-control" type="number" min="0" max="5" step="0.1" required>
+                                <div class="form-text">Safety gap between the end of the sweeper's voice and the start of the vocals.</div>
+                            </div>
+                            <div class="form-group col-md-12">
+                                <div class="form-check form-switch">
+                                    <input id="sweepers-limitDelay" v-model="settings.limit_delay" class="form-check-input" type="checkbox" role="switch">
+                                    <label class="form-check-label" for="sweepers-limitDelay">Limit start delay</label>
+                                </div>
+                                <div class="form-text">
+                                    <strong>Off:</strong> always time the sweeper to the end of the intro, even if it starts late in a long intro.
+                                    <strong>On:</strong> if that would make the sweeper wait longer than the maximum start delay, it starts at the early start instead.
+                                </div>
+                            </div>
+                            <template v-if="settings.limit_delay">
+                                <div class="form-group col-md-6">
+                                    <label class="form-label" for="sweepers-max-wait">Maximum start delay (s)</label>
+                                    <input id="sweepers-max-wait" v-model.number="settings.max_wait" class="form-control" type="number" min="0" max="3600" step="0.1" required>
+                                    <div class="form-text">Longest wait after the song starts for a sweeper timed to the end of the intro. <strong>0</strong> always uses the early start.</div>
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <label class="form-label" for="sweepers-early-start">Early start after song start (s)</label>
+                                    <input id="sweepers-early-start" v-model.number="settings.early_start" class="form-control" type="number" min="0" max="60" step="0.1" required>
+                                    <div class="form-text">When the wait would be too long, the sweeper starts this many seconds into the song. It never starts later than the timed position, so it still ends before the vocals.</div>
+                                </div>
+                            </template>
                         </div>
-                        <div class="col-md-6 col-xl-4">
-                            <label class="form-label d-block mb-0">
-                                Jingle gain (%)
-                                <input v-model.number="jingleGainPercent" class="form-control" type="number" min="0" max="200" step="1" required>
-                            </label>
-                            <div class="form-text">Volume of the sweepers compared with the songs; <strong>100%</strong> = as loud as the songs.</div>
-                        </div>
-                    </div>
-                    <div class="form-check form-switch mt-3">
-                        <input id="sweepers-reverb" v-model="settings.reverb" class="form-check-input" type="checkbox" role="switch">
-                        <label class="form-check-label" for="sweepers-reverb">Add reverb to the sweeper voice</label>
-                    </div>
-                    <div class="form-text" :class="{ 'mb-3': settings.reverb }">A gentle, warm reverb that gives the voice some space, like a produced jingle.</div>
-                    <div v-if="settings.reverb" class="row g-3">
-                        <div class="col-md-6 col-xl-4">
-                            <label class="form-label d-block mb-0">
-                                Reverb intensity (%)
-                                <input v-model.number="settings.reverb_intensity" class="form-control" type="number" min="0" max="100" step="5" required>
-                            </label>
-                            <div class="form-text">How much reverb is mixed in.</div>
-                        </div>
-                    </div>
-                    <div class="sweepers-preview mt-3">
-                        <div class="row g-2 align-items-end">
-                            <div class="col-md-6 col-xl-4">
-                                <label class="form-label d-block mb-0">
-                                    Preview sweeper
-                                    <select v-model="previewId" class="form-select" :disabled="!previewSweepers.length">
+                    </fieldset>
+
+                    <fieldset class="form-group">
+                        <legend>Sound</legend>
+                        <div class="row g-3">
+                            <div class="form-group col-md-6">
+                                <label class="form-label" for="sweepers-duck">Maximum ducking (dB)</label>
+                                <input id="sweepers-duck" v-model.number="settings.duck_db" class="form-control" type="number" min="-20" max="0" step="0.5" required>
+                                <div class="form-text">How far the music is lowered under the sweeper's voice at most. Lower values make the voice clearer; values closer to 0 are more subtle. The music dips only while the sweeper speaks and comes back right after.</div>
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label class="form-label" for="sweepers-gain">Jingle gain (%)</label>
+                                <input id="sweepers-gain" v-model.number="jingleGainPercent" class="form-control" type="number" min="0" max="200" step="1" required>
+                                <div class="form-text">Volume of the sweepers compared with the songs; <strong>100%</strong> = as loud as the songs.</div>
+                            </div>
+                            <div class="form-group col-md-12">
+                                <div class="form-check form-switch">
+                                    <input id="sweepers-reverb" v-model="settings.reverb" class="form-check-input" type="checkbox" role="switch">
+                                    <label class="form-check-label" for="sweepers-reverb">Add reverb to the sweeper voice</label>
+                                </div>
+                                <div class="form-text">A gentle, warm reverb that gives the voice some space, like a produced jingle.</div>
+                            </div>
+                            <div v-if="settings.reverb" class="form-group col-md-6">
+                                <label class="form-label" for="sweepers-reverb-intensity">Reverb intensity (%)</label>
+                                <input id="sweepers-reverb-intensity" v-model.number="settings.reverb_intensity" class="form-control" type="number" min="0" max="100" step="5" required>
+                                <div class="form-text">How much reverb is mixed in.</div>
+                            </div>
+                            <div class="form-group col-md-12 sweepers-preview">
+                                <label class="form-label" for="sweepers-preview">Preview sweeper</label>
+                                <div class="input-group">
+                                    <select id="sweepers-preview" v-model="previewId" class="form-select" :disabled="!previewSweepers.length">
                                         <option v-for="sweeper in previewSweepers" :key="sweeper.id" :value="sweeper.id">{{ describe(sweeper) }}</option>
                                     </select>
-                                </label>
-                            </div>
-                            <div class="col-auto">
-                                <button class="btn btn-outline-primary" type="button" :disabled="!previewSupported || !previewId || previewLoading" @click="togglePreview">
-                                    {{ previewLoading ? 'Loading…' : previewPlaying ? 'Stop' : 'Play' }}
-                                </button>
+                                    <button class="btn btn-secondary" type="button" :disabled="!previewSupported || !previewId || previewLoading" @click="togglePreview">
+                                        <Icon :name="previewPlaying ? 'stop' : 'play'" />
+                                        <span>{{ previewLoading ? 'Loading…' : previewPlaying ? 'Stop' : 'Play' }}</span>
+                                    </button>
+                                </div>
+                                <div class="form-text">
+                                    <template v-if="!previewSupported">This browser cannot play the preview.</template>
+                                    <template v-else-if="!settings.playlist_ids.length">Choose a sweeper playlist above to preview its sweepers.</template>
+                                    <template v-else>Plays the sweeper in your browser with the reverb as set above, before saving. Switching the reverb or changing the intensity is heard right away. Volume and ducking are not part of the preview.</template>
+                                </div>
+                                <div v-if="previewError" class="invalid-feedback d-block" role="alert">{{ previewError }}</div>
                             </div>
                         </div>
-                        <div class="form-text">
-                            <template v-if="!previewSupported">This browser cannot play the preview.</template>
-                            <template v-else-if="!settings.playlist_ids.length">Choose a sweeper playlist above to preview its sweepers.</template>
-                            <template v-else>Plays the sweeper in your browser with the reverb as set above, before saving. Switching the reverb or changing the intensity is heard right away. Volume and ducking are not part of the preview.</template>
-                        </div>
-                        <p v-if="previewError" class="text-danger small mb-0" role="alert">{{ previewError }}</p>
-                    </div>
-                </fieldset>
+                    </fieldset>
 
-                <button class="btn btn-primary" :disabled="saving">Save settings</button>
-                <div class="form-text mt-3">Note: changes apply immediately, no restart needed.</div>
-            </form>
-            </div>
-        </section>
-        <section v-if="!loading && current === 'intros'" class="row g-3">
-            <div class="col-12">
-            <aside class="card h-100" role="region" aria-labelledby="sweepers-cues-heading">
-                <div class="card-header text-bg-primary">
-                    <h2 id="sweepers-cues-heading" class="card-title mb-0">Intro Cues</h2>
+                    <button type="submit" class="btn btn-primary mt-3" :disabled="saving">Save Changes</button>
+                    <div class="form-text">Changes apply immediately; no broadcasting restart is needed.</div>
                 </div>
-                <div class="card-body">
-                    <p class="text-muted"><strong>0</strong> = no usable intro, <strong>empty</strong> = not known yet. Songs without an intro end get no sweeper.</p>
-                    <form class="search" @submit.prevent>
-                        <div class="input-group">
-                            <input id="search" v-model="search" class="form-control" type="search" aria-label="Search tracks" placeholder="Artist, title or filename">
-                        </div>
-                    </form>
-                    <div class="form-check form-switch mt-3">
-                        <input id="unknown-intros" v-model="unknownOnly" class="form-check-input" type="checkbox" role="switch">
-                        <label class="form-check-label" for="unknown-intros">Show unknown/untagged tracks</label>
+            </form>
+        </section>
+
+        <section v-if="!loading && current === 'intros'" class="card mb-3" role="region" aria-labelledby="sweepers-cues-heading">
+            <div class="card-header text-bg-primary">
+                <div class="d-lg-flex align-items-center">
+                    <h2 id="sweepers-cues-heading" class="card-title flex-fill my-0">Intro Cues</h2>
+                    <div class="flex-shrink buttons ms-lg-2 mt-2 mt-lg-0">
+                        <button
+                            class="btn btn-dark sweepers-scan"
+                            type="button"
+                            :disabled="!listening && !scanning && (mediaLoading || !rows.length)"
+                            :aria-pressed="Boolean(listening || scanning)"
+                            :title="listening?.path"
+                            @click="listening || scanning ? stopListening() : startListening()"
+                        >
+                            <Icon :name="listening || scanning ? 'stop' : 'play'" />
+                            <span>{{ listening || scanning ? 'Stop' : 'Scan Intros' }}</span>
+                        </button>
                     </div>
                 </div>
-                <div class="table-responsive media-list">
+            </div>
+            <div class="card-body pb-0">
+                <p class="card-text"><strong>0</strong> = no usable intro, <strong>empty</strong> = not known yet. Songs without an intro end get no sweeper. <em>Scan Intros</em> plays five seconds from every intro end, page by page, until you stop it.</p>
+            </div>
+            <div class="datatable-wrapper">
+                <DataToolbar
+                    v-model:search="search"
+                    :per-page="mediaPerPage"
+                    search-id="search"
+                    search-label="Search tracks"
+                    :page="page"
+                    :total="total"
+                    :active-filters="unknownOnly ? 1 : 0"
+                    label="Intro cue pages"
+                    @update:per-page="changeMediaPerPage"
+                    @page="changePage"
+                    @refresh="changePage(page)"
+                >
+                    <template #filters>
+                        <div class="form-check form-switch text-nowrap">
+                            <input id="unknown-intros" v-model="unknownOnly" class="form-check-input" type="checkbox" role="switch">
+                            <label class="form-check-label" for="unknown-intros">Only unknown/untagged tracks</label>
+                        </div>
+                    </template>
+                </DataToolbar>
+                <div class="datatable-main table-responsive media-list">
                     <table class="table align-middle table-striped table-hover mb-0">
                         <thead>
                             <tr>
                                 <th scope="col">File</th>
                                 <th scope="col">Duration</th>
                                 <th scope="col">Intro End</th>
-                                <th scope="col" class="text-end text-nowrap">
-                                    <button
-                                        class="btn btn-sm btn-secondary"
-                                        type="button"
-                                        :disabled="!listening && !scanning && (mediaLoading || !rows.length)"
-                                        :aria-pressed="Boolean(listening || scanning)"
-                                        :title="listening?.path"
-                                        @click="listening || scanning ? stopListening() : startListening()"
-                                    >
-                                        <svg class="intro-play-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path :d="listening || scanning ? 'M3 3h10v10H3z' : 'M4 2l10 6-10 6z'" /></svg>
-                                        {{ listening || scanning ? 'Stop' : 'Scan Intros' }}
-                                    </button>
-                                </th>
+                                <th scope="col" class="text-end">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <template v-for="row in visibleRows" :key="row.id">
+                            <tr v-if="mediaLoading && !rows.length">
+                                <td colspan="4" class="text-center p-5"><div class="spinner-border" role="status"><span class="visually-hidden">Loading…</span></div></td>
+                            </tr>
+                            <tr v-else-if="!rows.length">
+                                <td colspan="4" class="text-center p-5">No records.</td>
+                            </tr>
+                            <template v-for="row in rows" :key="row.id">
                             <tr v-if="selected?.id !== row.id" class="media-track">
                                 <td class="file-name">
                                     <span>{{ row.path }}</span>
@@ -300,139 +315,176 @@
                                 <td class="text-nowrap">{{ formatDuration(row.duration) }}</td>
                                 <td class="text-nowrap">{{ formatIntro(row.intro_end) }}</td>
                                 <td class="text-end text-nowrap">
-                                    <button type="button" class="btn btn-sm btn-primary" :aria-label="'Edit intro: ' + row.path" @click="select(row)">Edit intro</button>
-                                    <button type="button" class="btn btn-sm btn-secondary ms-2" :disabled="!canListen(row)" :aria-label="'Listen at intro: ' + row.path" @click="listenOne(row)">
-                                        <svg class="intro-play-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 2l10 6-10 6z" /></svg>
-                                        Intro
-                                    </button>
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" class="btn btn-primary" :aria-label="'Edit intro: ' + row.path" @click="select(row)">Edit intro</button>
+                                        <button type="button" class="btn btn-secondary" :disabled="!canListen(row)" :aria-label="'Listen at intro: ' + row.path" @click="listenOne(row)">
+                                            <Icon name="play" />
+                                            <span>Intro</span>
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                             <tr v-if="selected?.id === row.id" class="intro-editor-row">
                                 <td colspan="4" class="p-0">
-            <article class="card border-0 shadow-none">
-                <div class="card-header text-bg-primary d-flex justify-content-between align-items-center gap-2">
-                    <h2 class="card-title mb-0 text-break">{{ selected.path }}</h2>
-                    <button class="btn btn-sm btn-outline-light" type="button" @click="selected = null">Close editor</button>
-                </div>
-                <div class="card-body">
-                <p class="text-muted">Duration {{ formatDuration(selected.duration) }}</p>
-                <Waveform
-                    :key="selected.id"
-                    :ref="el => { if (selected?.id === row.id) waveform = el; }"
-                    :audio-url="selected.audio_url"
-                    :waveform-url="selected.waveform_url"
-                    :intro="marker"
-                    @position="position = $event"
-                    @intro="draft = $event"
-                >
-                    <template #controls="{ ready }">
-                        <button class="btn btn-secondary" type="button" :disabled="!ready" @click="draft = Math.round(position * 100) / 100">Set</button>
-                        <button class="btn btn-secondary" type="button" :disabled="marker === null || !ready" @click="waveform?.playAt(marker)">Listen Intro</button>
-                    </template>
-                </Waveform>
-                <form class="d-flex flex-wrap align-items-end gap-2" @submit.prevent="saveIntro">
-                    <label class="form-label mb-0">
-                        Intro End (s)
-                        <input v-model="draft" class="form-control" type="number" min="0" :max="selected.duration" step="0.01">
-                    </label>
-                    <div class="d-flex flex-wrap gap-2">
-                        <button class="btn btn-secondary" type="button" @click="draft = 0">No Intro</button>
-                        <button class="btn btn-secondary" type="button" @click="draft = ''">Clear</button>
-                        <button class="btn btn-primary" :disabled="saving || !validDraft">Save Intro</button>
-                    </div>
-                </form>
-                </div>
-            </article>
+                                    <article class="card border-0 shadow-none">
+                                        <div class="card-header text-bg-primary">
+                                            <div class="d-lg-flex align-items-center">
+                                                <h2 class="card-title flex-fill my-0 text-break">{{ selected.path }}</h2>
+                                                <div class="flex-shrink buttons ms-lg-2 mt-2 mt-lg-0">
+                                                    <button class="btn btn-dark" type="button" @click="selected = null">Close Editor</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="card-body">
+                                            <p class="card-text">Duration {{ formatDuration(selected.duration) }}</p>
+                                            <Waveform
+                                                :key="selected.id"
+                                                :ref="el => { if (selected?.id === row.id) waveform = el; }"
+                                                :audio-url="selected.audio_url"
+                                                :waveform-url="selected.waveform_url"
+                                                :intro="marker"
+                                                @position="position = $event"
+                                                @intro="draft = $event"
+                                            >
+                                                <template #controls="{ ready }">
+                                                    <button class="btn btn-secondary" type="button" :disabled="!ready" @click="draft = Math.round(position * 100) / 100">Set</button>
+                                                    <button class="btn btn-secondary" type="button" :disabled="marker === null || !ready" @click="waveform?.playAt(marker)">Listen Intro</button>
+                                                </template>
+                                            </Waveform>
+                                            <form class="row g-3 align-items-end" @submit.prevent="saveIntro">
+                                                <div class="form-group col-md-4">
+                                                    <label class="form-label" for="sweepers-intro-end">Intro End (s)</label>
+                                                    <input id="sweepers-intro-end" v-model="draft" class="form-control" type="number" min="0" :max="selected.duration" step="0.01">
+                                                </div>
+                                                <div class="col-md-8 buttons">
+                                                    <button class="btn btn-secondary" type="button" @click="draft = 0">No Intro</button>
+                                                    <button class="btn btn-secondary" type="button" @click="draft = ''">Clear</button>
+                                                    <button type="submit" class="btn btn-primary" :disabled="saving || !validDraft">Save Intro</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </article>
                                 </td>
                             </tr>
                             </template>
                         </tbody>
                     </table>
                 </div>
-                <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
-                    <span class="text-muted" role="status">{{ total ? total + ' matching files' : 'No matching files.' }}</span>
-                    <nav aria-label="Intro cue pages">
-                        <ul class="pagination mb-0">
-                            <li class="page-item" :class="{ disabled: page === 1 || mediaLoading }"><button class="page-link" type="button" :disabled="page === 1 || mediaLoading" @click="changePage(page - 1)">Previous</button></li>
-                            <li class="page-item disabled"><span class="page-link">{{ page }} / {{ pageCount }}</span></li>
-                            <li class="page-item" :class="{ disabled: page === pageCount || mediaLoading }"><button class="page-link" type="button" :disabled="page === pageCount || mediaLoading" @click="changePage(page + 1)">Next</button></li>
-                        </ul>
-                    </nav>
+                <div v-if="mediaPerPage > 0" class="datatable-toolbar-bottom card-body">
+                    <Pagination :page="page" :total="total" :per-page="mediaPerPage" label="Intro cue pages" @change="changePage" />
                 </div>
-            </aside>
             </div>
-
         </section>
 
         <section v-if="!loading && current === 'history'" class="card mb-3" role="region" aria-labelledby="sweepers-history-heading">
-            <div class="card-header text-bg-primary d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <h2 id="sweepers-history-heading" class="card-title mb-0">Sweeper Playback Timeline</h2>
-                <div class="d-flex align-items-center gap-3">
-                    <div class="form-check form-switch mb-0">
-                        <input id="sweepers-only-played" v-model="onlySweepers" class="form-check-input" type="checkbox" role="switch">
-                        <label class="form-check-label" for="sweepers-only-played">Only songs with a sweeper</label>
+            <div class="card-header text-bg-primary">
+                <div class="d-lg-flex align-items-center">
+                    <h2 id="sweepers-history-heading" class="card-title flex-fill my-0">Sweeper Playback Timeline</h2>
+                    <div class="flex-shrink buttons ms-lg-2 mt-2 mt-lg-0">
+                        <VueDatePicker v-bind="pickerOptions" :model-value="historyRange" @update:model-value="changeRange">
+                            <template #dp-input="{ value }">
+                                <button type="button" class="btn btn-dark dropdown-toggle sweepers-range">
+                                    <Icon name="dateRange" />
+                                    <span>{{ value }}</span>
+                                </button>
+                            </template>
+                        </VueDatePicker>
                     </div>
-                    <button class="btn btn-sm btn-outline-light" type="button" @click="loadHistory">Refresh</button>
                 </div>
             </div>
-            <div class="table-responsive">
-                <table class="table align-middle table-hover mb-0 sweepers-timeline">
-                    <thead>
-                        <tr>
-                            <th scope="col">Time</th>
-                            <th scope="col">Track</th>
-                            <th scope="col">Sweeper Status</th>
-                            <th scope="col">Sweeper or reason</th>
-                            <th scope="col" class="text-end">Intro</th>
-                            <th scope="col" class="text-end">Started after</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="entry in timeline" :key="entry.at" :class="rowClass(entry)">
-                            <td class="text-nowrap">
-                                <div>{{ formatClock(entry.at) }}</div>
-                                <small class="text-muted">{{ formatDate(entry.at) }}</small>
-                            </td>
-                            <td class="file-name">
-                                <div class="timeline-title">{{ fileTitle(entry.song) }}</div>
-                                <small v-if="fileArtist(entry.song)" class="text-muted timeline-artist">{{ fileArtist(entry.song) }}</small>
-                                <small v-if="entry.moved" class="timeline-moved" :title="entry.moved_before ? describe(entry.moved_before) : ''">
-                                    ↑ Moved ahead of {{ entry.moved_before ? fileTitle(entry.moved_before) : 'a song without intro' }}
-                                </small>
-                                <small v-if="entry.replaced" class="timeline-moved" :title="entry.replaced_before ? describe(entry.replaced_before) : ''">
-                                    Replaced {{ entry.replaced_before ? fileTitle(entry.replaced_before) : 'a song without intro' }} from the same playlist
-                                </small>
-                            </td>
-                            <td class="text-nowrap">
-                                <span v-if="status(entry)" class="badge rounded-pill" :class="status(entry).class">{{ status(entry).label }}</span>
-                            </td>
-                            <td class="file-name">
-                                <template v-if="entry.result === 'played'">
-                                    <div class="timeline-title">{{ fileTitle(entry.sweeper) }}</div>
-                                    <small v-if="fileArtist(entry.sweeper)" class="text-muted timeline-artist">{{ fileArtist(entry.sweeper) }}</small>
-                                </template>
-                                <template v-else>
-                                    <div class="text-muted timeline-reason">{{ reasonText(entry) }}</div>
-                                    <small v-if="unmovedReasons[entry.unmoved]" class="timeline-unmoved">{{ unmovedReasons[entry.unmoved] }}</small>
-                                </template>
-                            </td>
-                            <td class="text-nowrap text-end">
-                                <button v-if="entry.song?.id && entry.result !== 'jingle'" type="button" class="btn btn-sm btn-link timeline-intro" :aria-label="'Edit intro: ' + describe(entry.song)" title="Edit intro" @click="editIntro(entry.song.id)">{{ seconds(entry.song.intro) || 'Set' }} ✎</button>
-                                <span v-else class="text-muted">{{ seconds(entry.song?.intro) }}</span>
-                            </td>
-                            <td class="text-nowrap text-end">{{ entry.result === 'played' ? seconds(entry.offset) : '' }}</td>
-                        </tr>
-                    </tbody>
-                </table>
+            <div class="datatable-wrapper">
+                <DataToolbar
+                    v-model:search="historySearch"
+                    :per-page="historyPerPage"
+                    search-id="sweepers-history-search"
+                    search-label="Search timeline"
+                    :page="historyPage"
+                    :total="historyTotal"
+                    :active-filters="onlySweepers ? 1 : 0"
+                    label="Timeline pages"
+                    @update:per-page="changeHistoryPerPage"
+                    @page="loadHistory"
+                    @refresh="refreshHistory"
+                >
+                    <template #filters>
+                        <div class="form-check form-switch text-nowrap">
+                            <input id="sweepers-only-played" v-model="onlySweepers" class="form-check-input" type="checkbox" role="switch">
+                            <label class="form-check-label" for="sweepers-only-played">Only songs with a sweeper</label>
+                        </div>
+                    </template>
+                </DataToolbar>
+                <div class="datatable-main table-responsive">
+                    <table class="table align-middle table-hover mb-0 sweepers-timeline">
+                        <thead>
+                            <tr>
+                                <th scope="col">Date/Time (Station)</th>
+                                <th scope="col">Track</th>
+                                <th scope="col">Sweeper Status</th>
+                                <th scope="col">Sweeper or Reason</th>
+                                <th scope="col" class="text-end">Intro</th>
+                                <th scope="col" class="text-end">Started After</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-if="historyLoading && !history.length">
+                                <td colspan="6" class="text-center p-5"><div class="spinner-border" role="status"><span class="visually-hidden">Loading…</span></div></td>
+                            </tr>
+                            <tr v-else-if="!history.length">
+                                <td colspan="6" class="text-center p-5">No records.</td>
+                            </tr>
+                            <tr v-for="entry in history" :key="entry.at" :class="rowClass(entry)">
+                                <td class="text-nowrap">
+                                    <div>{{ formatClock(entry.at) }}</div>
+                                    <small class="text-muted">{{ formatDate(entry.at) }}</small>
+                                </td>
+                                <td class="file-name">
+                                    <div class="timeline-title">{{ fileTitle(entry.song) }}</div>
+                                    <small v-if="fileArtist(entry.song)" class="text-muted timeline-artist">{{ fileArtist(entry.song) }}</small>
+                                    <small v-if="entry.moved" class="timeline-moved" :title="entry.moved_before ? describe(entry.moved_before) : ''">
+                                        ↑ Moved ahead of {{ entry.moved_before ? fileTitle(entry.moved_before) : 'a song without intro' }}
+                                    </small>
+                                    <small v-if="entry.replaced" class="timeline-moved" :title="entry.replaced_before ? describe(entry.replaced_before) : ''">
+                                        Replaced {{ entry.replaced_before ? fileTitle(entry.replaced_before) : 'a song without intro' }} from the same playlist
+                                    </small>
+                                </td>
+                                <td class="text-nowrap">
+                                    <span v-if="status(entry)" class="badge" :class="status(entry).class">{{ status(entry).label }}</span>
+                                </td>
+                                <td class="file-name">
+                                    <template v-if="entry.result === 'played'">
+                                        <div class="timeline-title">{{ fileTitle(entry.sweeper) }}</div>
+                                        <small v-if="fileArtist(entry.sweeper)" class="text-muted timeline-artist">{{ fileArtist(entry.sweeper) }}</small>
+                                    </template>
+                                    <template v-else>
+                                        <div class="text-muted timeline-reason">{{ reasonText(entry) }}</div>
+                                        <small v-if="unmovedReasons[entry.unmoved]" class="timeline-unmoved">{{ unmovedReasons[entry.unmoved] }}</small>
+                                    </template>
+                                </td>
+                                <td class="text-nowrap text-end">
+                                    <button v-if="entry.song?.id && entry.result !== 'jingle'" type="button" class="btn btn-sm btn-link timeline-intro" :aria-label="'Edit intro: ' + describe(entry.song)" title="Edit intro" @click="editIntro(entry.song.id)">{{ seconds(entry.song.intro) || 'Set' }} ✎</button>
+                                    <span v-else class="text-muted">{{ seconds(entry.song?.intro) }}</span>
+                                </td>
+                                <td class="text-nowrap text-end">{{ entry.result === 'played' ? seconds(entry.offset) : '' }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div v-if="historyPerPage > 0" class="datatable-toolbar-bottom card-body">
+                    <Pagination :page="historyPage" :total="historyTotal" :per-page="historyPerPage" label="Timeline pages" @change="loadHistory" />
+                </div>
             </div>
-            <div v-if="!timeline.length" class="card-body text-muted">{{ onlySweepers ? 'No sweeper has played yet.' : 'No track has been recorded yet.' }}</div>
         </section>
     </div>
 </template>
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { VueDatePicker } from "@vuepic/vue-datepicker";
+import DataToolbar from "./DataToolbar.vue";
+import Icon from "./Icon.vue";
+import Pagination from "./Pagination.vue";
 import Waveform from "./Waveform.vue";
+import { formatStationTime, lastDay, presetRanges, startOfDay } from "./dates.js";
 import { createReverbPreview, reverbLevel } from "./reverb.js";
 
 const props = defineProps({
@@ -454,11 +506,10 @@ const playlists = ref([]);
 const jinglePlaylists = ref([]);
 const rows = ref([]);
 const page = ref(1);
-const pageSize = 25;
+const mediaPerPage = ref(25);
 const total = ref(0);
 const mediaLoading = ref(false);
-const pageCount = computed(() => Math.max(1, Math.ceil(total.value / pageSize)));
-const visibleRows = computed(() => rows.value);
+const pageCount = computed(() => mediaPerPage.value > 0 ? Math.max(1, Math.ceil(total.value / mediaPerPage.value)) : 1);
 const search = ref("");
 const unknownOnly = ref(false);
 const selected = ref(null);
@@ -495,11 +546,11 @@ function formatIntro(value) {
 }
 
 function formatDate(seconds) {
-    return new Date(seconds * 1000).toLocaleDateString(undefined, { dateStyle: "medium" });
+    return formatStationTime(seconds, stationZone.value, { dateStyle: "medium" });
 }
 
 function formatClock(seconds) {
-    return new Date(seconds * 1000).toLocaleTimeString(undefined, { timeStyle: "medium" });
+    return formatStationTime(seconds, stationZone.value, { timeStyle: "medium" });
 }
 
 function describe(file) {
@@ -518,9 +569,28 @@ function fileArtist(file) {
 }
 
 const onlySweepers = ref(false);
-const timeline = computed(() => (onlySweepers.value
-    ? history.value.filter((entry) => entry.result === "played")
-    : history.value));
+const historyRange = ref(lastDay());
+// The default range follows the clock on refresh until a range is chosen.
+let rollingRange = true;
+const historySearch = ref("");
+const historyPage = ref(1);
+const historyPerPage = ref(25);
+const historyTotal = ref(0);
+const historyLoading = ref(false);
+const retentionDays = ref(7);
+let historyRequest = 0;
+let historyTimer;
+const stationZone = computed(() => station.value.timezone || undefined);
+const pickerOptions = computed(() => ({
+    dark: typeof document !== "undefined" && document.documentElement.getAttribute("data-bs-theme") === "dark",
+    range: { partialRange: false },
+    timeConfig: { enableTimePicker: true },
+    presetDates: presetRanges(stationZone.value, retentionDays.value),
+    actionRow: { selectBtnLabel: "Select", cancelBtnLabel: "Cancel", nowBtnLabel: "Now" },
+    inputAttrs: { clearable: false },
+    minDate: startOfDay(new Date(), stationZone.value, retentionDays.value),
+    ...(stationZone.value ? { timezone: stationZone.value } : {}),
+}));
 
 const reasons = {
     no_intro: "No intro end set",
@@ -548,7 +618,7 @@ const reasons = {
 
 function reasonText(entry) {
     if (entry.result === "scheduled") {
-        return isUpcoming(entry) ? "Sweeper coming up" : "Sweeper did not start";
+        return entry.upcoming ? "Sweeper coming up" : "Sweeper did not start";
     }
     return reasons[result(entry)] ?? "No sweeper";
 }
@@ -570,10 +640,6 @@ const unmovedReasons = {
     replace_busy: "Not replaced: AzuraCast is currently rebuilding the queue",
 };
 
-function isUpcoming(entry) {
-    return entry.result === "scheduled" && entry === history.value[0];
-}
-
 // Spacing rules and track types skip a sweeper by design; any other reason means a due sweeper could not play.
 const intendedSkips = new Set([
     "jingle", "after_jingle", "after_sweeper", "jingle_follows", "excluded", "other", "live", "disabled", "intro_zero",
@@ -582,7 +648,7 @@ const intendedSkips = new Set([
 
 function status(entry) {
     if (entry.result === "played") return { label: "Played", class: "text-bg-success" };
-    if (isUpcoming(entry)) return { label: "Upcoming", class: "text-bg-info" };
+    if (entry.upcoming) return { label: "Upcoming", class: "text-bg-info" };
     if (intendedSkips.has(result(entry))) return null;
     return { label: "Missed", class: "text-bg-danger" };
 }
@@ -597,20 +663,70 @@ function seconds(value) {
     return typeof value === "number" ? `${value.toFixed(1)} s` : "";
 }
 
-async function loadHistory() {
+async function loadHistory(target = 1) {
+    clearTimeout(historyTimer);
+    const request = ++historyRequest;
+    historyLoading.value = true;
+    error.value = "";
+    const [start, end] = historyRange.value;
+    const query = new URLSearchParams({
+        start: start.toISOString(),
+        end: end.toISOString(),
+        search: historySearch.value,
+        page: String(target),
+        per_page: String(historyPerPage.value),
+        ...(onlySweepers.value ? { played: "1" } : {}),
+    });
     try {
-        const result = await api("history");
+        const result = await api(`history?${query}`);
+        if (request !== historyRequest) return;
         history.value = result.rows;
+        historyTotal.value = result.total;
+        historyPage.value = result.page;
+        retentionDays.value = result.retention_days ?? retentionDays.value;
     } catch (exception) {
-        error.value = exception.message;
+        if (request === historyRequest) error.value = exception.message;
+    } finally {
+        if (request === historyRequest) historyLoading.value = false;
     }
 }
+
+function refreshHistory() {
+    if (rollingRange) historyRange.value = lastDay();
+    void loadHistory(historyPage.value);
+}
+
+function changeRange(range) {
+    if (!Array.isArray(range) || range.length !== 2) return;
+    rollingRange = false;
+    historyRange.value = range;
+    void loadHistory();
+}
+
+function changeHistoryPerPage(size) {
+    historyPerPage.value = size;
+    void loadHistory();
+}
+
+watch(historySearch, () => {
+    clearTimeout(historyTimer);
+    historyRequest++;
+    historyTimer = setTimeout(() => { void loadHistory(); }, 300);
+});
+watch(onlySweepers, () => { void loadHistory(); });
+onUnmounted(() => {
+    clearTimeout(historyTimer);
+    historyRequest++;
+});
 
 async function show(view) {
     current.value = view;
     notice.value = "";
     if (view === "intros" && !mediaLoaded.value) await loadMedia();
-    if (view === "history") await loadHistory();
+    if (view === "history") {
+        if (rollingRange) historyRange.value = lastDay();
+        await loadHistory();
+    }
 }
 
 async function api(path, data) {
@@ -656,17 +772,22 @@ function playlistLabel(playlist) {
     return notes.length ? `${playlist.name} (${notes.join(", ")})` : playlist.name;
 }
 
+let previewRequest = 0;
+
 async function loadPreviewSweepers(ids) {
+    const request = ++previewRequest;
     stopPreview();
     previewSweepers.value = [];
     previewId.value = null;
     previewError.value = "";
     if (!ids?.length) return;
     try {
-        previewSweepers.value = (await api(`media?playlist=${ids.join(",")}`)).rows;
+        const { rows } = await api(`media?playlist=${ids.join(",")}`);
+        if (request !== previewRequest) return;
+        previewSweepers.value = rows;
         previewId.value = previewSweepers.value[0]?.id ?? null;
     } catch (exception) {
-        previewError.value = exception.message;
+        if (request === previewRequest) previewError.value = exception.message;
     }
 }
 
@@ -803,6 +924,11 @@ function changePage(target) {
     void loadMedia(target);
 }
 
+function changeMediaPerPage(size) {
+    mediaPerPage.value = size;
+    changePage(1);
+}
+
 watch(search, () => {
     clearTimeout(searchTimer);
     if (settingSearch) return;
@@ -836,7 +962,7 @@ async function loadMedia(target = 1) {
     mediaLoading.value = true;
     error.value = "";
     try {
-        const result = await api(`media?search=${encodeURIComponent(search.value)}${unknownOnly.value ? "&unknown=1" : ""}&page=${target}`);
+        const result = await api(`media?search=${encodeURIComponent(search.value)}${unknownOnly.value ? "&unknown=1" : ""}&page=${target}&per_page=${mediaPerPage.value}`);
         if (request !== mediaRequest) return false;
         rows.value = result.rows;
         total.value = result.total;

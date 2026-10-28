@@ -252,17 +252,23 @@ final readonly class Media
         return $intros;
     }
 
-    public function list(Station $station, string $search, int $page = 1, bool $unknownOnly = false): array
-    {
+    public function list(
+        Station $station,
+        string $search,
+        int $page = 1,
+        bool $unknownOnly = false,
+        int $perPage = 25
+    ): array {
         $query = $this->em->createQueryBuilder()
             ->select('m')
             ->from(StationMedia::class, 'm')
             ->where('m.storage_location = :storage')
             ->setParameter('storage', $station->media_storage_location)
             ->orderBy('m.path', 'ASC')
-            ->addOrderBy('m.id', 'ASC')
-            ->setFirstResult(($page - 1) * 25)
-            ->setMaxResults(25);
+            ->addOrderBy('m.id', 'ASC');
+        if ($perPage > 0) {
+            $query->setFirstResult(($page - 1) * $perPage)->setMaxResults($perPage);
+        }
 
         if ($search !== '') {
             $query->andWhere('m.path LIKE :search OR m.title LIKE :search OR m.artist LIKE :search')

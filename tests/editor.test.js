@@ -23,14 +23,31 @@ export default defineComponent({
         ]);
     }
 });`;
-const stubUrl = `data:text/javascript;base64,${Buffer.from(stub).toString("base64")}`;
-const source = await readFile(new URL("../frontend/App.vue", import.meta.url), "utf8");
-const { descriptor } = parse(source);
-const compiled = compileScript(descriptor, { id: "editor-test", inlineTemplate: true }).content
-    .replaceAll('from "vue"', `from ${JSON.stringify(vue)}`)
-    .replaceAll('from "./Waveform.vue"', `from ${JSON.stringify(stubUrl)}`)
-    .replaceAll('from "./reverb.js"', `from ${JSON.stringify(new URL("../frontend/reverb.js", import.meta.url).href)}`);
-const { default: App } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+const moduleUrl = (code) => `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`;
+const datePicker = `import { defineComponent, h } from ${JSON.stringify(vue)};
+export const VueDatePicker = defineComponent({
+    props: ['modelValue', 'presetDates', 'timezone', 'minDate'], emits: ['update:modelValue'],
+    setup(props, { emit, slots }) {
+        return () => h('div', { class: 'dp-stub' }, [
+            slots['dp-input']?.({ value: props.modelValue.map((date) => date.toISOString()).join(' - ') }),
+            ...(props.presetDates ?? []).map((preset) => h('button', {
+                type: 'button', class: 'dp-preset', onClick: () => emit('update:modelValue', preset.value()),
+            }, preset.label)),
+        ]);
+    }
+});`;
+const frontend = new URL("../frontend/", import.meta.url);
+const modules = { "vue": vue, "./Waveform.vue": moduleUrl(stub), "@vuepic/vue-datepicker": moduleUrl(datePicker) };
+const compileComponent = async (name) => {
+    const { descriptor } = parse(await readFile(new URL(name, frontend), "utf8"));
+    let code = compileScript(descriptor, { id: `editor-test-${name}`, inlineTemplate: true }).content;
+    for (const spec of new Set([...code.matchAll(/from "([^"]+)"/g)].map((match) => match[1]))) {
+        modules[spec] ??= spec.endsWith(".vue") ? await compileComponent(spec.slice(2)) : new URL(spec, frontend).href;
+        code = code.replaceAll(`from "${spec}"`, `from ${JSON.stringify(modules[spec])}`);
+    }
+    return moduleUrl(code);
+};
+const { default: App } = await import(await compileComponent("App.vue"));
 const writes = [];
 let releaseSave;
 let needsRestart = false;
@@ -73,9 +90,10 @@ globalThis.fetch = async (url, options) => {
             { id: 1, path: "First song", duration: 180, intro_end: 10, audio_url: "/first", waveform_url: "/wave/first" },
             { id: 2, path: "Second song", duration: 180, intro_end: 6, audio_url: "/second", waveform_url: "/wave/second" },
         ] };
-    } else if (url.endsWith("/history")) {
-        data = { limit: 300, rows: [
-            { at: 1792949000, offset: null, result: "scheduled", song: { artist: "Toto", title: "Africa", path: "africa.mp3" },
+    } else if (url.includes("/history?")) {
+        historyRequests.push(url);
+        const rows = [
+            { at: 1792949000, offset: null, result: "scheduled", upcoming: true, song: { artist: "Toto", title: "Africa", path: "africa.mp3" },
                 sweeper: null, moved: false, moved_before: null },
             { at: 1792948500, offset: null, result: "no_intro", unmoved: "move_none",
                 song: { id: 5, artist: "Queen", title: "Bohemian Rhapsody", path: "queen.mp3", intro: null },
@@ -92,7 +110,8 @@ globalThis.fetch = async (url, options) => {
                 moved: false, moved_before: null },
             { at: 1792946000, offset: null, result: "intro_before_cue", song: { id: 8, artist: "Sting", title: "Fragile", path: "sting.mp3", intro: 0 },
                 sweeper: null, moved: false, moved_before: null },
-        ] };
+        ].filter((row) => !url.includes("played=1") || row.result === "played");
+        data = { rows, total: rows.length, page: 1, per_page: 25, retention_days: 7 };
     } else {
         writes.push({ url, options, body: JSON.parse(options.body) });
         if (releaseSave) await new Promise((resolve) => { releaseSave = resolve; });
@@ -102,6 +121,14 @@ globalThis.fetch = async (url, options) => {
 };
 const previewRequests = [];
 const mediaLookups = [];
+const historyRequests = [];
+const activePage = () => document.querySelector(".datatable-toolbar-top .page-item.active")?.textContent.trim();
+const goToPage = async (number) => {
+    const link = [...document.querySelectorAll(".datatable-toolbar-top .page-link")].find((node) => node.textContent.trim() === String(number));
+    assert.ok(link, `Page link missing: ${number}`);
+    link.dispatchEvent(new Event("click", { bubbles: true, cancelable: true }));
+    await settle();
+};
 const settle = async () => {
     await new Promise((resolve) => setImmediate(resolve));
     await nextTick();
@@ -130,7 +157,7 @@ test("intro editor saves one field from numeric, marker and playhead input", asy
     try {
         await settle();
         assert.equal(document.querySelector("form.sweepers-settings"), null, "The Intros page shows no settings");
-        assert.ok(document.querySelector("aside.card .card-header.text-bg-primary"));
+        assert.ok(document.querySelector("section.card .card-header.text-bg-primary .sweepers-scan.btn-dark"));
         assert.ok(document.querySelector(".media-list table.table-striped.table-hover"));
         assert.ok(document.querySelector(".media-track button.btn-primary"));
         document.querySelector(".media-track button").click();
@@ -208,7 +235,7 @@ class IntroAudio {
     }
 }
 globalThis.Audio = IntroAudio;
-const mediaResult = (rows, total = rows.length) => ({ ok: true, json: async () => ({ rows, total, limit: 25 }) });
+const mediaResult = (rows, total = rows.length) => ({ ok: true, json: async () => ({ rows, total, page: 1, per_page: 25 }) });
 const track = (id, intro = 10) => ({
     id, path: `Track ${id}`, duration: 180, intro_end: intro, audio_url: `/audio/${id}`, waveform_url: `/wave/${id}`,
 });
@@ -241,11 +268,14 @@ test("intro scan plays five seconds from saved original-file cues through every 
     const app = await mountIntros();
     const start = IntroAudio.instances.length;
     try {
-        assert.ok(document.body.textContent.includes("102 matching files"));
+        assert.equal(activePage(), "1");
+        assert.ok([...document.querySelectorAll(".datatable-toolbar-top .page-link")].some((node) => node.textContent.trim() === "5"),
+            "Pagination covers all 102 matching files");
         assert.equal(document.querySelector("form.search button"), null);
-        const scan = document.querySelector(".media-list thead button");
+        assert.ok(document.querySelector('.datatable-toolbar-top button.btn-secondary[title="Refresh rows"]'));
+        const scan = document.querySelector(".sweepers-scan");
         assert.equal(scan.textContent.trim(), "Scan Intros");
-        assert.ok(scan.classList.contains("btn-sm"));
+        assert.ok(scan.classList.contains("btn-dark"));
         assert.ok(scan.querySelector('svg[aria-hidden="true"]'));
         await click("Scan Intros");
         assert.equal(scan.textContent.trim(), "Stop");
@@ -262,7 +292,7 @@ test("intro scan plays five seconds from saved original-file cues through every 
             assert.equal(player.paused, true);
         }
         assert.equal(IntroAudio.instances.length - start, 101, "Blank skipped; zero is playable; all 102 results covered");
-        assert.ok(document.body.textContent.includes("5 / 5"));
+        assert.equal(activePage(), "5");
         assert.ok(document.body.textContent.includes("Finished listening"));
         assert.equal(scan.textContent.trim(), "Scan Intros");
         assert.equal(scan.getAttribute("aria-pressed"), "false");
@@ -312,8 +342,8 @@ test("live search debounces, resets pagination, stops playback and ignores stale
     };
     const app = await mountIntros();
     try {
-        await click("Next");
-        assert.ok(document.body.textContent.includes("2 / 5"));
+        await goToPage(2);
+        assert.equal(activePage(), "2");
         await click("Intro");
         const oldAudio = lastAudio();
         const requests = mediaRequests.length;
@@ -326,7 +356,7 @@ test("live search debounces, resets pagination, stops playback and ignores stale
         await typeSearch("new");
         await debounceSearch();
         assert.ok(document.body.textContent.includes("Track 9"));
-        assert.ok(document.body.textContent.includes("1 / 5"));
+        assert.equal(activePage(), "1");
         releaseOld(mediaResult([track(8)], 1));
         await settle();
         assert.ok(document.body.textContent.includes("Track 9"), "Old search cannot overwrite newer results");
@@ -343,7 +373,7 @@ test("live search debounces, resets pagination, stops playback and ignores stale
 
 test("stop during page loading prevents resumed audio, and playback failures are visible", async () => {
     let releasePage;
-    mediaResponse = async (url) => url.endsWith("page=2")
+    mediaResponse = async (url) => new URL(url, "http://localhost").searchParams.get("page") === "2"
         ? new Promise((resolve) => { releasePage = resolve; })
         : mediaResult([track(1)], 26);
     const app = await mountIntros();
@@ -352,7 +382,7 @@ test("stop during page loading prevents resumed audio, and playback failures are
         lastAudio().tick(15);
         await settle();
         const count = IntroAudio.instances.length;
-        const scan = document.querySelector(".media-list thead button");
+        const scan = document.querySelector(".sweepers-scan");
         assert.equal(scan.textContent.trim(), "Stop");
         assert.ok(!scan.disabled, "Scan can be stopped while the next page is loading");
         await click("Stop");
@@ -382,7 +412,7 @@ test("empty intro pages are skipped and media failures stop scanning explicitly"
         await click("Scan Intros");
         assert.equal(IntroAudio.instances.length, count);
         assert.ok(document.body.textContent.includes("Page loading failed"));
-        const scan = document.querySelector(".media-list thead button");
+        const scan = document.querySelector(".sweepers-scan");
         assert.equal(scan.textContent.trim(), "Scan Intros");
         assert.equal(scan.getAttribute("aria-pressed"), "false");
     } finally {
@@ -411,12 +441,13 @@ test("unknown intro switch filters server-side, resets pages and removes newly t
         assert.equal(document.querySelector('label[for="search"]'), null);
         assert.equal(document.querySelector("#search").getAttribute("aria-label"), "Search tracks");
         assert.ok([...document.querySelectorAll("strong")].some((node) => node.textContent === "empty"));
-        await click("Next");
+        await goToPage(2);
         await click("Intro");
         await toggle(true);
         assert.equal(lastAudio().paused, true);
-        assert.ok(mediaRequests.at(-1).includes("unknown=1&page=1"));
-        assert.ok(document.body.textContent.includes("1 / 1"));
+        assert.ok(mediaRequests.at(-1).includes("unknown=1&page=1&per_page=25"));
+        assert.equal(activePage(), "1");
+        assert.equal(document.querySelectorAll(".datatable-toolbar-top .page-link").length, 1, "One result page");
         assert.ok(document.body.textContent.includes("Track 3"));
         await typeSearch("test");
         await debounceSearch();
@@ -426,7 +457,7 @@ test("unknown intro switch filters server-side, resets pages and removes newly t
         tagged = true;
         await save();
         assert.equal(document.querySelector("article"), null);
-        assert.ok(document.body.textContent.includes("No matching files"));
+        assert.ok(document.body.textContent.includes("No records."));
         await toggle(false);
         assert.ok(!mediaRequests.at(-1).includes("unknown="));
         assert.ok(document.body.textContent.includes("Track 1"));
@@ -480,16 +511,19 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(first.swap_sequential, false);
         assert.deepEqual(first.excluded_playlist_ids, []);
         assert.deepEqual(first.playlist_ids, [], "No sweeper playlist by default");
-        const sweeperPlaylists = field("Sweeper playlists");
-        assert.ok(sweeperPlaylists.hasAttribute("multiple"), "Several sweeper playlists can be selected");
-        assert.deepEqual([...sweeperPlaylists.options].map((option) => option.textContent.trim()),
-            ["Sweepers", "Christmas (scheduled)", "Retired (disabled)"]);
-        Object.defineProperty(sweeperPlaylists, "multiple", { value: true });
-        for (const option of sweeperPlaylists.options) {
-            Object.defineProperty(option, "selected", { configurable: true, writable: true, value: option.value !== "12" });
-        }
-        sweeperPlaylists.dispatchEvent(new Event("change", { bubbles: true }));
-        await settle();
+        const checkboxLabels = (prefix) => [...document.querySelectorAll(`input[id^="${prefix}"]`)]
+            .map((node) => document.querySelector(`label[for="${node.id}"]`).textContent.trim());
+        const check = async (id, checked = true) => {
+            const node = document.getElementById(id);
+            node.checked = checked;
+            node.dispatchEvent(new Event("change", { bubbles: true }));
+            await settle();
+        };
+        assert.ok([...document.querySelectorAll("legend.form-label")].some((node) => node.textContent === "Sweeper playlists"));
+        assert.deepEqual(checkboxLabels("sweepers-playlist-"), ["Sweepers", "Christmas (scheduled)", "Retired (disabled)"],
+            "Several sweeper playlists can be selected");
+        await check("sweepers-playlist-10");
+        await check("sweepers-playlist-11");
         assert.deepEqual((await submit()).playlist_ids, [10, 11], "All selected sweeper playlists are saved");
         assert.equal(first.sweeper_gap, 1, "One other sweeper before a repeat by default");
         assert.equal(first.reverb, false, "Reverb is off by default");
@@ -520,12 +554,9 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
             "Tolerance has the same narrow responsive column as handover margin"
         );
         assert.match(document.querySelector("section.card").textContent, /regular rotation chooses another fitting sweeper/);
-        const select = field("Additional jingle playlists");
-        assert.ok(select.hasAttribute("multiple"));
-        Object.defineProperty(select, "multiple", { value: true });
-        for (const option of select.options) Object.defineProperty(option, "selected", { configurable: true, writable: true, value: true });
-        select.dispatchEvent(new Event("change", { bubbles: true }));
-        await settle();
+        assert.deepEqual(checkboxLabels("sweepers-jingle-"), ["Station IDs (Jingle Mode)", "Promos"]);
+        await check("sweepers-jingle-20");
+        await check("sweepers-jingle-21");
         await change("Limit start delay", true, true);
         assert.equal(field("Maximum start delay").value, "10", "Maximum start delay shows its 10-second default");
         assert.equal(field("Early start").value, "2", "Early start shows its 2-second default");
@@ -535,14 +566,8 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         await change("Move a song with an intro forward", true, true);
         await change("Also move or swap songs from sequential playlists", true, true);
         await change("Swap with another song from same playlist", true, true);
-        const excluded = field("Exclude these playlists");
-        assert.ok(excluded.hasAttribute("multiple"));
-        Object.defineProperty(excluded, "multiple", { value: true });
-        for (const option of excluded.options) {
-            Object.defineProperty(option, "selected", { configurable: true, writable: true, value: option.textContent.trim() === "Promos" });
-        }
-        excluded.dispatchEvent(new Event("change", { bubbles: true }));
-        await settle();
+        assert.deepEqual(checkboxLabels("sweepers-excluded-"), ["Station IDs", "Promos"]);
+        await check("sweepers-excluded-21");
         await change("Add reverb to the sweeper voice", true, true);
         assert.equal(field("Reverb intensity").value, "25");
         await change("Reverb intensity", "40");
@@ -590,7 +615,7 @@ test("module status tells when a one-time restart is still required", async () =
         assert.match(status.textContent, /Restart broadcasting once/);
         document.querySelector("section.card form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
         await settle();
-        assert.match(document.querySelector('p.alert-info[role="status"]').textContent, /apply once the sweeper module runs/);
+        assert.match(document.querySelector('div.alert-info[role="status"]').textContent, /apply once the sweeper module runs/);
     } finally {
         app.unmount();
         moduleState = { state: "active", message: "The sweeper module is running on this station." };
@@ -642,19 +667,46 @@ test("playback timeline lists all tracks, highlights songs with a sweeper and ex
         assert.equal(cell(all[6], 4).textContent.trim(), "0.0 s ✎");
         assert.equal(all[5].querySelector(".timeline-moved"), null, "Songs in their planned order are not marked");
         assert.deepEqual([...document.querySelectorAll("#app thead th")].map((th) => th.textContent.trim()),
-            ["Time", "Track", "Sweeper Status", "Sweeper or reason", "Intro", "Started after"]);
+            ["Date/Time (Station)", "Track", "Sweeper Status", "Sweeper or Reason", "Intro", "Started After"]);
         const text = document.querySelector("#app").textContent;
         assert.doesNotMatch(text, /All played tracks|newest first|last 300/);
+        const query = () => new URL(historyRequests.at(-1), "http://localhost").searchParams;
+        assert.equal(query().get("page"), "1");
+        assert.equal(query().get("per_page"), "25");
+        assert.equal(query().get("played"), null);
+        assert.equal(Date.parse(query().get("end")) - Date.parse(query().get("start")), 86400000, "Last 24 hours by default");
+        assert.ok(document.querySelector(".card-header .sweepers-range.btn-dark"), "The date range sits in the header");
         const only = document.getElementById("sweepers-only-played");
-        assert.ok(only.closest(".card-header"), "The filter sits in the header");
+        assert.ok(only.closest(".datatable-toolbar-top"), "The filter sits in the table toolbar");
         only.checked = true;
         only.dispatchEvent(new Event("change", { bubbles: true }));
         await settle();
+        assert.equal(query().get("played"), "1", "The server filters songs with a sweeper");
         assert.equal(rows().length, 2, "The filter shows only songs with a sweeper");
         assert.ok(rows().every((row) => row.className === "timeline-played"));
         only.checked = false;
         only.dispatchEvent(new Event("change", { bubbles: true }));
         await settle();
+        const requests = historyRequests.length;
+        const searchBox = document.getElementById("sweepers-history-search");
+        searchBox.value = "abba";
+        searchBox.dispatchEvent(new Event("input", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 330));
+        await settle();
+        assert.equal(historyRequests.length, requests + 1, "Search is debounced");
+        assert.equal(query().get("search"), "abba");
+        searchBox.value = "";
+        searchBox.dispatchEvent(new Event("input", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 330));
+        await settle();
+        const yesterday = [...document.querySelectorAll(".dp-preset")].find((node) => node.textContent === "Yesterday");
+        yesterday.dispatchEvent(new Event("click", { bubbles: true }));
+        await settle();
+        const chosen = [query().get("start"), query().get("end")];
+        assert.equal(Date.parse(chosen[1]) - Date.parse(chosen[0]), 86399999, "A preset selects a whole station day");
+        document.querySelector('.datatable-toolbar-top button[title="Refresh rows"]').dispatchEvent(new Event("click", { bubbles: true }));
+        await settle();
+        assert.deepEqual([query().get("start"), query().get("end")], chosen, "Refresh keeps a chosen range");
         cell(rows()[1], 4).querySelector("button").dispatchEvent(new Event("click", { bubbles: true }));
         await settle();
         assert.deepEqual(mediaLookups, ["/sweepers/1/media?id=5"]);
@@ -703,15 +755,16 @@ test("reverb preview plays the selected sweeper and follows the reverb settings 
         await settle();
         assert.match(document.querySelector(".sweepers-preview").textContent, /Choose a sweeper playlist above/);
         assert.ok(button().disabled, "Nothing to play without a sweeper playlist");
-        const playlist = input("Sweeper playlists");
-        Object.defineProperty(playlist, "multiple", { value: true });
-        for (const option of playlist.options) {
-            Object.defineProperty(option, "selected", { configurable: true, writable: true, value: option.value !== "12" });
-        }
-        playlist.dispatchEvent(new Event("change", { bubbles: true }));
+        const playlist = async (id) => {
+            const node = document.getElementById(`sweepers-playlist-${id}`);
+            node.checked = true;
+            node.dispatchEvent(new Event("change", { bubbles: true }));
+            await settle();
+        };
+        await playlist(10);
+        await playlist(11);
         await settle();
-        await settle();
-        assert.deepEqual(previewRequests, ["/sweepers/1/media?playlist=10,11"], "Unsaved playlist choice loads all their sweepers");
+        assert.equal(previewRequests.at(-1), "/sweepers/1/media?playlist=10,11", "Unsaved playlist choice loads all their sweepers");
         assert.deepEqual([...input("Preview sweeper").options].map((option) => option.textContent.trim()),
             ["radiomonster.fm – male", "female.mp3"]);
         button().dispatchEvent(new Event("click", { bubbles: true }));

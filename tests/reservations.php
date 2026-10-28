@@ -55,11 +55,24 @@ namespace {
         check(empty($state->read($directory)['history']), 'A skipped sweeper does not advance rotation.');
         check(!isset($state->read($directory)['log']), 'A released (never heard) sweeper is not recorded.');
         $limit = \Plugin\AzuracastSweepers\Service\Planner::LOG_LIMIT;
-        $state->update($directory, static fn(array $data) => ['log' => array_fill(0, $limit, ['at' => 1.0])] + $data);
+        $recent = microtime(true) - 60;
+        $expired = microtime(true) - \Plugin\AzuracastSweepers\Service\Planner::LOG_RETENTION - 60;
+        $state->update($directory, static fn(array $data) => ['log' => [
+            ...array_fill(0, 3, ['at' => $recent]),
+            ['at' => $expired],
+        ]] + $data);
         $state->update($directory, static fn(array $data) => $seed(time() + 20) + $data);
         $planner->heartbeat($station, [], [['event' => 'played', 'token' => '123']]);
         $log = $state->read($directory)['log'];
-        check(count($log) === $limit && $log[0]['song_id'] === 7, 'The timeline keeps the newest entries.');
+        check(
+            count($log) === 4 && $log[0]['song_id'] === 7 && $log[3]['at'] === $recent,
+            'The timeline keeps recent entries and forgets those past the retention.'
+        );
+        $state->update($directory, static fn(array $data) => ['log' => array_fill(0, $limit, ['at' => $recent])] + $data);
+        $state->update($directory, static fn(array $data) => $seed(time() + 20) + $data);
+        $planner->heartbeat($station, [], [['event' => 'played', 'token' => '123']]);
+        $log = $state->read($directory)['log'];
+        check(count($log) === $limit && $log[0]['song_id'] === 7, 'A full timeline keeps the newest entries.');
         check(!array_key_exists('moved_before', $log[0]), 'A song in its planned order is not marked as moved.');
         $state->update($directory, static fn(array $data) => ['moved' => ['124' => ['at' => time(), 'before' => 9]]]
             + ['plans' => ['124' => $seed(time() + 20)['plans']['123']]] + $data);

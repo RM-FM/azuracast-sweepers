@@ -33,11 +33,23 @@ single-field body. This route requires a signed-in session, station Media permis
 and the `sweepers` CSRF token in `X-CSRF-Token`. It calls the same save operation.
 
 The Playback Timeline page reads `GET /sweepers/{station_id}/history` (signed-in session,
-station Media permission). It returns `limit` (300) and `rows`, newest first, one per
-played track, each with `at` (Unix time when the track started; for entries recorded
+station Media permission). Optional query parameters:
+
+| Parameter | Meaning |
+| --- | --- |
+| `start`, `end` | ISO 8601 times; only tracks that started in this range (either bound may be omitted) |
+| `search` | Matches title, artist or path of the song, sweeper, overtaken or replaced song (up to 200 characters) |
+| `played` | `1` returns only songs with a played sweeper; default `0` |
+| `page` | One-based page, default 1 |
+| `per_page` | 10, 25 (default), 50, 100, 250, 500, or 0 for all rows |
+
+It returns `rows` (newest first), `total` (all matching tracks), `page`, `per_page` and
+`retention_days` (7). Each row describes one
+played track, with `at` (Unix time when the track started; for entries recorded
 before all tracks were listed, when the sweeper started), `song` and `sweeper`
 (`id`, `title`, `artist`, `path`, `intro` with the current intro end in seconds or `null`; `null` for a deleted file), `result`, `offset`
-(seconds after the song's cue-in when a sweeper played, otherwise `null`), `moved`
+(seconds after the song's cue-in when a sweeper played, otherwise `null`), `upcoming`
+(the newest track's sweeper is still to come), `moved`
 (the song was moved forward), `moved_before` (the overtaken song, or `null`),
 `replaced` (the song replaced another from the same playlist), `replaced_before`
 (the displaced song, or `null`) and
@@ -57,9 +69,10 @@ plays) and `audio_url`, each file once. The browser applies the reflections itse
 `GET /sweepers/{station_id}/media?id={media_id}` returns that single library file in
 the Intros row format, so the timeline can open the intro editor on it.
 
-`GET /sweepers/{station_id}/media?search={query}&page={page}` lists all matching
-library files in pages of 25 (one-based, default 1), ordered by path then media ID.
-It returns `rows`, `total` (all matching files), `page` and `limit` (25).
+`GET /sweepers/{station_id}/media?search={query}&page={page}&per_page={size}` lists all
+matching library files, ordered by path then media ID. `page` is one-based (default 1);
+`per_page` accepts the same sizes as the timeline (default 25, 0 for all).
+It returns `rows`, `total` (all matching files), `page` and `per_page`.
 Search matches filename/path, title or artist; there is no 100-result ceiling.
 The optional `unknown=1` filter returns only files with a missing, null or blank
 `intro_end` custom field, excluding saved zeroes. Default `unknown=0` includes all

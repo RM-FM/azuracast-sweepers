@@ -1,5 +1,6 @@
 import { createApp } from "vue";
 import App from "./App.vue";
+import "@vuepic/vue-datepicker/dist/main.css";
 import "./style.css";
 
 export function mountSweepers(root) {
