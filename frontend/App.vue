@@ -50,13 +50,13 @@
                         </div>
                     </fieldset>
                     <div class="row g-4 mt-0">
-                    <fieldset class="form-group col-lg-6" aria-describedby="sweepers-playlists-help">
+                    <fieldset class="form-group col-12" aria-describedby="sweepers-playlists-help">
                         <legend>Sweeper Playlists</legend>
                                 <PlaylistPicker id="sweepers-playlist" v-model="settings.playlist_ids" title="Sweeper playlists" :playlists="playlists" :label="playlistLabel" />
                                 <div id="sweepers-playlists-help" class="form-text">One or more <strong>Advanced</strong> playlists with the sweepers, so they do not also play as normal songs. Playlists with a schedule are used only in their time slots; without a schedule they are always used. All playlists active at the same time share one rotation. Disabled playlists are skipped.</div>
                     </fieldset>
 
-                    <fieldset class="form-group col-lg-6">
+                    <fieldset class="form-group col-12">
                         <legend>Exclude Playlists from Sweepers</legend>
                         <div class="row g-3">
                             <fieldset class="form-group col-md-12">
@@ -71,7 +71,7 @@
 
                     <div id="sweepers-panel-spacing" v-show="settingsTab === 'spacing'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-spacing" data-settings-tab="spacing">
                     <div class="row g-4">
-                    <fieldset class="form-group col-lg-6">
+                    <fieldset class="form-group col-12">
                         <legend>Song Spacing</legend>
                         <p>A song only gets a sweeper if all three rules allow it. <strong>0</strong> switches a rule off.</p>
                         <div class="row g-3">
@@ -93,7 +93,7 @@
                         </div>
                     </fieldset>
 
-                    <fieldset class="form-group col-lg-6">
+                    <fieldset class="form-group col-12">
                         <legend>Jingle Recognition</legend>
                         <p>Which tracks count as jingles for the spacing rules. Jingles never get a sweeper themselves.</p>
                         <div class="row g-3">
@@ -116,7 +116,7 @@
 
                     <div id="sweepers-panel-selection" v-show="settingsTab === 'selection'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-selection" data-settings-tab="selection">
                     <div class="row g-4">
-                    <fieldset class="form-group col-lg-6">
+                    <fieldset class="form-group col-12">
                         <legend>Sweeper Selection</legend>
                         <div class="row g-3">
                             <div class="form-group col-md-6">
@@ -142,7 +142,7 @@
                         </div>
                     </fieldset>
 
-                    <fieldset class="form-group col-lg-6">
+                    <fieldset class="form-group col-12">
                         <legend>Improve Sweeper-to-Song Matching</legend>
                         <div class="row g-3">
                             <div class="form-group col-md-12">
@@ -210,7 +210,7 @@
                     </div>
                     <div id="sweepers-panel-audio" v-show="settingsTab === 'audio'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-audio" data-settings-tab="audio">
                     <div class="row g-4">
-                    <fieldset class="form-group col-lg-6">
+                    <fieldset class="form-group col-12">
                         <legend>Sound</legend>
                         <div class="row g-3">
                             <div class="form-group col-md-6">
@@ -237,7 +237,7 @@
                             </div>
                         </div>
                     </fieldset>
-                    <fieldset class="form-group col-lg-6">
+                    <fieldset class="form-group col-12">
                         <legend>Preview</legend>
                             <div class="form-group sweepers-preview">
                                 <label class="form-label" for="sweepers-preview">Preview sweeper</label>

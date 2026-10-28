@@ -682,11 +682,10 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         const spacing = document.getElementById("sweepers-after-jingle");
         const spacingColumn = spacing.closest("fieldset");
         const jingleColumn = document.getElementById("sweepers-count-jingle-mode").closest("fieldset");
-        assert.ok(spacingColumn.classList.contains("col-lg-6"));
-        assert.ok(jingleColumn.classList.contains("col-lg-6"));
-        assert.equal(spacingColumn.parentElement, jingleColumn.parentElement, "Spacing and jingle recognition share a left/right row");
+        assert.ok(spacingColumn.classList.contains("col-12"));
+        assert.ok(jingleColumn.classList.contains("col-12"));
         for (const id of ["sweepers-after-jingle", "sweepers-after-sweeper", "sweepers-before-jingle"]) {
-            assert.ok(document.getElementById(id).parentElement.classList.contains("col-12"), "Spacing values stack within the left column");
+            assert.ok(document.getElementById(id).parentElement.classList.contains("col-12"), "Spacing values remain stacked");
         }
         spacing.value = "7";
         spacing.dispatchEvent(new Event("input", { bubbles: true }));
@@ -705,10 +704,15 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
             ["Status", "Sweeper Playlists", "Exclude Playlists from Sweepers"]);
         const sweeperColumn = document.getElementById("sweepers-playlist-toggle").closest("fieldset");
         const excludedColumn = document.getElementById("sweepers-excluded-toggle").closest("fieldset").parentElement.closest("fieldset");
-        assert.ok(sweeperColumn.classList.contains("col-lg-6"));
-        assert.equal(sweeperColumn.parentElement, excludedColumn.parentElement, "Playlist sections share a responsive row");
-        assert.ok(document.querySelector(".sweepers-preview").closest("fieldset").classList.contains("col-lg-6"),
-            "Audio preview has its own responsive column");
+        assert.ok(sweeperColumn.classList.contains("col-12"));
+        assert.ok(excludedColumn.classList.contains("col-12"));
+        for (const section of document.querySelectorAll('.sweepers-settings-panel > .row > fieldset')) {
+            assert.ok(section.classList.contains("col-12"), "Main section headings span the full width in every tab");
+        }
+        assert.ok(document.querySelector(".sweepers-preview").closest("fieldset").classList.contains("col-12"),
+            "Audio preview is a full-width section");
+        assert.ok(document.getElementById("sweepers-margin").parentElement.classList.contains("col-md-6"),
+            "Related fields may still use columns within a section");
         assert.doesNotMatch(document.querySelector(".sweepers-settings").textContent, /Changes apply immediately; no broadcasting restart is needed/);
         const save = document.querySelector('.sweepers-settings button[type="submit"]');
         assert.equal(document.querySelectorAll('.sweepers-settings button[type="submit"]').length, 1);

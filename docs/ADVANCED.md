@@ -221,6 +221,9 @@ preserved.
 
 ## Settings reference
 
+Main sections and their headings span the full width. Only related fields within
+a section use columns on larger screens; song spacing values remain stacked.
+
 Defaults for a new installation:
 
 | Setting | Default |
