@@ -1,31 +1,38 @@
 <template>
     <div class="sweepers-playlist-picker">
-        <div v-if="selected.length" class="d-flex flex-wrap align-items-center gap-2 mb-2">
-            <span v-for="playlist in selected" :key="playlist.id" class="playlist-source-badge badge text-bg-secondary d-inline-flex align-items-center gap-1">
-                <Icon v-if="sourceIcon(playlist)" :name="sourceIcon(playlist)" class="sm" />
-                <span class="text-truncate">{{ label(playlist) }}</span>
-                <button class="btn-close btn-close-white" type="button" :aria-label="'Remove ' + label(playlist)" @click="remove(playlist.id)" />
-            </span>
-        </div>
         <div>
             <button
                 :id="id + '-toggle'"
                 ref="toggle"
-                class="btn btn-primary"
+                class="btn btn-sm btn-primary"
                 type="button"
                 :aria-expanded="open"
                 :aria-controls="id + '-choices'"
                 @click="open = !open"
             ><Icon name="add" /><span>Add Playlist</span></button>
         </div>
-        <div v-if="open" :id="id + '-choices'" class="border rounded p-2 mt-2" @keydown.esc.stop.prevent="close">
-            <input ref="searchInput" v-model="search" class="form-control form-control-sm mb-2" type="search" :aria-label="'Search ' + title" placeholder="Search playlists" @keydown.enter.prevent>
-            <div class="sweepers-playlist-options" role="group" :aria-label="title">
-                <button v-for="playlist in available" :key="playlist.id" :id="id + '-' + playlist.id" class="btn btn-sm btn-outline-secondary d-block w-100 text-start mb-1" type="button" @click="add(playlist.id)">
-                    {{ label(playlist) }}
-                </button>
-                <p v-if="!available.length" class="text-muted small mb-0">{{ search.trim() ? "No matching playlists." : "All playlists selected." }}</p>
+        <div v-if="open" :id="id + '-choices'" class="sweepers-playlist-choices border rounded mt-2" @keydown.esc.stop.prevent="close">
+            <div class="p-2 border-bottom">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><Icon name="search" /></span>
+                    <input ref="searchInput" v-model="search" class="form-control" type="search" :aria-label="'Search ' + title" placeholder="Search playlists" @keydown.enter.prevent>
+                </div>
             </div>
+            <div class="sweepers-playlist-options list-group list-group-flush" role="group" :aria-label="title">
+                <button v-for="playlist in available" :key="playlist.id" :id="id + '-' + playlist.id" class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-2" type="button" @click="add(playlist.id)">
+                    <Icon v-if="sourceIcon(playlist)" :name="sourceIcon(playlist)" class="flex-shrink-0" />
+                    <span class="text-break">{{ label(playlist) }}</span>
+                    <Icon name="add" class="ms-auto flex-shrink-0" />
+                </button>
+                <p v-if="!available.length" class="text-muted small p-3 mb-0">{{ search.trim() ? "No matching playlists." : "All playlists selected." }}</p>
+            </div>
+        </div>
+        <div v-if="selected.length" class="sweepers-playlist-selected d-flex flex-wrap align-items-center gap-2 mt-2">
+            <span v-for="playlist in selected" :key="playlist.id" class="playlist-source-badge badge text-bg-secondary d-inline-flex align-items-center gap-1">
+                <Icon v-if="sourceIcon(playlist)" :name="sourceIcon(playlist)" class="sm" />
+                <span class="text-truncate">{{ label(playlist) }}</span>
+                <button class="btn-close btn-close-white" type="button" :aria-label="'Remove ' + label(playlist)" @click="remove(playlist.id)" />
+            </span>
         </div>
     </div>
 </template>

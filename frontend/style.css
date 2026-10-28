@@ -7,6 +7,11 @@
     overflow-y: auto;
 }
 
+.sweepers-page .sweepers-playlist-choices {
+    max-width: 32rem;
+    overflow: hidden;
+}
+
 .sweepers-page .sweepers-playlist-picker .btn-close {
     flex-shrink: 0;
     font-size: .65rem;

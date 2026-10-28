@@ -539,6 +539,7 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         const addButton = document.getElementById("sweepers-playlist-toggle");
         assert.equal(addButton.textContent.trim(), "Add Playlist");
         assert.ok(addButton.classList.contains("btn-primary"), "Add button uses AzuraCast's primary style");
+        assert.ok(addButton.classList.contains("btn-sm"), "Add button matches the compact playlist toolbar buttons");
         assert.ok(addButton.querySelector("svg path").getAttribute("d"), "Add button includes its plus icon");
         assert.deepEqual(playlistLabels("sweepers-playlist-"), ["Sweepers", "Christmas (scheduled)", "Retired (disabled)"],
             "Several sweeper playlists can be selected");
@@ -553,7 +554,11 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         await check("sweepers-playlist-10");
         await check("sweepers-playlist-11");
         const songBadge = document.querySelector(".sweepers-playlist-picker .playlist-source-badge");
-        assert.notEqual(songBadge.parentElement, addButton.parentElement, "Add button stays below the labels in its own row");
+        const picker = addButton.closest(".sweepers-playlist-picker");
+        assert.equal(picker.firstElementChild, addButton.parentElement, "Add button stays above the labels");
+        assert.equal(picker.lastElementChild, songBadge.parentElement, "Selected tags follow the button and search list");
+        assert.ok(document.getElementById("sweepers-playlist-12").classList.contains("list-group-item-action"),
+            "Search results use native list rows rather than outlined buttons");
         assert.ok(songBadge.classList.contains("gap-1"), "Labels use source badge spacing");
         assert.ok(songBadge.querySelector("svg.sm path"), "Song-based labels include the source icon");
         assert.deepEqual(playlistLabels("sweepers-playlist-"), ["Retired (disabled)"], "Selected playlists cannot be added twice");
