@@ -21,6 +21,10 @@ Conflicting plugin mounts, ambiguous YAML aliases/merge keys and custom
 `COMPOSE_FILE` configurations stop setup with an error instead of being overwritten.
 Resolve these manually, then rerun the script.
 
+Compose `!reset` and `!override` tags in unrelated sections are preserved. Tagged
+sections that setup must edit, such as `web.environment` or `web.volumes`, require
+manual setup so their merge behavior is not changed.
+
 ### Override changes and backups
 
 The script builds the frontend and creates or merges `docker-compose.override.yml`.

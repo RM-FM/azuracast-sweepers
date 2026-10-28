@@ -61,11 +61,13 @@ cp "$TEST_ROOT/docker-compose.override.yml" "$work/expected"
 bash "$setup" > "$work/result"
 cmp "$TEST_ROOT/docker-compose.override.yml" "$work/expected"
 [[ $(find "$TEST_ROOT" -name '*.sweepers-backup.*' | wc -l) == 0 ]]
-printf '# Existing override\nservices:\n  web:\n    environment:\n      OTHER: keep\n' > "$TEST_ROOT/docker-compose.override.yml"
+printf '# Existing override\nservices:\n  web:\n    logging: !reset\n    ports: !override []\n    environment:\n      OTHER: keep\n' > "$TEST_ROOT/docker-compose.override.yml"
 cp "$TEST_ROOT/docker-compose.override.yml" "$work/original"
 if TEST_INVALID=true bash "$setup" > "$work/result" 2>&1; then echo 'Invalid Compose unexpectedly accepted' >&2; exit 1; fi
 cmp "$TEST_ROOT/docker-compose.override.yml" "$work/original"
 bash "$setup" > "$work/result"
+grep -q 'logging: !reset' "$TEST_ROOT/docker-compose.override.yml"
+grep -q 'ports: !override' "$TEST_ROOT/docker-compose.override.yml"
 backup=$(find "$TEST_ROOT" -name '*.sweepers-backup.*')
 cmp "$backup" "$work/original"
 if TEST_RECREATE=true bash "$setup" < /dev/null > "$work/result" 2>&1; then echo 'Noninteractive recreation unexpectedly accepted' >&2; exit 1; fi

@@ -8,26 +8,36 @@ const source = "./plugins/azuracast-sweepers";
 
 function mapping(document, parent, key) {
     let value = parent.get(key, true);
+    if (value?.tag) throw new Error(`Tagged ${key} requires manual setup.`);
     if (value === undefined || (isScalar(value) && value.value === null)) {
         value = document.createNode({});
         parent.set(key, value);
     }
-    if (!isMap(value) || value.has("<<")) {
+    if (!isMap(value) || value.tag || value.has("<<")) {
         throw new Error(`${key} must be an explicit YAML mapping, without aliases or merge keys.`);
     }
     return value;
 }
 
 export function mergeOverride(text, root) {
-    const document = parseDocument(text, { uniqueKeys: true });
+    const document = parseDocument(text, {
+        uniqueKeys: true,
+        customTags: (tags) => [
+            ...tags,
+            ...["!reset", "!override"].flatMap((tag) => tags.map((definition) => ({
+                ...definition, tag, default: false,
+            }))),
+        ],
+    });
     if (document.errors.length) throw new Error(document.errors.map((error) => error.message).join("\n"));
     if (document.warnings.length) throw new Error(document.warnings.map((warning) => warning.message).join("\n"));
     document.contents ??= document.createNode({});
-    if (!isMap(document.contents) || document.contents.has("<<")) {
+    if (!isMap(document.contents) || document.contents.tag || document.contents.has("<<")) {
         throw new Error("The Compose override must be an explicit YAML mapping.");
     }
     const web = mapping(document, mapping(document, document.contents, "services"), "web");
     const environment = web.get("environment", true);
+    if (environment?.tag) throw new Error("Tagged web.environment requires manual setup.");
     if (isSeq(environment)) {
         const entries = environment.items.filter((item) => isScalar(item) && typeof item.value === "string"
             && item.value.split("=")[0] === "COMPOSER_PLUGIN_MODE");
@@ -40,6 +50,7 @@ export function mergeOverride(text, root) {
         mapping(document, web, "environment").set("COMPOSER_PLUGIN_MODE", "true");
     }
     let volumes = web.get("volumes", true);
+    if (volumes?.tag) throw new Error("Tagged web.volumes requires manual setup.");
     if (volumes === undefined || (isScalar(volumes) && volumes.value === null)) {
         volumes = document.createNode([]);
         web.set("volumes", volumes);

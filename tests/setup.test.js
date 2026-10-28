@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parse } from "yaml";
+import { parse, parseDocument } from "yaml";
 import { mergeOverride } from "../bin/setup-compose.mjs";
 
 const root = "/var/azuracast";
@@ -67,6 +67,27 @@ test("setup fills empty environment and volumes keys instead of refusing them", 
     assert.deepEqual(data.services.web, { environment: { COMPOSER_PLUGIN_MODE: "true" }, volumes: [mount] });
 });
 
+test("setup preserves Compose reset and override tags outside modified sections", () => {
+    const input = `services:
+  web:
+    logging: !reset
+    ports: !override
+      - "8080:80"
+    labels: !override
+      keep: unchanged
+  redis:
+    command: !reset []
+`;
+    const output = mergeOverride(input, root);
+    const document = parseDocument(output);
+    assert.equal(document.getIn(["services", "web", "logging"], true).tag, "!reset");
+    assert.equal(document.getIn(["services", "web", "ports"], true).tag, "!override");
+    assert.deepEqual(document.getIn(["services", "web", "ports"]).toJSON(), ["8080:80"]);
+    assert.equal(document.getIn(["services", "web", "labels", "keep"]), "unchanged");
+    assert.equal(document.getIn(["services", "redis", "command"], true).tag, "!reset");
+    assert.equal(mergeOverride(output, root), output);
+});
+
 test("setup refuses ambiguous YAML or conflicting mounts instead of overwriting them", () => {
     for (const input of [
         "services: [web]",
@@ -80,6 +101,9 @@ test("setup refuses ambiguous YAML or conflicting mounts instead of overwriting 
         `services:\n  web:\n    volumes:\n      - ${mount}\n      - ${mount}`,
         "services:\n  web:\n    volumes:\n      - ${UNKNOWN_MOUNT}",
         "services:\n  web:\n    volumes: !override []",
+        "services:\n  web:\n    environment: !reset {}",
+        "services:\n  web: !override {}",
+        "services:\n  web:\n    logging: !unknown {}",
     ]) {
         assert.throws(() => mergeOverride(input, root), undefined, input);
     }
