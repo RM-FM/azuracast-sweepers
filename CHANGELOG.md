@@ -2,6 +2,11 @@
 
 ## Pending
 
+### Features
+
+- One setup script handles installation and updates, preserves existing Compose
+  plugin settings and asks before a required container recreation interrupts broadcasting.
+
 ### Improvements
 
 - Settings are grouped into four tabs for general options, spacing and jingles,

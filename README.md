@@ -34,27 +34,36 @@ On the AzuraCast host (default path `/var/azuracast`):
 mkdir -p /var/azuracast/plugins
 git clone --branch main https://github.com/RM-FM/azuracast-sweepers.git /var/azuracast/plugins/azuracast-sweepers
 cd /var/azuracast/plugins/azuracast-sweepers
-docker run --rm --user "$(id -u):$(id -g)" -e npm_config_cache=/tmp/npm-cache \
-  -v "$PWD:/plugin" -w /plugin node:24-alpine sh -c 'npm ci --ignore-scripts && npm run build'
+bash bin/setup.sh
 ```
 
-Keep the directory name `azuracast-sweepers`. Add to `/var/azuracast/docker-compose.override.yml`:
+Keep the directory name `azuracast-sweepers` below your AzuraCast installation's
+`plugins` directory. Run the script as a user with Docker access and write permission
+to that directory and the Compose override.
 
-```yaml
-services:
-  web:
-    environment:
-      COMPOSER_PLUGIN_MODE: "true"
-    volumes:
-      - ./plugins/azuracast-sweepers:/var/azuracast/www/plugins/azuracast-sweepers:ro
-```
+The script builds the frontend and creates or safely merges
+`docker-compose.override.yml`. It adds `COMPOSER_PLUGIN_MODE: "true"` under
+`services.web.environment` and the read-only plugin mount under `services.web.volumes`.
+Existing services, comments, environment entries and mounts (including Moonbase
+AutoCue/LS-Config-Replace) are kept. Changed existing overrides receive a backup
+named `docker-compose.override.yml.sweepers-backup.*`. The candidate configuration is
+validated with Docker Compose before replacing the override.
+
+Conflicting plugin mounts, ambiguous YAML aliases/merge keys and custom `COMPOSE_FILE`
+configurations stop setup with an error instead of being overwritten. Resolve those
+manually, then rerun the script. Standard AzuraCast `docker-compose.yml` and optional
+`docker-compose.override.yml` files are supported.
 
 `COMPOSER_PLUGIN_MODE` is an AzuraCast setting: on start, the web container runs
 `composer update` with the plugins' `composer.json` merged in, so AzuraCast can load the
 plugin's PHP classes. This makes the container start a little slower.
 
-Then run `docker compose up -d` in `/var/azuracast`. This briefly interrupts broadcasting
-and loads the plugin's Liquidsoap module on all stations.
+When the running web container lacks the mount or plugin environment flag, setup
+asks before running `docker compose up -d --no-deps web`. **This interrupts broadcasting
+on all stations in that container.** Answering no leaves the files prepared and prints
+the command to run later. Noninteractive runs never recreate the container.
+After applying, setup waits for PHP services and clears the route cache.
+The plugin is not enabled automatically; check the module status on each station.
 
 ## Setup
 
@@ -281,17 +290,16 @@ Frontend rebuilds and PHP/worker reloads are separate and do not restart broadca
   set -e
   cd /var/azuracast/plugins/azuracast-sweepers
   git pull --ff-only origin main
-  docker run --rm --user "$(id -u):$(id -g)" -e npm_config_cache=/tmp/npm-cache \
-    -v "$PWD:/plugin" -w /plugin node:24-alpine sh -c 'npm ci --ignore-scripts && npm run build'
-  cd /var/azuracast
-  docker compose exec web supervisorctl signal USR2 php-fpm
-  docker compose exec web supervisorctl restart php-worker-fast php-worker-slow php-nowplaying
-  sleep 10
-  docker compose exec web rm -f /var/azuracast/www_tmp/app_routes.cache.php
+  bash bin/setup.sh
 )
 ```
 
-This does not interrupt broadcasting. Only if the Liquidsoap module's code changed (comments
+For an already configured container, this rebuilds the frontend, reloads PHP-FPM,
+restarts PHP workers/NowPlaying and then clears the route cache without interrupting
+broadcasting. Missing mount/environment configuration follows the confirmed
+container-recreation flow described above.
+
+Only if the Liquidsoap module's code changed (comments
 do not count), the Settings page asks for one broadcasting restart per station and offers a
 **Restart Broadcasting** button to users with Broadcasting permission. Settings, media and
 intro ends are kept.

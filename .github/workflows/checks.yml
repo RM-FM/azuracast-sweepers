@@ -54,6 +54,8 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: node tests/bundle-smoke.js
+      - name: Check setup workflow without restarting services
+        run: bash tests/setup.sh
 
   liquidsoap:
     runs-on: ubuntu-latest
