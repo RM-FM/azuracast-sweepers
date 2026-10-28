@@ -680,6 +680,14 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         const select = async (index) => { tabs[index].click(); await settle(); };
         await select(1);
         const spacing = document.getElementById("sweepers-after-jingle");
+        const spacingColumn = spacing.closest("fieldset");
+        const jingleColumn = document.getElementById("sweepers-count-jingle-mode").closest("fieldset");
+        assert.ok(spacingColumn.classList.contains("col-lg-6"));
+        assert.ok(jingleColumn.classList.contains("col-lg-6"));
+        assert.equal(spacingColumn.parentElement, jingleColumn.parentElement, "Spacing and jingle recognition share a left/right row");
+        for (const id of ["sweepers-after-jingle", "sweepers-after-sweeper", "sweepers-before-jingle"]) {
+            assert.ok(document.getElementById(id).parentElement.classList.contains("col-12"), "Spacing values stack within the left column");
+        }
         spacing.value = "7";
         spacing.dispatchEvent(new Event("input", { bubbles: true }));
         await select(3);

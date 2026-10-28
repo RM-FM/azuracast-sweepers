@@ -70,21 +70,22 @@
                     </div>
 
                     <div id="sweepers-panel-spacing" v-show="settingsTab === 'spacing'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-spacing" data-settings-tab="spacing">
-                    <fieldset class="form-group">
+                    <div class="row g-4">
+                    <fieldset class="form-group col-lg-6">
                         <legend>Song Spacing</legend>
                         <p>A song only gets a sweeper if all three rules allow it. <strong>0</strong> switches a rule off.</p>
                         <div class="row g-3">
-                            <div class="form-group col-md-4">
+                            <div class="form-group col-12">
                                 <label class="form-label" for="sweepers-after-jingle">Songs without sweeper after a jingle</label>
                                 <input id="sweepers-after-jingle" v-model.number="settings.songs_after_jingle" class="form-control" type="number" min="0" max="1000" step="1" required>
                                 <div class="form-text">Complete songs that must play after a jingle before the next sweeper.</div>
                             </div>
-                            <div class="form-group col-md-4">
+                            <div class="form-group col-12">
                                 <label class="form-label" for="sweepers-after-sweeper">Songs without sweeper after a sweeper</label>
                                 <input id="sweepers-after-sweeper" v-model.number="settings.songs_after_sweeper" class="form-control" type="number" min="0" max="1000" step="1" required>
                                 <div class="form-text">Songs that must play without a sweeper after a song that carried one. That song itself does not count.</div>
                             </div>
-                            <div class="form-group col-md-4">
+                            <div class="form-group col-12">
                                 <label class="form-label" for="sweepers-before-jingle">Songs without sweeper before a jingle</label>
                                 <input id="sweepers-before-jingle" v-model.number="settings.songs_before_jingle" class="form-control" type="number" min="0" :max="queueLength" step="1" required>
                                 <div class="form-text">No sweeper if a jingle is queued within this many following tracks. Maximum: the AutoDJ queue length ({{ queueLength }}).</div>
@@ -92,25 +93,25 @@
                         </div>
                     </fieldset>
 
-                    <fieldset class="form-group">
+                    <fieldset class="form-group col-lg-6">
                         <legend>Jingle Recognition</legend>
                         <p>Which tracks count as jingles for the spacing rules. Jingles never get a sweeper themselves.</p>
                         <div class="row g-3">
-                            <div class="form-group col-lg-6">
+                            <div class="form-group col-12">
                                 <div class="form-check form-switch">
                                     <input id="sweepers-count-jingle-mode" v-model="settings.count_jingle_mode" class="form-check-input" type="checkbox" role="switch">
                                     <label class="form-check-label" for="sweepers-count-jingle-mode">Count Jingle Mode playlists</label>
                                 </div>
                                 <div class="form-text">Tracks from playlists that use AzuraCast's <em>Jingle Mode</em> count as jingles.</div>
                             </div>
-                            <fieldset class="form-group col-lg-6">
+                            <fieldset class="form-group col-12">
                                 <legend class="form-label">Additional jingle playlists</legend>
                                 <PlaylistPicker id="sweepers-jingle" v-model="settings.jingle_playlist_ids" title="Additional jingle playlists" :playlists="jinglePlaylists" :label="(playlist) => playlist.name + (playlist.is_jingle ? ' (Jingle Mode)' : '')" />
                                 <div class="form-text">Other playlists whose tracks count as jingles. The sweeper playlists always count.</div>
                             </fieldset>
                         </div>
                     </fieldset>
-
+                    </div>
                     </div>
 
                     <div id="sweepers-panel-selection" v-show="settingsTab === 'selection'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-selection" data-settings-tab="selection">
