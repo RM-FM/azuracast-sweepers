@@ -18,6 +18,8 @@
 - The plugin page configures sweepers and edits only `intro_end` on a waveform; do not add review fields or plugin-owned database tables.
 - Before pushing, run the fast checks locally: PHP tests/lint, Node tests, the frontend build and the native
   Liquidsoap type and spacing checks. The playback scenarios are slow; they run in CI only.
+- When the plugin starts using another AzuraCast class, method, property, route or hook line, add it to
+  `tests/compat.php` so the daily compatibility workflow covers it. Fix open `azuracast-compat` issues on `develop`.
 - State which checks actually ran. Keep the plugin disabled until station playback is validated.
 
 ## Releases

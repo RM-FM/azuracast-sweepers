@@ -319,4 +319,14 @@ isolated MariaDB `sweepers_test` database (`SWEEPER_TEST_DB_HOST`). It uses the 
 playlist repositories, duplicate prevention, queue and rotation entities with
 minimal station/library fixtures. Never point integration tests at a station database.
 
+CI tests every push against pinned AzuraCast versions. The daily **AzuraCast
+compatibility** workflow tests `develop` against AzuraCast's rolling `latest` image and the
+matching `main` sources: the classes, methods, routes and Liquidsoap lines the plugin uses
+(`tests/compat.php`), the sidebar markup, the Liquidsoap module and playback scenarios.
+On failure it opens an issue labelled `azuracast-compat` with a short report, which
+notifies the repository owner by email; a new AzuraCast commit that still fails adds a
+comment, and a later passing run closes the issue. GitHub starts scheduled workflows from
+the default branch only, so the schedule and manual runs activate once the workflow reaches
+`main`; until then, it runs when the workflow or `tests/compat.php` changes on `develop`.
+
 AGPL-3.0-or-later. Copyright 2026 RM-FM. Independent of the AzuraCast project.
