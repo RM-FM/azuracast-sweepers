@@ -239,7 +239,8 @@
                     </fieldset>
                     <fieldset class="form-group col-12">
                         <legend>Preview</legend>
-                            <div class="form-group sweepers-preview">
+                        <div class="row g-3">
+                            <div class="form-group col-12 col-md-6 sweepers-preview">
                                 <label class="form-label" for="sweepers-preview">Preview sweeper</label>
                                 <div class="input-group">
                                     <select id="sweepers-preview" v-model="previewId" class="form-select" :disabled="!previewSweepers.length">
@@ -257,6 +258,7 @@
                                 </div>
                                 <div v-if="previewError" class="invalid-feedback d-block" role="alert">{{ previewError }}</div>
                             </div>
+                        </div>
                     </fieldset>
                     </div>
 

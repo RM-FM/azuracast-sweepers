@@ -713,6 +713,8 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         }
         assert.ok(document.querySelector(".sweepers-preview").closest("fieldset").classList.contains("col-12"),
             "Audio preview is a full-width section");
+        assert.ok(document.querySelector(".sweepers-preview").classList.contains("col-md-6"),
+            "Preview controls use half the section width on larger screens");
         assert.ok(document.getElementById("sweepers-margin").parentElement.classList.contains("col-md-6"),
             "Related fields may still use columns within a section");
         assert.doesNotMatch(document.querySelector(".sweepers-settings").textContent, /Changes apply immediately; no broadcasting restart is needed/);
