@@ -16,6 +16,7 @@ and permission to write to the AzuraCast directory. The examples use
 `/var/azuracast`; adjust the path if your installation is elsewhere.
 **Node and npm are not needed on the host**: setup builds everything in a temporary
 Docker container. Keep the plugin directory name `azuracast-sweepers`.
+Run the commands one at a time; if a command fails, resolve the error before continuing.
 
 ### Install
 
@@ -46,12 +47,9 @@ Prefer to apply each step yourself? Follow the [manual installation](docs/ADVANC
 Read the [release notes](CHANGELOG.md), then run:
 
 ```bash
-(
-  set -e
-  cd /var/azuracast/plugins/azuracast-sweepers
-  git pull --ff-only origin main
-  bash bin/setup.sh
-)
+cd /var/azuracast/plugins/azuracast-sweepers
+git pull --ff-only origin main
+bash bin/setup.sh
 ```
 
 For an already configured, running installation, setup rebuilds the frontend and
