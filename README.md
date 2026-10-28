@@ -242,6 +242,10 @@ The station's Liquidsoap log shows the decisions under the `sweepers` label.
 
 ## Updating
 
+Read the [release notes](CHANGELOG.md) before updating. Every release explicitly
+states whether an **AzuraCast Broadcast (Liquidsoap) restart** is required.
+Frontend rebuilds and PHP/worker reloads are separate and do not restart broadcasting.
+
 ```bash
 (
   set -e
