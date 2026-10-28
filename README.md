@@ -11,12 +11,7 @@ and rolling releases with Liquidsoap 2.5.
 
 ## Quick Start
 
-Run these commands **on your AzuraCast host**, using an account with Docker access
-and permission to write to the AzuraCast directory. The examples use
-`/var/azuracast`; adjust the path if your installation is elsewhere.
-**Node and npm are not needed on the host**: setup builds everything in a temporary
-Docker container. Keep the plugin directory name `azuracast-sweepers`.
-Run the commands one at a time; if a command fails, resolve the error before continuing.
+Run these commands on your AzuraCast server.
 
 ### Install
 
@@ -27,18 +22,14 @@ cd /var/azuracast/plugins/azuracast-sweepers
 bash bin/setup.sh
 ```
 
-Setup builds the frontend and prepares the Compose override, preserving existing
-plugin entries such as Moonbase AutoCue. No manual YAML editing is needed for a
-standard installation. AzuraCast does not need to be running beforehand.
+The script handles installation for you.
 
 > [!WARNING]
-> Setup asks before starting AzuraCast or recreating its web container.
-> Recreating the container interrupts broadcasting on all stations in it.
-> Confirm only when ready; declining leaves the configuration prepared for later.
+> If installation requires interrupting broadcasting, the script asks first.
+> Confirm only when ready.
 
 Continue with [First station setup](#first-station-setup).
-For custom installations or setup errors, see the [advanced guide](docs/ADVANCED.md#installation-and-compose).
-Prefer to apply each step yourself? Follow the [manual installation](docs/ADVANCED.md#manual-installation).
+For other installation options, see [manual installation](docs/ADVANCED.md#manual-installation).
 
 <a id="updating"></a>
 
@@ -52,14 +43,11 @@ git pull --ff-only origin main
 bash bin/setup.sh
 ```
 
-For an already configured, running installation, setup rebuilds the frontend and
-reloads PHP/worker processes without restarting broadcasting. If container
-configuration needs to be applied, it asks first. Settings and intro values are kept.
+Settings and intro values are kept. If an interruption is needed, the script asks first.
 
 **Sweepers → Settings** shows the installed version and available updates.
-A changed Liquidsoap module may require one **Restart Broadcasting** per station;
-check the release notes and module status. AzuraCast's own updater does not update
-this plugin.
+After updating, check whether Settings asks you to **Restart Broadcasting**.
+AzuraCast's own updater does not update this plugin.
 
 The [manual update procedure](docs/ADVANCED.md#manual-update) is available if you
 do not want to use the setup script.
