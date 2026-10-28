@@ -1,19 +1,20 @@
 <template>
     <div class="sweepers-playlist-picker">
         <div class="d-flex flex-wrap align-items-center gap-2">
-            <span v-for="playlist in selected" :key="playlist.id" class="badge text-bg-secondary d-inline-flex align-items-center gap-2 text-wrap">
-                {{ label(playlist) }}
+            <span v-for="playlist in selected" :key="playlist.id" class="playlist-source-badge badge text-bg-secondary d-inline-flex align-items-center gap-1">
+                <Icon v-if="sourceIcon(playlist)" :name="sourceIcon(playlist)" class="sm" />
+                <span class="text-truncate">{{ label(playlist) }}</span>
                 <button class="btn-close btn-close-white" type="button" :aria-label="'Remove ' + label(playlist)" @click="remove(playlist.id)" />
             </span>
             <button
                 :id="id + '-toggle'"
                 ref="toggle"
-                class="btn btn-sm btn-outline-primary"
+                class="btn btn-primary"
                 type="button"
                 :aria-expanded="open"
                 :aria-controls="id + '-choices'"
                 @click="open = !open"
-            >+ Add playlist</button>
+            ><Icon name="add" /><span>Add Playlist</span></button>
         </div>
         <div v-if="open" :id="id + '-choices'" class="border rounded p-2 mt-2" @keydown.esc.stop.prevent="close">
             <input ref="searchInput" v-model="search" class="form-control form-control-sm mb-2" type="search" :aria-label="'Search ' + title" placeholder="Search playlists" @keydown.enter.prevent>
@@ -29,6 +30,10 @@
 
 <script setup>
 import { computed, nextTick, ref, watch } from "vue";
+import Icon from "./Icon.vue";
+
+const sourceIcons = { songs: "libraryMusic", playlists: "queueMusic", remote_url: "public", requests: "people" };
+const sourceIcon = (playlist) => sourceIcons[playlist.source];
 
 const props = defineProps({
     id: { type: String, required: true },

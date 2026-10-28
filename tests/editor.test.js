@@ -73,11 +73,11 @@ globalThis.fetch = async (url, options) => {
             reverb: false, reverb_intensity: 25, swap_sequential: false, swap_from_playlist: false,
             excluded_playlist_ids: [], sweeper_gap: 1,
         }, playlists: [
-            { id: 10, name: "Sweepers", enabled: true, scheduled: false },
-            { id: 11, name: "Christmas", enabled: true, scheduled: true },
-            { id: 12, name: "Retired", enabled: false, scheduled: false },
+            { id: 10, name: "Sweepers", enabled: true, scheduled: false, source: "songs" },
+            { id: 11, name: "Christmas", enabled: true, scheduled: true, source: "songs" },
+            { id: 12, name: "Retired", enabled: false, scheduled: false, source: "remote_url" },
         ], jingle_playlists: [
-            { id: 20, name: "Station IDs", is_jingle: true }, { id: 21, name: "Promos", is_jingle: false },
+            { id: 20, name: "Station IDs", is_jingle: true, source: "songs" }, { id: 21, name: "Promos", is_jingle: false, source: "playlists" },
         ] };
     } else if (url.startsWith("/play/")) {
         data = {};
@@ -536,6 +536,10 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.ok(document.querySelector("form.sweepers-settings").classList.contains("form"), "Settings use the native AzuraCast form styles");
         assert.equal(document.querySelectorAll(".sweepers-playlist-picker input[type=checkbox]").length, 0);
         await openPicker("sweepers-playlist");
+        const addButton = document.getElementById("sweepers-playlist-toggle");
+        assert.equal(addButton.textContent.trim(), "Add Playlist");
+        assert.ok(addButton.classList.contains("btn-primary"), "Add button uses AzuraCast's primary style");
+        assert.ok(addButton.querySelector("svg path").getAttribute("d"), "Add button includes its plus icon");
         assert.deepEqual(playlistLabels("sweepers-playlist-"), ["Sweepers", "Christmas (scheduled)", "Retired (disabled)"],
             "Several sweeper playlists can be selected");
         const search = document.querySelector("#sweepers-playlist-choices input");
@@ -548,6 +552,9 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         await settle();
         await check("sweepers-playlist-10");
         await check("sweepers-playlist-11");
+        const songBadge = document.querySelector(".sweepers-playlist-picker .playlist-source-badge");
+        assert.ok(songBadge.classList.contains("gap-1"), "Labels use source badge spacing");
+        assert.ok(songBadge.querySelector("svg.sm path"), "Song-based labels include the source icon");
         assert.deepEqual(playlistLabels("sweepers-playlist-"), ["Retired (disabled)"], "Selected playlists cannot be added twice");
         document.querySelector('[aria-label="Remove Sweepers"]').click();
         await settle();
@@ -587,6 +594,9 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.deepEqual(playlistLabels("sweepers-jingle-"), ["Station IDs (Jingle Mode)", "Promos"]);
         await check("sweepers-jingle-20");
         await check("sweepers-jingle-21");
+        const groupBadge = document.querySelector('[aria-label="Remove Promos"]').parentElement;
+        assert.notEqual(groupBadge.querySelector("path").getAttribute("d"), songBadge.querySelector("path").getAttribute("d"),
+            "Playlist groups have a different source icon from song-based playlists");
         await change("Limit start delay", true, true);
         assert.equal(field("Maximum start delay").value, "10", "Maximum start delay shows its 10-second default");
         assert.equal(field("Early start").value, "2", "Early start shows its 2-second default");

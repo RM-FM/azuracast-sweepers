@@ -98,11 +98,13 @@ final readonly class PanelController
                 'name' => $playlist->name,
                 'enabled' => $playlist->is_enabled,
                 'scheduled' => $playlist->schedule_items->count() > 0,
+                'source' => $playlist->source->value,
             ], $this->media->playlists($station)),
             'jingle_playlists' => array_map(static fn($playlist): array => [
                 'id' => $playlist->id,
                 'name' => $playlist->name,
                 'is_jingle' => $playlist->is_jingle,
+                'source' => $playlist->source->value,
             ], $this->media->playlists($station, false)),
         ]);
     }

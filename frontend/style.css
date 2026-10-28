@@ -12,6 +12,20 @@
     font-size: .65rem;
 }
 
+.sweepers-page .sweepers-playlist-picker .playlist-source-badge {
+    max-width: 100%;
+}
+
+.sweepers-page .sweepers-playlist-picker .playlist-source-badge .sweepers-icon {
+    flex-shrink: 0;
+    width: 1em;
+    height: 1em;
+}
+
+.sweepers-page .sweepers-playlist-picker .playlist-source-badge .sweepers-icon + span {
+    margin-left: 0;
+}
+
 .sweepers-page .media-list .file-name {
     overflow-wrap: anywhere;
 }
