@@ -394,10 +394,15 @@ playlist repositories, duplicate prevention, queue and rotation entities with
 minimal station/library fixtures. Never point integration tests at a station database.
 
 CI tests pushes to `develop` and pull requests against pinned AzuraCast versions.
-Release PRs from this repository's `develop` to `main` reuse a successful push run
-for the exact head commit when `main` is an ancestor of that commit. Otherwise the
-full suite runs, including when the earlier run is still pending or failed.
-Pushes to `main` do not repeat the suite. Other PRs always run the full suite.
+The fast checks (PHP lint, phpcs, unit tests, Node tests, build, setup workflow,
+Liquidsoap type and spacing checks) run on every push. The slow suites run only
+when their inputs change: the playback scenarios and fail-safe check for
+`liquidsoap/` and the playback test files, the MariaDB replacement test for the
+replacement, queue and media services. Release PRs from this repository's
+`develop` to `main` reuse a successful push run for the exact head commit when
+`main` is an ancestor of that commit; otherwise every suite runs, including when
+the earlier run is still pending or failed. Pushes to `main` do not repeat the
+suite. Other PRs run whatever their changes touch.
 
 The daily **AzuraCast
 compatibility** workflow tests `develop` against AzuraCast's rolling `latest` image

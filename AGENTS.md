@@ -9,6 +9,9 @@
   code cannot show (why, external constraints, non-obvious behaviour), in one short line where possible.
   Never restate the code, narrate steps or describe features; that belongs in the README. PHPDoc only for
   types PHP cannot express.
+- Never write incident narrative into code, tests, docs or release notes: no station names, dates,
+  "observed on", "previously", "this fixes the case where" or similar references to how a change came
+  about. Tests get a neutral assertion message; the commit message holds the context.
 - Keep detection code, models, credentials and private analysis data out of this repository.
 - `intro_end` is original-file seconds. Blank, zero and positive values remain distinct.
 - Use effective resolved AutoCue metadata, including cached annotations; cue fields may be blank.
@@ -17,7 +20,8 @@
 - Keep detection, reviews, vetoes, import workflows and their storage in the private detector.
 - The plugin page configures sweepers and edits only `intro_end` on a waveform; do not add review fields or plugin-owned database tables.
 - Before pushing, run the fast checks locally: PHP tests/lint, Node tests, the frontend build and the native
-  Liquidsoap type and spacing checks. The playback scenarios are slow; they run in CI only.
+  Liquidsoap type and spacing checks. The playback scenarios and the MariaDB replacement test are slow;
+  CI runs them when their inputs change, on release PRs and in the daily compatibility workflow.
 - When the plugin starts using another AzuraCast class, method, property, route or hook line, add it to
   `tests/compat.php` so the daily compatibility workflow covers it. Fix open `azuracast-compat` issues on `develop`.
 - State which checks actually ran. Keep the plugin disabled until station playback is validated.

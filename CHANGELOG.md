@@ -22,14 +22,13 @@
 
 ### Fixes
 
-- Moving or replacing a song no longer relies on sweepers reserved for songs that
-  the spacing rules will skip; such songs were moved forward and then played without
-  a sweeper ("Only fitting sweeper played too recently").
-- Same-playlist replacement waits briefly for AzuraCast's queue builder instead of
-  giving up immediately ("AzuraCast is currently rebuilding the queue").
-- Replacement alone (without moving queued songs) now runs; previously it was
-  skipped unless moving was also enabled.
-- The timeline distinguishes sweepers reserved for upcoming songs from a recent repeat.
+- A song counts as fitting for a move or replacement only when a sweeper is actually
+  free for it: reservations the spacing rules will drop do not relax the repeat
+  protection.
+- Same-playlist replacement waits for AzuraCast's queue builder within the matching
+  budget instead of giving up at once.
+- Replacement runs on its own when queued-song moving is off.
+- The timeline tells sweepers reserved for upcoming songs apart from a recent repeat.
 
 ### Update notes
 

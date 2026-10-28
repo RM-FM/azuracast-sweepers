@@ -297,7 +297,7 @@ namespace {
         usleep(30_000);
         $check(
             $replace(static fn(): bool => false) === null && $reason === 'replace_none',
-            'A queue build that finishes within the budget no longer blocks replacement.'
+            'A queue build that finishes within the budget does not block replacement.'
         );
         pcntl_waitpid($holder, $status);
     } else {
