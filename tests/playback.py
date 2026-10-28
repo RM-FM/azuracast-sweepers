@@ -26,6 +26,7 @@ rate = 44100
 spacing = args.scenario in ('spacing', 'playlist-spacing')
 autocue = args.scenario in ('computed-autocue', 'provided-autocue')
 short_tracks = spacing or autocue or args.scenario in ('hot-enable', 'arrange')
+warmup_duration = .5 if autocue else .1
 
 
 def tone(path, hz, duration, silence_before=0., silence_after=0.):
@@ -49,7 +50,7 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
     tone(root / 'sweeper.wav', 880, .5 if short_tracks else 2)
     # A sweeper file with leading and trailing silence, for AutoCue measurement.
     tone(root / 'cued.wav', 660, 2, silence_before=.5, silence_after=1.)
-    tone(root / 'warmup.wav', 440, 0, silence_after=.1)
+    tone(root / 'warmup.wav', 440, 0, silence_after=warmup_duration)
     calls = []
     song_requests = 0
     warmed_up = False
@@ -70,7 +71,7 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
             if self.path == '/nextsong' and not warmed_up:
                 # Liquidsoap 2.4 may fetch twice at startup and drop the first request; it drops this one.
                 warmed_up = True
-                value = {'uri': f'annotate:liq_disable_autocue="true",liq_cue_in="0",liq_cue_out="0.1":{root}/warmup.wav'}
+                value = {'uri': f'annotate:liq_disable_autocue="true",liq_cue_in="0",liq_cue_out="{warmup_duration}":{root}/warmup.wav'}
             elif self.path == '/nextsong':
                 song_requests += 1
                 token = str(122 + song_requests) if short_tracks else ('123' if song_requests == 1 else '124')
