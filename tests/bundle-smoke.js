@@ -23,7 +23,7 @@ vm.runInNewContext(executable, {
 });
 await new Promise((resolve) => setTimeout(resolve, 30));
 assert.match(document.body.textContent, /Sweeper Settings/);
-assert.match(document.body.textContent, /Test/);
+assert.match(document.body.textContent, /Enable sweepers/);
 assert.equal(document.documentElement.getAttribute("data-bs-theme"), "dark");
 
 const embedded = parseHTML('<html><body><div id="app" class="sweepers-page embedded" data-base="/sweepers/1" data-csrf="test"></div></body></html>');

@@ -23,7 +23,6 @@
             </div>
             <form class="form sweepers-settings" @submit.prevent="saveSettings">
                 <div class="card-body">
-                    <p class="card-text">Sweepers are short station drop-ins played over the instrumental intro of a song, while the music is ducked underneath. Configure them for {{ station.name || 'your station' }} below.</p>
                     <p v-if="moduleStatus.state === 'active'" class="card-text text-success" data-module-status="active">{{ moduleStatus.message }}</p>
                     <p v-if="release" class="card-text text-muted small" data-plugin-version>Plugin version {{ installedLabel }}</p>
                     <div v-if="release?.latest" class="alert alert-info" role="status" data-plugin-update>
