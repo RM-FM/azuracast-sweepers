@@ -54,11 +54,6 @@
     margin-top: 2rem;
 }
 
-.sweepers-page .sweepers-settings input[type="number"] {
-    width: 9rem;
-    max-width: 100%;
-}
-
 .sweepers-page .sweepers-settings-panel fieldset {
     min-width: 0;
 }

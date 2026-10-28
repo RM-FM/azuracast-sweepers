@@ -227,8 +227,8 @@ preserved.
 ## Settings reference
 
 Main sections and their headings span the full width. Only related fields within
-a section use columns on larger screens; the three song spacing values appear
-side by side on large screens and stack on smaller screens.
+a section use half-width columns on larger screens and stack on smaller screens.
+Inputs fill their column using the native AzuraCast sizing.
 
 Defaults for a new installation:
 

@@ -687,7 +687,7 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         for (const id of ["sweepers-after-jingle", "sweepers-after-sweeper", "sweepers-before-jingle"]) {
             const field = document.getElementById(id).parentElement;
             assert.ok(field.classList.contains("col-12"), "Spacing values stack on small screens");
-            assert.ok(field.classList.contains("col-lg-4"), "Spacing values share three columns on large screens");
+            assert.ok(field.classList.contains("col-md-6"), "Spacing values use native half-width columns");
         }
         spacing.value = "7";
         spacing.dispatchEvent(new Event("input", { bubbles: true }));
