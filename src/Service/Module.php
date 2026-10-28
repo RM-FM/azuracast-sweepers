@@ -98,7 +98,7 @@ final class Module
         $module = $data['module'] ?? null;
         $recent = is_array($heartbeat) && $now - (int)($heartbeat['at'] ?? 0) <= self::ACTIVE_SECONDS;
         if ($recent && self::running((string)($heartbeat['version'] ?? ''))) {
-            return ['state' => 'active', 'message' => 'The sweeper module is successfully loaded on this station.'];
+            return ['state' => 'active', 'message' => 'The sweeper module is loaded and active on this station.'];
         }
         if ($recent) {
             return [

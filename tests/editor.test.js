@@ -53,7 +53,7 @@ let releaseSave;
 let needsRestart = false;
 let mediaResponse = null;
 const mediaRequests = [];
-let moduleState = { state: "active", message: "The sweeper module is successfully loaded on this station." };
+let moduleState = { state: "active", message: "The sweeper module is loaded and active on this station." };
 let restartInfo = null;
 let releaseInfo = { installed: { version: "1.0.1", branch: "main", commit: "ecd7ff2" }, checked: true,
     repository_url: "https://github.com/RM-FM/azuracast-sweepers", latest: null, updates: [], restart: null };
@@ -633,7 +633,7 @@ test("module status tells when a one-time restart is still required", async () =
         assert.match(document.querySelector('div.alert-info[role="status"]').textContent, /apply once the sweeper module runs/);
     } finally {
         app.unmount();
-        moduleState = { state: "active", message: "The sweeper module is successfully loaded on this station." };
+        moduleState = { state: "active", message: "The sweeper module is loaded and active on this station." };
     }
 });
 
@@ -659,7 +659,7 @@ test("restart button restarts broadcasting through AzuraCast's API after confirm
         app.unmount();
         delete globalThis.window.confirm;
         restartInfo = null;
-        moduleState = { state: "active", message: "The sweeper module is successfully loaded on this station." };
+        moduleState = { state: "active", message: "The sweeper module is loaded and active on this station." };
     }
 });
 
