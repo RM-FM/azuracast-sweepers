@@ -244,7 +244,7 @@
                     <h2 id="sweepers-cues-heading" class="card-title mb-0">Intro Cues</h2>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted">The intro end is where the singing starts. <strong>0</strong> = no usable intro, <strong>empty</strong> = not known yet. Songs without an intro end get no sweeper.</p>
+                    <p class="text-muted"><strong>0</strong> = no usable intro, <strong>empty</strong> = not known yet. Songs without an intro end get no sweeper.</p>
                     <form class="search" @submit.prevent>
                         <div class="input-group">
                             <input id="search" v-model="search" class="form-control" type="search" aria-label="Search tracks" placeholder="Artist, title or filename">
