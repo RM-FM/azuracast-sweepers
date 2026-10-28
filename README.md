@@ -9,6 +9,56 @@ and rolling releases with Liquidsoap 2.5.
 > [!TIP]
 > Hear it in action on any [RadioMonster.FM](https://www.radiomonster.fm) station.
 
+## Quick Start
+
+Run these commands **on your AzuraCast host**, using an account with Docker access
+and permission to write to the AzuraCast directory. The examples use
+`/var/azuracast`; adjust the path if your installation is elsewhere.
+**Node and npm are not needed on the host**: setup builds everything in a temporary
+Docker container.
+
+### Install
+
+```bash
+mkdir -p /var/azuracast/plugins
+git clone --branch main https://github.com/RM-FM/azuracast-sweepers.git /var/azuracast/plugins/azuracast-sweepers
+cd /var/azuracast/plugins/azuracast-sweepers
+bash bin/setup.sh
+```
+
+Setup builds the frontend and prepares the Compose override for you, preserving
+existing plugin entries such as Moonbase AutoCue. No manual YAML editing is needed
+for a standard installation.
+
+> [!WARNING]
+> On first installation, setup asks before recreating the AzuraCast web container.
+> This interrupts broadcasting on all stations in that container. Confirm only when
+> ready; declining leaves the configuration prepared for later.
+
+Then create an **Advanced** playlist containing your sweepers, open
+**Sweepers → Settings** in AzuraCast, select the playlist and configure the plugin.
+Set your songs' [intro ends](#intro-end), check the module status and validate station
+playback before enabling sweepers. See [Setup](#setup) for details.
+
+### Update
+
+Read the [release notes](CHANGELOG.md), then run:
+
+```bash
+(
+  set -e
+  cd /var/azuracast/plugins/azuracast-sweepers
+  git pull --ff-only origin main
+  bash bin/setup.sh
+)
+```
+
+For an already configured installation, setup rebuilds the frontend and reloads
+PHP/worker processes without restarting broadcasting. If container configuration
+needs to be applied, it asks first. A changed Liquidsoap module may require a separate
+broadcasting restart per station; check the release notes and the module status in
+**Sweepers → Settings**. Your settings and intro values are kept.
+
 ## Features
 
 - Sweepers timed to the song intro using Liquidsoap's resolved cue and crossfade metadata
@@ -28,14 +78,8 @@ and rolling releases with Liquidsoap 2.5.
 
 ## Installation
 
-On the AzuraCast host (default path `/var/azuracast`):
-
-```bash
-mkdir -p /var/azuracast/plugins
-git clone --branch main https://github.com/RM-FM/azuracast-sweepers.git /var/azuracast/plugins/azuracast-sweepers
-cd /var/azuracast/plugins/azuracast-sweepers
-bash bin/setup.sh
-```
+Use the [Quick Start installation commands](#install). The following explains what
+setup changes and how it handles existing installations.
 
 Keep the directory name `azuracast-sweepers` below your AzuraCast installation's
 `plugins` directory. Run the script as a user with Docker access and write permission
@@ -291,14 +335,8 @@ Read the [release notes](CHANGELOG.md) before updating. Every release explicitly
 states whether an **AzuraCast Broadcast (Liquidsoap) restart** is required.
 Frontend rebuilds and PHP/worker reloads are separate and do not restart broadcasting.
 
-```bash
-(
-  set -e
-  cd /var/azuracast/plugins/azuracast-sweepers
-  git pull --ff-only origin main
-  bash bin/setup.sh
-)
-```
+Use the [Quick Start update commands](#update). The same setup script handles both
+installation and updates.
 
 For an already configured container, this rebuilds the frontend, reloads PHP-FPM,
 restarts PHP workers/NowPlaying and then clears the route cache without interrupting
