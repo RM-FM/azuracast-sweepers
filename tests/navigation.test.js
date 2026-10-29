@@ -1,16 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {parseHTML} from "linkedom";
-import {currentView, mountNavigation, stationContext} from "../frontend/navigation.js";
+import {currentView, mountNavigation, registerRoutes, stationContext} from "../frontend/navigation.js";
+import {createMemoryHistory, createRouter} from "vue-router";
 
-function fixture(path = "/station/1", base = "") {
+function fixture(path = "/station/1", base = "", ready = Promise.resolve()) {
     const {document, window} = parseHTML(`<!doctype html><html><body>
         <ul class="navdrawer-nav" id="station-menu"><li class="nav-item" id="media-item">
         <a class="nav-link" href="#sidebar-submenu-media">Media</a>
         <div id="sidebar-submenu-media" class="collapse"><ul class="navdrawer-nav">
             <li><a href="${base}/station/1/files">Music Files</a></li>
         </ul></div></li><li class="nav-item" id="next-item">Next</li></ul>
-        <main id="main"><div id="content">Native station content</div></main>
+        <div id="app"><main id="main"><div id="content">Native station content</div></main></div>
         <script id="azuracast-sweepers-navigation"></script>
     </body></html>`);
     let location = new URL(path, "https://radio.example");
@@ -22,11 +23,61 @@ function fixture(path = "/station/1", base = "") {
         return nextFrame;
     };
     window.cancelAnimationFrame = (id) => frames.delete(id);
+    const hooks = new Set();
+    const errors = new Set();
+    const routes = [];
+    const pushes = [];
+    const replacements = [];
+    function updateRoute(path) {
+        location = new URL(path, location);
+        window.location = location;
+        router.currentRoute.value = {
+            path: location.pathname.slice(base.length),
+            fullPath: location.pathname.slice(base.length) + location.search + location.hash,
+            params: {station_id: location.pathname.match(/\/station\/(\d+)/)?.[1]},
+            query: Object.fromEntries(location.searchParams),
+            hash: location.hash,
+        };
+        hooks.forEach((hook) => hook(router.currentRoute.value));
+        return Promise.resolve();
+    }
+    const router = {
+        currentRoute: {value: null},
+        isReady: () => ready,
+        getRoutes: () => [{
+            path: "/station/:station_id", children: [{path: ""}],
+            components: {default: {name: "StationLayout"}},
+        }],
+        addRoute(route) {
+            routes.push(route);
+            return () => routes.splice(routes.indexOf(route), 1);
+        },
+        afterEach(hook) {
+            hooks.add(hook);
+            return () => hooks.delete(hook);
+        },
+        onError(hook) {
+            errors.add(hook);
+            return () => errors.delete(hook);
+        },
+        replace(target) {
+            replacements.push(target);
+            if (typeof target === "string") return updateRoute(base + target);
+            const query = new URLSearchParams(target.query).toString();
+            return updateRoute(base + target.path + (query ? `?${query}` : "") + target.hash);
+        },
+        push(target) {
+            pushes.push(target);
+            return updateRoute(base + target);
+        },
+    };
+    updateRoute(path);
+    document.getElementById("app").__vue_app__ = {config: {globalProperties: {$router: router}}};
     const stop = mountNavigation(document, window, base);
     return {
-        document, window, stop,
+        document, window, stop, router, routes, pushes, replacements, hooks, errors,
         item: () => document.getElementById("azuracast-sweepers-menu-item"),
-        page: (view) => document.querySelector(`#sidebar-submenu-sweepers a[href$="sweepers=${view}"]`),
+        page: (view) => document.querySelector(`#sidebar-submenu-sweepers a[href$="/sweepers/${view}"]`),
         async flush() {
             await new Promise((resolve) => setImmediate(resolve));
             const pending = [...frames.values()];
@@ -34,20 +85,18 @@ function fixture(path = "/station/1", base = "") {
             pending.forEach((callback) => callback());
         },
         navigate(path) {
-            location = new URL(path, location);
-            window.location = location;
-            window.dispatchEvent(new window.Event("popstate"));
+            updateRoute(path);
         },
     };
 }
 
 test("station paths respect the installation prefix and reject unrelated pages", () => {
     assert.deepEqual(stationContext("/radio/station/12/files", "/radio"), {
-        stationPath: "/radio/station/12", href: "/radio/station/12?sweepers=settings",
+        stationPath: "/radio/station/12", href: "/radio/station/12/sweepers/settings",
         links: {
-            settings: "/radio/station/12?sweepers=settings",
-            intros: "/radio/station/12?sweepers=intros",
-            history: "/radio/station/12?sweepers=history",
+            settings: "/radio/station/12/sweepers/settings",
+            intros: "/radio/station/12/sweepers/intros",
+            history: "/radio/station/12/sweepers/history",
         },
         apiBase: "/radio/sweepers/12",
     });
@@ -71,9 +120,9 @@ test("adds one top-level Sweepers group after Media and does not loop on its own
     assert.equal(submenu.parentElement, f.item());
     assert.equal(submenu.className, "collapse pb-2");
     assert.deepEqual([...submenu.querySelectorAll("a")].map((a) => [a.textContent, a.getAttribute("href"), a.className]), [
-        ["Settings", "/station/1?sweepers=settings", "nav-link ps-4 py-2"],
-        ["Intro Manager", "/station/1?sweepers=intros", "nav-link ps-4 py-2"],
-        ["Playback Timeline", "/station/1?sweepers=history", "nav-link ps-4 py-2"],
+        ["Settings", "/station/1/sweepers/settings", "nav-link ps-4 py-2"],
+        ["Intro Manager", "/station/1/sweepers/intros", "nav-link ps-4 py-2"],
+        ["Playback Timeline", "/station/1/sweepers/history", "nav-link ps-4 py-2"],
     ]);
     assert.equal(f.item().parentElement.id, "station-menu");
     assert.equal(f.item().previousElementSibling.id, "media-item");
@@ -96,7 +145,7 @@ test("station switching removes stale links until the new Media menu is ready", 
     assert.equal(f.item(), null);
     f.document.querySelector("#sidebar-submenu-media a").setAttribute("href", "/station/2/files");
     await f.flush();
-    assert.equal(f.page("settings").getAttribute("href"), "/station/2?sweepers=settings");
+    assert.equal(f.page("settings").getAttribute("href"), "/station/2/sweepers/settings");
     assert.equal(f.item().querySelector("a").getAttribute("target"), null);
     f.navigate("/dashboard");
     await f.flush();
@@ -117,11 +166,11 @@ test("Vue sidebar replacement restores the link without duplicating it", async (
 });
 
 test("waits for a delayed sidebar and omits links without the native Media permission entry", async () => {
-    const f = fixture("/station/1", "/radio");
+    const f = fixture("/radio/dashboard", "/radio");
     assert.equal(f.item(), null);
     f.navigate("/radio/station/1/files");
     await f.flush();
-    assert.equal(f.page("history").getAttribute("href"), "/radio/station/1?sweepers=history");
+    assert.equal(f.page("history").getAttribute("href"), "/radio/station/1/sweepers/history");
     f.document.querySelector("#sidebar-submenu-media li").remove();
     await f.flush();
     assert.equal(f.item(), null);
@@ -140,7 +189,7 @@ test("entering a station from the dashboard handles lazy sidebar creation", asyn
     assert.equal(f.item(), null);
     f.document.body.append(sidebar);
     await f.flush();
-    assert.equal(f.page("intros").getAttribute("href"), "/station/1?sweepers=intros");
+    assert.equal(f.page("intros").getAttribute("href"), "/station/1/sweepers/intros");
     f.stop();
 });
 
@@ -165,14 +214,13 @@ test("does not insert a link into an unexpected sidebar structure", async () => 
 });
 
 
-test("station route embeds Sweepers beside the native sidebar and restores the page on exit", async () => {
+test("legacy station links redirect without hiding or replacing native content", async () => {
     const f = fixture("/station/1?sweepers=1");
-    const panel = f.document.getElementById("azuracast-sweepers-panel");
-    assert.equal(panel.dataset.apiBase, "/sweepers/1");
-    assert.equal(panel.dataset.view, "settings", "Former single-page link opens Settings");
-    assert.equal(panel.querySelector("#app").dataset.csrf, "");
-    assert.equal(panel.querySelector("#app").dataset.view, "settings");
-    assert.equal(f.document.getElementById("content").style.display, "none");
+    await f.flush();
+    assert.equal(f.window.location.pathname, "/station/1/sweepers/settings");
+    assert.equal(f.document.getElementById("azuracast-sweepers-panel"), null);
+    assert.equal(f.document.getElementById("content").textContent, "Native station content");
+    assert.equal(f.document.getElementById("content").style.display ?? "", "");
     assert.equal(f.document.getElementById("station-menu") !== null, true);
     f.navigate("/station/1/files");
     await f.flush();
@@ -182,24 +230,118 @@ test("station route embeds Sweepers beside the native sidebar and restores the p
 });
 
 test("each sub-page opens its view, expands the group and marks the current entry", async () => {
-    const f = fixture("/station/1?sweepers=intros");
-    assert.equal(f.document.getElementById("azuracast-sweepers-panel").dataset.view, "intros");
+    const f = fixture("/station/1/sweepers/intros/");
     assert.equal(f.item().querySelector("a").className, "nav-link active");
     assert.equal(f.item().querySelector("a").getAttribute("aria-expanded"), "true");
     assert.equal(f.document.getElementById("sidebar-submenu-sweepers").className, "collapse pb-2 show");
     assert.equal(f.page("intros").className, "nav-link ps-4 py-2 active");
     assert.equal(f.page("intros").getAttribute("aria-current"), "page");
     assert.equal(f.page("history").className, "nav-link ps-4 py-2");
-    f.navigate("/station/1?sweepers=history");
+    f.navigate("/station/1/sweepers/history");
     await f.flush();
-    assert.equal(f.document.getElementById("azuracast-sweepers-panel").dataset.view, "history", "Back/forward switches the view");
     assert.equal(f.page("history").className, "nav-link ps-4 py-2 active");
     assert.equal(f.page("intros").className, "nav-link ps-4 py-2");
-    assert.equal(f.document.querySelectorAll("#azuracast-sweepers-panel").length, 1);
+    assert.equal(f.document.querySelectorAll("#azuracast-sweepers-panel").length, 0);
     assert.equal(f.document.querySelectorAll("#azuracast-sweepers-menu-item").length, 1);
     // A user's own open/close (Bootstrap toggles the classes) is kept while the page stays the same.
     f.document.getElementById("sidebar-submenu-sweepers").className = "collapse pb-2";
     await f.flush();
     assert.equal(f.document.getElementById("sidebar-submenu-sweepers").className, "collapse pb-2");
     f.stop();
+});
+
+test("normal sidebar clicks use the native router while modified clicks remain browser-owned", async () => {
+    const f = fixture("/radio/station/1", "/radio");
+    for (const modifier of ["ctrlKey", "metaKey", "shiftKey", "altKey"]) {
+        const event = new f.window.Event("click", {bubbles: true, cancelable: true});
+        event[modifier] = true;
+        f.page("intros").dispatchEvent(event);
+        assert.equal(event.defaultPrevented, false);
+    }
+    assert.deepEqual(f.pushes, []);
+    const event = new f.window.Event("click", {bubbles: true, cancelable: true});
+    f.page("intros").querySelector("span").dispatchEvent(event);
+    await f.flush();
+    assert.equal(event.defaultPrevented, true);
+    assert.deepEqual(f.pushes, ["/station/1/sweepers/intros"]);
+    assert.equal(f.page("intros").getAttribute("aria-current"), "page");
+    f.stop();
+    assert.equal(f.routes.length, 0);
+    assert.equal(f.hooks.size, 0);
+    assert.equal(f.errors.size, 0);
+});
+
+test("legacy redirects retain other query parameters and the hash", async () => {
+    const f = fixture("/radio/station/1?sweepers=history&filter=played#timeline", "/radio");
+    await f.flush();
+    assert.equal(f.window.location.pathname, "/radio/station/1/sweepers/history");
+    assert.equal(f.window.location.search, "?filter=played");
+    assert.equal(f.window.location.hash, "#timeline");
+    f.stop();
+});
+
+test("waits for the initial native navigation instead of replacing its pending route", async () => {
+    let finish;
+    const f = fixture("/station/1/sweepers/history", "", new Promise((resolve) => { finish = resolve; }));
+    f.router.currentRoute.value = {path: "/", fullPath: "/", query: {}};
+    await f.flush();
+    assert.deepEqual(f.replacements, []);
+    f.navigate("/station/1/sweepers/history");
+    finish();
+    await f.flush();
+    assert.deepEqual(f.replacements, ["/station/1/sweepers/history"]);
+    f.stop();
+});
+
+test("an unavailable native router produces a visible compatibility error and cleans up", () => {
+    const f = fixture();
+    f.stop();
+    delete f.document.getElementById("app").__vue_app__;
+    const errors = [];
+    const original = f.window.console.error;
+    f.window.console.error = (...args) => errors.push(args);
+    const stop = mountNavigation(f.document, f.window);
+    try {
+        f.document.dispatchEvent(new f.window.Event("vue-ready"));
+        const alert = f.document.getElementById("azuracast-sweepers-navigation-error");
+        assert.equal(alert.getAttribute("role"), "alert");
+        assert.match(alert.textContent, /AzuraCast compatibility/);
+        assert.equal(errors.length, 1);
+        assert.equal(f.document.getElementById("content").style.display ?? "", "");
+    } finally {
+        stop();
+        f.window.console.error = original;
+    }
+    assert.equal(f.document.getElementById("azuracast-sweepers-navigation-error"), null);
+});
+
+test("registers lazy station pages with the native layout and station-scoped props", async () => {
+    const layout = {render: () => null};
+    let loads = 0;
+    const router = createRouter({
+        history: createMemoryHistory(),
+        routes: [{
+            path: "/station/:station_id",
+            component: layout,
+            children: [{path: "", name: "stations:index", component: {render: () => null}}],
+        }],
+    });
+    const remove = registerRoutes(router, "/radio", async () => {
+        loads++;
+        return {render: () => null};
+    });
+    for (const view of ["settings", "intros", "history"]) {
+        await router.push(`/station/12/sweepers/${view}`);
+        const route = router.currentRoute.value;
+        assert.equal(route.name, `sweepers:${view}`);
+        assert.equal(route.matched[0].components.default, layout);
+        assert.deepEqual(route.matched[1].props.default(route), {base: "/radio/sweepers/12", view});
+    }
+    assert.equal(loads, 3);
+    await router.push("/station/12");
+    assert.equal(router.currentRoute.value.name, "stations:index");
+    remove();
+    assert.equal(router.hasRoute("sweepers:settings"), false);
+    assert.equal(router.hasRoute("stations:index"), true);
+    assert.throws(() => registerRoutes({getRoutes: () => []}, "", () => {}), /station layout/);
 });

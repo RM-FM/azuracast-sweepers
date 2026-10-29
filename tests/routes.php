@@ -92,8 +92,8 @@ namespace {
         ->newInstanceWithoutConstructor();
     $subscriber->routes(new \App\Event\BuildRoutes($app));
 
-    if ($app->groups !== 2 || count($app->routes) !== 15) {
+    if ($app->groups !== 2 || count($app->routes) !== 16) {
         throw new \RuntimeException('Sweeper routes were not registered.');
     }
-    echo '2 route groups bound; 15 routes registered.' . PHP_EOL;
+    echo '2 route groups bound; 16 routes registered.' . PHP_EOL;
 }

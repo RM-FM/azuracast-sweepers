@@ -74,6 +74,11 @@ a broadcasting restart.
 The pages require station Media permission; changing settings and restarting
 broadcasting also require Broadcasting permission.
 
+Sweeper pages use AzuraCast's station layout and client-side router. Switching
+between them does not reload the dashboard; direct links and browser history
+open the selected page. Former `?sweepers=...` station links redirect to the
+corresponding page.
+
 ## Everyday use
 
 | Page | Use it to |

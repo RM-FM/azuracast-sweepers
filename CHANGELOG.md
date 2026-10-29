@@ -9,6 +9,8 @@
 
 ### Fixes
 
+- Load Sweeper pages through AzuraCast's router and station layout without a
+  dashboard reload or a hidden station page; preserve direct links and browser history.
 - Stabilize waveform zoom in the Intro Manager and align its timeline, zoom,
   volume, Play/Stop and Close/Save controls with AzuraCast's visual editor.
   Intro editing uses Set Intro and No Intro instead of a numeric input or Clear.
