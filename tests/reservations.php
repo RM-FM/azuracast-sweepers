@@ -97,6 +97,24 @@ namespace {
         check($result['blocked'] === [], 'Without a before-jingle gap the queue is not queried.');
         $state->update($directory, static fn(array $data) => ['settings' => ['enabled' => false]] + $data);
         check(!$planner->heartbeat($station, [], [])['settings']->enabled, 'Heartbeat picks up disabling immediately.');
+        $at = microtime(true) - 300;
+        $events = [
+            ['event' => 'release', 'token' => '500', 'detail' => 'error', 'at' => $at - 1],
+            ['event' => 'start', 'token' => '500', 'detail' => 'none', 'at' => $at],
+            ['event' => 'start', 'token' => '501', 'detail' => 'after_jingle', 'at' => $at + 120],
+        ];
+        $state->update($directory, static fn(): array => []);
+        $planner->heartbeat($station, [], $events);
+        $log = $state->read($directory)['log'];
+        check(
+            array_column($log, 'at') === [$at + 120, $at] && $log[1]['result'] === 'error',
+            'Buffered starts keep their playback times and API failures through the heartbeat and state file.'
+        );
+        $planner->heartbeat($station, [], $events);
+        check(
+            $state->read($directory)['log'] === $log,
+            'Replaying a buffered batch never duplicates tracks or changes their timestamps.'
+        );
     } finally {
         foreach (glob($directory . '/*') as $path) {
             unlink($path);

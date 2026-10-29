@@ -9,6 +9,9 @@
 
 ### Fixes
 
+- Retry a failed sweeper-planning request once and report persistent failures as
+  planning errors. Buffered playback events retain their original timestamps;
+  missing decisions no longer imply a station restart.
 - Keep station state readable after root-run maintenance and show loading errors
   instead of a blank plugin page.
 - The Settings restart button restarts only Liquidsoap, leaving Icecast running.
@@ -18,8 +21,8 @@
 
 ### Update notes
 
-- **AzuraCast Broadcast (Liquidsoap) restart: Required** to load the reservation-release
-  handshake before planning matched songs. This change is not yet released.
+- **AzuraCast Broadcast (Liquidsoap) restart: Required** to load reservation releases,
+  planning retries and playback event timestamps. This change is not yet released.
 
 ## 1.2.0 - 2026-10-28
 

@@ -149,11 +149,23 @@ Each heartbeat request includes the running module `version`; the plugin records
 at most every 30 seconds so the panel can tell whether the module runs, is outdated
 or still needs the one-time restart after installation or update.
 
-Heartbeat `events` carry `event`, `token`, `detail`, `media_id`, `title` and
+Heartbeat `events` carry `event`, `token`, `detail`, `at`, `media_id`, `title` and
 `artist`. `start` is sent once per started track with the module's outcome in
 `detail` (`scheduled`, a reason such as `after_jingle`, or `none` when the plugin
 decided at planning time); `played` marks an actual sweeper start; `release` frees
 a reservation, with the reason in `detail` when the sweeper did not play.
+`at` is the event's Unix timestamp in seconds, including fractions. Buffered events
+keep their original start/playback time when the API recovers; older modules
+without `at` use receipt time. Invalid or more than 60 seconds future timestamps
+are rejected.
+
+A failed planning HTTP request is retried once before the song is handed back
+to AzuraCast, with the same queue token and timing and a one-second timeout per
+attempt. An existing reservation is reused if the first response was lost.
+Successful empty plans are not retried. Two failed attempts report `error`, not
+`not_planned`; the latter means no planning decision was recorded and does not
+prove that a station restarted. The song is handed back after at most two attempts
+even if the API is still unavailable; a song that has already started is not replanned.
 
 ## Panel rotation settings
 

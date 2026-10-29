@@ -682,7 +682,7 @@ const reasons = {
     settings: "Cancelled by a settings change",
     unavailable: "Sweeper could not be loaded",
     error: "Planning error",
-    not_planned: "Not planned (station just started)",
+    not_planned: "No planning decision recorded",
 };
 
 function reasonText(entry) {

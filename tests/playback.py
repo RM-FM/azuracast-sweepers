@@ -18,14 +18,15 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--liquidsoap', default='liquidsoap')
 parser.add_argument('--scenario', choices=['normal', 'skip', 'live', 'unavailable', 'spacing', 'playlist-spacing',
                                           'hot-enable', 'hot-disable', 'hot-pending', 'hot-change', 'hot-error',
-                                          'before-jingle', 'computed-autocue', 'provided-autocue', 'arrange', 'reverb'], default='normal')
+                                          'before-jingle', 'computed-autocue', 'provided-autocue', 'arrange', 'reverb',
+                                          'plan-retry', 'plan-lost-response', 'heartbeat-outage'], default='normal')
 parser.add_argument('--runtime', type=Path, required=True)
 args = parser.parse_args()
 plugin = Path(__file__).resolve().parents[1]
 rate = 44100
 spacing = args.scenario in ('spacing', 'playlist-spacing')
 autocue = args.scenario in ('computed-autocue', 'provided-autocue')
-short_tracks = spacing or autocue or args.scenario in ('hot-enable', 'arrange')
+short_tracks = spacing or autocue or args.scenario in ('hot-enable', 'arrange', 'heartbeat-outage')
 warmup_duration = .5 if autocue else .1
 
 
@@ -94,7 +95,7 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
                              duck_duration=.3 if short_tracks else 1., gain=1., duck_gain=.4467,
                              **({'reverb': 1., 'length': 2.} if args.scenario == 'reverb' else {}))
             elif self.path == '/sweepers/arrange':
-                moved = args.scenario == 'arrange' and not any(path == '/sweepers/arrange' for path, _, _ in calls[:-1])
+                moved = args.scenario == 'arrange' and sum(path == '/sweepers/arrange' for path, _, _ in calls) == 1
                 value = {'moved': '130', 'before': '125', 'released': ['999']} if moved else {'moved': '', 'before': ''}
             elif self.path == '/sweepers/heartbeat':
                 heartbeat_requests += 1
@@ -107,7 +108,16 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
                     value = {'success': False}
             else:
                 value = {'success': True}
-            self.send_response(503 if args.scenario == 'unavailable' and self.path == '/sweepers/plan' else 200)
+            plan_calls = [entry for entry in calls if entry[0] == '/sweepers/plan'
+                          and entry[1]['token'] == json.loads(body).get('token')] if self.path == '/sweepers/plan' else []
+            if args.scenario == 'plan-lost-response' and len(plan_calls) == 1:
+                self.close_connection = True
+                return
+            failed = self.path == '/sweepers/plan' and (
+                args.scenario == 'unavailable' or (args.scenario == 'plan-retry' and len(plan_calls) == 1))
+            failed = failed or (args.scenario == 'heartbeat-outage' and self.path == '/sweepers/heartbeat'
+                                and heartbeat_requests <= 2)
+            self.send_response(503 if failed else 200)
             self.end_headers()
             try:
                 self.wfile.write(json.dumps(value).encode())
@@ -168,7 +178,8 @@ thread.run(delay=7., {{shutdown()}})
     events = [{'event': e['event'], 'token': e['token']} for e in reported if e['event'] != 'start']
     starts = {e['token']: e['detail'] for e in reported if e['event'] == 'start'}
     releases = {e['token']: e['detail'] for e in reported if e['event'] == 'release' and e['detail']}
-    assert all(set(e) == {'event', 'token', 'detail', 'media_id', 'title', 'artist'} for e in reported), reported[:3]
+    assert all(set(e) == {'event', 'token', 'detail', 'at', 'media_id', 'title', 'artist'} for e in reported), reported[:3]
+    assert all(isinstance(e['at'], (int, float)) and 0 < e['at'] <= time.time() + 1 for e in reported), reported[:3]
     assert all(body.get('version') == 'test' for path, body, _ in calls if path == '/sweepers/heartbeat'), \
         'Heartbeats must report the loaded module version'
     assert 'Queue arrangement skipped' not in result.stdout, ('Arrangement call failed', result.stdout[-2000:])
@@ -176,7 +187,28 @@ thread.run(delay=7., {{shutdown()}})
         'Routine plugin API calls must stay below the default log level'
     if args.scenario == 'unavailable':
         assert 'API sweepers/plan - Response (503)' in result.stdout, 'Failed plugin API call not logged'
-    if spacing:
+        assert releases.get('123') == 'error', 'An exhausted planning failure must be reported explicitly'
+    if args.scenario in ('unavailable', 'plan-retry', 'plan-lost-response'):
+        attempts = [body for path, body, _ in calls if path == '/sweepers/plan' and body['token'] == '123']
+        assert len(attempts) == 2, ('Planning retries must be bounded to one retry', len(attempts))
+        assert attempts[0] == attempts[1], 'A retry must reuse the same queue token and timing'
+        if args.scenario != 'unavailable':
+            assert releases.get('123') != 'error', 'A recovered request must not be reported as failed'
+            assert sum(e == {'event': 'played', 'token': '123'} for e in events) == 1, \
+                'A recovered request must play exactly one sweeper'
+    if args.scenario == 'heartbeat-outage':
+        batches = [body['events'] for path, body, _ in calls if path == '/sweepers/heartbeat' and body['events']]
+        assert batches, 'Buffered playback events were not delivered'
+        timestamps = {}
+        for batch in batches:
+            for event in batch:
+                key = (event['token'], event['event'], event['detail'])
+                assert key not in timestamps or timestamps[key] == event['at'], 'Retry changed an event timestamp'
+                timestamps[key] = event['at']
+        starts_at = sorted(event['at'] for event in batches[-1] if event['event'] == 'start')
+        assert len(starts_at) >= 3 and starts_at[-1] - starts_at[0] >= 2., \
+            ('Buffered starts must retain distinct playback times', starts_at)
+    elif spacing:
         assert 'Sweeper skipped for queue 125: song spacing' in result.stdout, 'Spacing skip not logged'
         played = {e['token'] for e in events if e['event'] == 'played'}
         assert '124' not in played and '125' not in played, ('Jingle or immediately following song overlaid', played)

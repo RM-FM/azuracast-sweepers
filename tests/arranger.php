@@ -493,6 +493,13 @@ namespace {
                 'Actual planner prefers the tolerance range, then uses a shorter eligible sweeper.'
             );
             $check($data['history'] === [1 => 1, 2 => 2, 3 => 3], 'Planning never counts as sweeper playback.');
+            $retry = $planner->plan($station, 21, '200', 0, 180, $measurements);
+            $retried = $state->read($directory);
+            $check(
+                json_encode($retry) === json_encode($payload) && count($retried['plans']) === count($data['plans'])
+                    && $retried['plans']['200']['jingle_id'] === $expected,
+                'Retrying a lost response reuses the same reservation without reserving another sweeper.'
+            );
         }
         $media->intros[21] = 100.5;
         $state->update($directory, static fn(): array => [
@@ -521,7 +528,7 @@ namespace {
                 'The only fitting sweeper blocked by a reservation is reported apart from a recent repeat.'
             );
         }
-        echo "10 longest-fit planner checks passed.\n";
+        echo "13 longest-fit planner checks passed.\n";
     } finally {
         foreach (glob($directory . '/*') as $path) {
             unlink($path);

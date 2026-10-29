@@ -254,6 +254,11 @@ final readonly class Planner
         $type = (string)($event['event'] ?? '');
         $token = (string)($event['token'] ?? '');
         $detail = substr((string)($event['detail'] ?? ''), 0, 32);
+        $now = microtime(true);
+        $at = $event['at'] ?? $now;
+        if ((!is_int($at) && !is_float($at)) || !is_finite((float)$at) || $at <= 0 || $at > $now + 60) {
+            throw new InvalidArgumentException('Invalid reservation event time.');
+        }
         $plan = $token === '' ? null : ($data['plans'][$token] ?? null);
         $log = $data['log'] ?? [];
         $index = null;
@@ -283,7 +288,7 @@ final readonly class Planner
                 unset($data['replacement_counts'][(int)$mediaId]);
             }
             $data['log'] = self::retain([[
-                'at' => microtime(true),
+                'at' => (float)$at,
                 'token' => $token,
                 'song_id' => preg_match('/^\d{1,10}$/D', $mediaId) ? (int)$mediaId : null,
                 'title' => mb_substr((string)($event['title'] ?? ''), 0, 200),
@@ -311,8 +316,7 @@ final readonly class Planner
             return $data;
         }
         if ($type === 'played' && !($plan['played'] ?? false)) {
-            $now = microtime(true);
-            $data['history'][$plan['jingle_id']] = $now;
+            $data['history'][$plan['jingle_id']] = (float)$at;
             $data['plans'][$token]['played'] = true;
             $played = [
                 'result' => 'played',
@@ -328,7 +332,7 @@ final readonly class Planner
             $moved = $data['moved'][$token] ?? null;
             unset($data['moved'][$token]);
             $data['log'] = self::retain([[
-                'at' => $now,
+                'at' => (float)$at,
                 'token' => $token,
                 'song_id' => $plan['song_id'] ?? null,
                 ...$played,

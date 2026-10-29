@@ -87,6 +87,7 @@ end
 def sweepers.event(event, token, detail, m) =
     sweepers.events := list.prefix(128, [{
         event=event, token=token, detail=detail,
+        at=time(),
         media_id=m["media_id"], title=m["title"], artist=m["artist"]
     }, ...sweepers.events()])
 end
@@ -390,12 +391,16 @@ def sweepers.next_song() =
                         cue_in=cue_in,
                         cue_out=window_end
                     })
-                    response = sweepers.api_call(timeout=1., "sweepers/plan", body)
-                    if null.defined(response) then
+                    response = ref(sweepers.api_call(timeout=1., "sweepers/plan", body))
+                    if not null.defined(response()) then
+                        log(label="sweepers", "Retrying planning for queue #{token}")
+                        response := sweepers.api_call(timeout=1., "sweepers/plan", body)
+                    end
+                    if null.defined(response()) then
                         let json.parse (p : {
                             token: string, uri: string, offset: float,
                             duck_duration: float, gain: float, duck_gain: float, reverb?: float, length?: float
-                        }) = null.get(response)
+                        }) = null.get(response())
                         ready = ref(false)
                         overlay = source.fail()
                         overlay =
@@ -429,6 +434,8 @@ def sweepers.next_song() =
                         elsif ready() then
                             sweepers.notify(detail=sweepers.stale_reason(p.token), "release", p.token)
                         end
+                    else
+                        sweepers.notify(detail="error", "release", token)
                     end
                 end
             end

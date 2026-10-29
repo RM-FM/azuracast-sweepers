@@ -446,6 +446,25 @@ $timeline = Planner::apply($timeline, $start('7', 'after_jingle'));
 check($timeline['log'][0]['result'] === 'after_jingle', 'Module reasons are shown.');
 $timeline = Planner::apply($timeline, $start('8', 'none'));
 check($timeline['log'][0]['result'] === 'not_planned', 'A song the plugin never saw is marked as not planned.');
+$delayedAt = microtime(true) - 300;
+$delayed = Planner::apply([], ['at' => $delayedAt] + $start('80', 'none'));
+check($delayed['log'][0]['at'] === $delayedAt, 'A delayed start keeps its original event time.');
+$delayed = Planner::apply($delayed, ['at' => $delayedAt + 2] + $start('80', 'none'));
+check(count($delayed['log']) === 1 && $delayed['log'][0]['at'] === $delayedAt, 'A retried start keeps its original time.');
+$failed = Planner::apply([], ['event' => 'release', 'token' => '81', 'detail' => 'error', 'at' => $delayedAt]);
+$failed = Planner::apply($failed, ['at' => $delayedAt + 1] + $start('81', 'none'));
+check($failed['log'][0]['result'] === 'error', 'An API failure stays a planning error when the song starts.');
+$playedAt = microtime(true) - 200;
+$delayed = Planner::apply(['plans' => ['82' => $plan(46)]], [
+    'event' => 'played', 'token' => '82', 'at' => $playedAt,
+]);
+check(
+    $delayed['history'][46] === $playedAt && $delayed['log'][0]['at'] === $playedAt,
+    'Delayed playback reports retain the audible time for history and repetition protection.'
+);
+foreach (['invalid', -1, INF, microtime(true) + 3600] as $at) {
+    rejects(static fn() => Planner::apply([], ['at' => $at] + $start('83', 'none')));
+}
 $timeline = Planner::apply($timeline, $start('9', 'scheduled'));
 $timeline = Planner::apply($timeline, ['event' => 'release', 'token' => '9', 'detail' => 'skipped']);
 check(
