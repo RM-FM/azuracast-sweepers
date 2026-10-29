@@ -5,12 +5,6 @@ name: AzuraCast compatibility
 on:
   schedule:
     - cron: '17 4 * * *'
-  workflow_dispatch:
-  push:
-    branches: [develop]
-    paths:
-      - .github/workflows/azuracast-compat.yml
-      - tests/compat.php
 
 permissions:
   contents: read
