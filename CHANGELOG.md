@@ -9,6 +9,9 @@
 
 ### Fixes
 
+- Stabilize waveform zoom in the Intro Manager and align its timeline, zoom,
+  volume, Play/Stop and Close/Save controls with AzuraCast's visual editor.
+  Intro editing uses Set Intro and No Intro instead of a numeric input or Clear.
 - Retry a failed sweeper-planning request once and report persistent failures as
   planning errors. Buffered playback events retain their original timestamps;
   missing decisions no longer imply a station restart.

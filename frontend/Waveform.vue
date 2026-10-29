@@ -1,21 +1,40 @@
 <template>
+    <div class="waveform-editor">
     <div ref="container" class="waveform" aria-label="Original audio waveform" />
     <p v-if="error" class="alert alert-danger" role="alert">{{ error }}</p>
-    <div class="d-flex flex-wrap align-items-center gap-2 my-3">
-        <button class="btn btn-secondary" type="button" :disabled="!ready" :aria-pressed="playing" @click="togglePlayback">{{ playing ? 'Stop' : 'Play' }}</button>
+    <div class="row mt-3 align-items-center waveform-levels">
+        <div class="col-md-7">
+            <label class="d-flex align-items-center gap-3 mb-0">
+                <span class="text-nowrap">Waveform Zoom</span>
+                <input v-model.number="zoom" class="form-range w-100 mb-0" aria-label="Waveform Zoom" type="range" min="0" max="256" :disabled="!ready">
+            </label>
+        </div>
+        <div class="col-md-5">
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-link p-0" type="button" :disabled="!ready" :title="muted ? 'Unmute' : 'Mute'" :aria-label="muted ? 'Unmute' : 'Mute'" :aria-pressed="muted" @click="muted = !muted">
+                    <Icon :name="muted || volume === 0 ? 'volumeOff' : 'volumeUp'" />
+                </button>
+                <input v-model.number="volume" class="form-range w-100 mb-0" aria-label="Volume" title="Volume" type="range" min="0" max="100" step="1" :disabled="!ready">
+            </div>
+        </div>
+    </div>
+    <div class="buttons mt-3 d-flex flex-wrap align-items-center gap-2 waveform-transport">
+        <div class="btn-group btn-group-sm">
+            <button class="btn btn-light" type="button" title="Play" aria-label="Play" :disabled="!ready" :aria-pressed="playing" @click="play"><Icon name="play" /></button>
+            <button class="btn btn-dark" type="button" title="Stop" aria-label="Stop" :disabled="!ready" @click="pause"><Icon name="stop" /></button>
+        </div>
         <slot name="controls" :ready="ready" />
-        <label class="d-flex align-items-center gap-2 mb-0">
-            Zoom
-            <input v-model.number="zoom" class="form-range mb-0" type="range" min="0" max="150" :disabled="!ready">
-        </label>
-        <span class="text-muted">{{ position.toFixed(2) }} s</span>
+        <span class="text-muted ms-auto" aria-label="Playback position">{{ position.toFixed(2) }} s</span>
+    </div>
     </div>
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.js";
+import TimelinePlugin from "wavesurfer.js/dist/plugins/timeline.js";
+import Icon from "./Icon.vue";
 
 const props = defineProps({
     audioUrl: { type: String, required: true },
@@ -28,16 +47,24 @@ const position = ref(0);
 const zoom = ref(0);
 const ready = ref(false);
 const playing = ref(false);
+const volume = ref(55);
+const audioVolume = computed(() => Math.expm1(volume.value / 100) / Math.expm1(1));
+const muted = ref(false);
 const error = ref("");
 let player = null;
 let regions = null;
 let disposed = false;
+let marker = null;
 
 function updateMarker() {
     if (!ready.value) return;
-    regions.clearRegions();
-    if (props.intro !== null) {
-        regions.addRegion({
+    if (props.intro === null) {
+        marker?.remove();
+        marker = null;
+    } else if (marker) {
+        if (marker.start !== props.intro) marker.setOptions({ start: props.intro, end: props.intro });
+    } else {
+        marker = regions.addRegion({
             id: "intro_end",
             start: props.intro,
             content: "Intro End",
@@ -56,7 +83,8 @@ onMounted(async () => {
         waveColor: styles.getPropertyValue("--bs-primary").trim() || "#2196f3",
         progressColor: styles.getPropertyValue("--bs-info").trim() || "#4081cf",
         cursorColor: styles.getPropertyValue("--bs-body-color").trim() || "#222",
-        plugins: [regions],
+        height: 128,
+        plugins: [regions, TimelinePlugin.create()],
     });
     player.on("timeupdate", (time) => {
         position.value = time;
@@ -69,6 +97,8 @@ onMounted(async () => {
     regions.on("region-updated", (region) => emit("intro", Math.round(region.start * 100) / 100));
     player.on("ready", () => {
         ready.value = true;
+        player.setVolume(audioVolume.value);
+        player.setMuted(muted.value);
         updateMarker();
     });
     player.on("play", () => { playing.value = true; });
@@ -95,6 +125,8 @@ onMounted(async () => {
 
 watch(() => props.intro, updateMarker);
 watch(zoom, (value) => player?.zoom(value));
+watch(audioVolume, (value) => player?.setVolume(value));
+watch(muted, (value) => player?.setMuted(value));
 
 async function playAt(time) {
     if (ready.value) {
@@ -108,15 +140,18 @@ async function playAt(time) {
     }
 }
 
-async function togglePlayback() {
+async function play() {
     if (!ready.value) return;
     error.value = "";
     try {
-        if (playing.value) player.pause();
-        else await player.play();
+        await player.play();
     } catch (exception) {
         error.value = exception.message;
     }
+}
+
+function pause() {
+    player?.pause();
 }
 
 onBeforeUnmount(() => {
@@ -124,5 +159,5 @@ onBeforeUnmount(() => {
     player?.destroy();
 });
 
-defineExpose({ playAt, ready, pause: () => player?.pause() });
+defineExpose({ playAt, ready, pause });
 </script>

@@ -355,12 +355,7 @@
                                 <td colspan="4" class="p-0">
                                     <article class="card border-0 shadow-none">
                                         <div class="card-header text-bg-primary">
-                                            <div class="d-lg-flex align-items-center">
-                                                <h2 class="card-title flex-fill my-0 text-break">{{ selected.path }}</h2>
-                                                <div class="flex-shrink buttons ms-lg-2 mt-2 mt-lg-0">
-                                                    <button class="btn btn-dark" type="button" @click="selected = null">Close Editor</button>
-                                                </div>
-                                            </div>
+                                            <h2 class="card-title my-0 text-break">{{ selected.path }}</h2>
                                         </div>
                                         <div class="card-body">
                                             <p class="card-text">Duration {{ formatDuration(selected.duration) }}</p>
@@ -374,21 +369,17 @@
                                                 @intro="draft = $event"
                                             >
                                                 <template #controls="{ ready }">
-                                                    <button class="btn btn-secondary" type="button" :disabled="!ready" @click="draft = Math.round(position * 100) / 100">Set</button>
-                                                    <button class="btn btn-secondary" type="button" :disabled="marker === null || !ready" @click="waveform?.playAt(marker)">Listen Intro</button>
+                                                    <div class="btn-group btn-group-sm">
+                                                        <button class="btn btn-primary" type="button" :disabled="!ready" @click="draft = Math.round(position * 100) / 100">Set Intro</button>
+                                                        <button class="btn btn-secondary" type="button" :disabled="!ready" @click="draft = 0">No Intro</button>
+                                                    </div>
                                                 </template>
                                             </Waveform>
-                                            <form class="row g-3 align-items-end" @submit.prevent="saveIntro">
-                                                <div class="form-group col-md-4">
-                                                    <label class="form-label" for="sweepers-intro-end">Intro End (s)</label>
-                                                    <input id="sweepers-intro-end" v-model="draft" class="form-control" type="number" min="0" :max="selected.duration" step="0.01">
-                                                </div>
-                                                <div class="col-md-8 buttons">
-                                                    <button class="btn btn-secondary" type="button" @click="draft = 0">No Intro</button>
-                                                    <button class="btn btn-secondary" type="button" @click="draft = ''">Clear</button>
-                                                    <button type="submit" class="btn btn-primary" :disabled="saving || !validDraft">Save Intro</button>
-                                                </div>
-                                            </form>
+                                            <p class="card-text mt-3 mb-0" data-intro-value>Intro End: {{ formatIntro(marker) }}</p>
+                                        </div>
+                                        <div class="card-footer d-flex justify-content-end gap-2">
+                                            <button class="btn btn-secondary" type="button" @click="selected = null">Close</button>
+                                            <button class="btn btn-primary" type="button" :disabled="saving || !validDraft" @click="saveIntro">Save Changes</button>
                                         </div>
                                     </article>
                                 </td>
