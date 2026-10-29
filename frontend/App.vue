@@ -1132,7 +1132,7 @@ async function save(action) {
 let moduleRefresh;
 
 async function restartBroadcasting() {
-    if (!window.confirm("Restart broadcasting? This briefly disconnects your listeners.")) return;
+    if (!window.confirm("Restart Liquidsoap broadcasting only? Audio is briefly interrupted; Icecast stays running.")) return;
     restarting.value = true;
     error.value = "";
     notice.value = "";
@@ -1146,7 +1146,7 @@ async function restartBroadcasting() {
         if (!response.ok || result.success === false) {
             throw new Error(result.message || "Broadcasting could not be restarted.");
         }
-        notice.value = "Broadcasting restarted. The module status updates within a minute.";
+        notice.value = "Broadcasting restarted (Liquidsoap only). Icecast was not restarted. The module status updates within a minute.";
         clearTimeout(moduleRefresh);
         moduleRefresh = setTimeout(refreshModule, 20000);
     } catch (exception) {

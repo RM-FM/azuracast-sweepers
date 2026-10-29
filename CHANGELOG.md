@@ -9,6 +9,7 @@
 
 ### Fixes
 
+- The Settings restart button restarts only Liquidsoap, leaving Icecast running.
 - Song matching releases sweeper reservations for prefetched songs blocked by spacing,
   so they no longer prevent a fitting queued-song move or same-playlist replacement.
   Played-sweeper repetition protection is unchanged.

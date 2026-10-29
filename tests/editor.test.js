@@ -62,7 +62,7 @@ globalThis.fetch = async (url, options) => {
     let data;
     if (url.endsWith("/release")) {
         data = releaseInfo;
-    } else if (url === "/api/station/1/restart") {
+    } else if (url === "/api/station/1/backend/restart") {
         restarts.push(options);
         data = { success: true, message: "Station restarted." };
     } else if (url.endsWith("/state")) {
@@ -775,9 +775,9 @@ test("module status tells when a one-time restart is still required", async () =
     }
 });
 
-test("restart button restarts broadcasting through AzuraCast's API after confirmation", async () => {
+test("restart button restarts only Liquidsoap through AzuraCast's backend API after confirmation", async () => {
     moduleState = { state: "outdated", message: "This station runs an older sweeper module than the installed plugin." };
-    restartInfo = { url: "/api/station/1/restart", csrf: "api-token" };
+    restartInfo = { url: "/api/station/1/backend/restart", csrf: "api-token" };
     const confirms = [];
     globalThis.window.confirm = (message) => { confirms.push(message); return confirms.length > 1; };
     const app = createApp(App, { base: "/sweepers/1", csrf: "session-token" });
@@ -788,6 +788,7 @@ test("restart button restarts broadcasting through AzuraCast's API after confirm
         assert.equal(button?.textContent.trim(), "Restart Broadcasting");
         await click("Restart Broadcasting");
         assert.equal(restarts.length, 0, "Cancelling the confirmation does not restart");
+        assert.match(confirms[0], /Liquidsoap broadcasting only.*Icecast stays running/);
         await click("Restart Broadcasting");
         assert.equal(restarts.length, 1);
         assert.equal(restarts[0].method, "POST");

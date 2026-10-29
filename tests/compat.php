@@ -117,7 +117,7 @@ foreach ([$backend . '/config', $backend . '/src'] as $directory) {
         $sources .= file_get_contents($file) . "\n";
     }
 }
-foreach (['api:stations:restart', 'api:stations:files:play', 'api:stations:media:waveform'] as $route) {
+foreach (['api:stations:backend', 'api:stations:files:play', 'api:stations:media:waveform'] as $route) {
     if (!str_contains($sources, "'$route'")) {
         $failures[] = "Missing route name $route";
     }
