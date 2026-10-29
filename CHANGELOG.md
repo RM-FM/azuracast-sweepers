@@ -2,7 +2,7 @@
 
 ## 1.2.1 - 2026-10-29
 
-### Features
+### Improvements
 
 - Limit how often the same song can be replaced before keeping its next turn.
   The default is two replacements; zero allows unlimited replacements.
