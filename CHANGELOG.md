@@ -1,6 +1,6 @@
 # Release notes
 
-## 1.2.1 - Pending testing approval
+## 1.2.1 - Pending
 
 ### Features
 
