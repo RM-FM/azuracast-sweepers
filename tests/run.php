@@ -487,6 +487,64 @@ check(
     $legacy['log'][0]['result'] === 'played' && $legacy['log'][0]['jingle_id'] === 45,
     'Modules without start events still record played sweepers.'
 );
+$receiptAt = microtime(true) - 600;
+$receipt = ['event' => 'played', 'token' => '90', 'at' => $receiptAt + 3.5,
+    'jingle_id' => 47, 'offset' => 3.5, 'media_id' => '7', 'title' => 'Song', 'artist' => 'Artist'];
+$recovered = Planner::apply([], ['at' => $receiptAt, 'jingle_id' => 47, 'offset' => 3.5] + $start('90', 'scheduled'));
+check(
+    $recovered['log'][0]['jingle_id'] === 47 && empty($recovered['history']),
+    'A scheduled receipt preserves its sweeper identity without counting prefetch as playback.'
+);
+$recovered = Planner::apply($recovered, $receipt);
+check(
+    $recovered['log'][0]['result'] === 'played' && $recovered['log'][0]['at'] === $receiptAt
+        && $recovered['log'][0]['offset'] === 3.5 && $recovered['history'][47] === $receiptAt + 3.5
+        && empty($recovered['plans']),
+    'A self-contained playback receipt survives a missing reservation without reviving it.'
+);
+check(Planner::apply($recovered, $receipt) === $recovered, 'A playback receipt remains idempotent without a reservation.');
+$standalone = Planner::apply([], $receipt);
+check(
+    $standalone['log'][0]['result'] === 'played' && $standalone['log'][0]['song_id'] === 7
+        && $standalone['log'][0]['title'] === 'Song' && $standalone['history'][47] === $receiptAt + 3.5,
+    'Playback can be recorded when both the reservation and track-start event are missing.'
+);
+$oldModule = Planner::apply(['plans' => ['91' => $plan(48)]], $start('91', 'scheduled'));
+unset($oldModule['plans']['91']);
+$oldModule = Planner::apply($oldModule, ['event' => 'played', 'token' => '91', 'at' => $receiptAt]);
+check(
+    $oldModule['log'][0]['result'] === 'played' && $oldModule['history'][48] === $receiptAt
+        && $oldModule['log'][0]['offset'] === 3.5,
+    'Older playback events recover from the identity stored at track start.'
+);
+$unknown = Planner::apply([], $start('92', 'scheduled'));
+$unknown = Planner::apply($unknown, ['event' => 'played', 'token' => '92']);
+check(
+    $unknown['log'][0]['result'] === 'played' && $unknown['log'][0]['jingle_id'] === null && empty($unknown['history']),
+    'An older playback confirmation is not discarded when its sweeper identity is unavailable.'
+);
+$backlog = $recovered;
+$backlog['log'][0]['result'] = 'scheduled';
+$backlog['log'] = [...array_fill(0, 25, ['token' => '100', 'result' => 'after_sweeper']), ...$backlog['log']];
+$backlog['history'][47] = $receiptAt + 100;
+$backlog = Planner::apply($backlog, $receipt);
+check(
+    count($backlog['log']) === 26 && $backlog['log'][25]['result'] === 'played'
+        && $backlog['history'][47] === $receiptAt + 100,
+    'A long buffered backlog updates the existing song without moving repetition history backwards.'
+);
+check(Planner::apply($backlog, $receipt) === $backlog, 'Long-backlog playback retries do not duplicate entries.');
+foreach ([
+    ['jingle_id' => '47'], ['jingle_id' => -1], ['offset' => -1], ['offset' => INF], ['offset' => '3.5'],
+    ['offset' => null],
+] as $invalid) {
+    rejects(static fn() => Planner::apply([], $invalid + $receipt));
+}
+$unconfirmedRows = \Plugin\AzuracastSweepers\Service\History::rows(
+    [['at' => $receiptAt, 'result' => 'scheduled', 'offset' => 3.5]],
+    []
+);
+check($unconfirmedRows[0]['offset'] === null, 'A planned offset is not presented as confirmed playback.');
 $moved = Planner::apply(['moved' => ['13' => ['at' => 1, 'before' => 9]]], $start('13', 'none'));
 check($moved['log'][0]['moved_before'] === 9 && !isset($moved['moved']['13']), 'A moved song is marked when it starts.');
 $unmoved = Planner::apply(['unmoved' => ['14' => ['at' => 1, 'reason' => 'move_none']]], $start('14', 'none'));

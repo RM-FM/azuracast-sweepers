@@ -678,7 +678,7 @@ const reasons = {
 
 function reasonText(entry) {
     if (entry.result === "scheduled") {
-        return entry.upcoming ? "Sweeper coming up" : "Sweeper did not start";
+        return entry.upcoming ? "Sweeper coming up" : "Playback confirmation missing";
     }
     return reasons[result(entry)] ?? "No sweeper";
 }
@@ -710,6 +710,7 @@ const intendedSkips = new Set([
 function status(entry) {
     if (entry.result === "played") return { label: "Played", class: "text-bg-success" };
     if (entry.upcoming) return { label: "Upcoming", class: "text-bg-info" };
+    if (entry.result === "scheduled") return { label: "Unconfirmed", class: "text-bg-warning" };
     if (intendedSkips.has(result(entry))) return null;
     return { label: "Missed", class: "text-bg-danger" };
 }

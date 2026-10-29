@@ -99,7 +99,8 @@ final class History
                 'intro' => null,
             ] : null),
             'sweeper' => $files[(int)($entry['jingle_id'] ?? 0)] ?? null,
-            'offset' => isset($entry['offset']) ? (float)$entry['offset'] : null,
+            'offset' => ($entry['result'] ?? 'played') === 'played' && isset($entry['offset'])
+                ? (float)$entry['offset'] : null,
             // Older entries only recorded played sweepers.
             'result' => (string)($entry['result'] ?? 'played'),
             'upcoming' => (bool)($entry['upcoming'] ?? false),

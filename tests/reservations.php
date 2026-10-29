@@ -115,6 +115,30 @@ namespace {
             $state->read($directory)['log'] === $log,
             'Replaying a buffered batch never duplicates tracks or changes their timestamps.'
         );
+        $state->update($directory, static fn(): array => $seed(time() - 60));
+        $planner->heartbeat($station, ['123'], []);
+        check($state->read($directory)['plans'] === [], 'An outage expires the server reservation.');
+        $events = [
+            ['event' => 'start', 'token' => '123', 'detail' => 'scheduled', 'at' => $at,
+                'media_id' => '7', 'jingle_id' => 42, 'offset' => 3.5],
+            ['event' => 'played', 'token' => '123', 'at' => $at + 3.5,
+                'media_id' => '7', 'jingle_id' => 42, 'offset' => 3.5],
+            ['event' => 'release', 'token' => '123', 'at' => $at + 120],
+            ['event' => 'start', 'token' => '124', 'detail' => 'after_sweeper', 'at' => $at + 120],
+        ];
+        $planner->heartbeat($station, [], $events);
+        $recovered = $state->read($directory);
+        check(
+            array_column($recovered['log'], 'result') === ['after_sweeper', 'played']
+                && $recovered['log'][1]['jingle_id'] === 42 && $recovered['log'][1]['offset'] === 3.5
+                && $recovered['history'][42] === $at + 3.5 && $recovered['plans'] === [],
+            'Buffered actual playback survives lease expiry and agrees with the following spacing skip.'
+        );
+        $planner->heartbeat($station, [], $events);
+        check(
+            $state->read($directory) === $recovered,
+            'Replayed outage events preserve rotation and timeline state after release.'
+        );
     } finally {
         foreach (glob($directory . '/*') as $path) {
             unlink($path);

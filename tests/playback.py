@@ -19,7 +19,8 @@ parser.add_argument('--liquidsoap', default='liquidsoap')
 parser.add_argument('--scenario', choices=['normal', 'skip', 'live', 'unavailable', 'spacing', 'playlist-spacing',
                                           'hot-enable', 'hot-disable', 'hot-pending', 'hot-change', 'hot-error',
                                           'before-jingle', 'computed-autocue', 'provided-autocue', 'arrange', 'reverb',
-                                          'plan-retry', 'plan-lost-response', 'heartbeat-outage'], default='normal')
+                                          'plan-retry', 'plan-lost-response', 'heartbeat-outage',
+                                          'reverb-pending', 'reverb-skip'], default='normal')
 parser.add_argument('--runtime', type=Path, required=True)
 args = parser.parse_args()
 plugin = Path(__file__).resolve().parents[1]
@@ -89,11 +90,11 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
                         'annotate:azuracast_autocue="true",autocue_cue_in="0.25",autocue_cue_out="2.75",'
                         f'autocue_fade_in="0.00",autocue_fade_out="0.50",liq_amplify="-3.00 dB":{root}/cued.wav')}]
             elif self.path == '/sweepers/plan':
-                value = dict(token=json.loads(body)['token'], revision=live_settings['revision'],
+                value = dict(token=json.loads(body)['token'], jingle_id=9, revision=live_settings['revision'],
                              uri=f'annotate:liq_cue_in="0",liq_cue_out="{0.5 if short_tracks else 2}":{root}/sweeper.wav' if short_tracks or json.loads(body)['token'] == '123' else '',
-                             offset=.1 if short_tracks else (3. if args.scenario in ('skip', 'hot-pending', 'hot-change', 'before-jingle') else 1.),
+                             offset=.1 if short_tracks else (3. if args.scenario in ('skip', 'hot-pending', 'hot-change', 'before-jingle', 'reverb-pending', 'reverb-skip') else 1.),
                              duck_duration=.3 if short_tracks else 1., gain=1., duck_gain=.4467,
-                             **({'reverb': 1., 'length': 2.} if args.scenario == 'reverb' else {}))
+                             **({'reverb': 1., 'length': 2.} if args.scenario.startswith('reverb') else {}))
             elif self.path == '/sweepers/arrange':
                 moved = args.scenario == 'arrange' and sum(path == '/sweepers/arrange' for path, _, _ in calls) == 1
                 value = {'moved': '130', 'before': '125', 'released': ['999']} if moved else {'moved': '', 'before': ''}
@@ -127,7 +128,9 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
     server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     script = root / 'playback.liq'
-    action = {'skip': 'thread.run(delay=1.2, {music.skip()})', 'live': 'thread.run(delay=2., {azuracast.live_enabled := true})'}.get(args.scenario, '')
+    action = {'skip': 'thread.run(delay=1.2, {music.skip()})',
+              'reverb-skip': 'thread.run(delay=1.2, {music.skip()})',
+              'live': 'thread.run(delay=2., {azuracast.live_enabled := true})'}.get(args.scenario, '')
     if args.scenario.startswith('hot-') or args.scenario == 'before-jingle':
         action = 'thread.run(delay=1.6, {ignore(sweepers.heartbeat())})'
     if action:
@@ -178,8 +181,17 @@ thread.run(delay=7., {{shutdown()}})
     events = [{'event': e['event'], 'token': e['token']} for e in reported if e['event'] != 'start']
     starts = {e['token']: e['detail'] for e in reported if e['event'] == 'start'}
     releases = {e['token']: e['detail'] for e in reported if e['event'] == 'release' and e['detail']}
-    assert all(set(e) == {'event', 'token', 'detail', 'at', 'media_id', 'title', 'artist'} for e in reported), reported[:3]
+    assert all(set(e) == {'event', 'token', 'detail', 'at', 'media_id', 'title', 'artist',
+                          'jingle_id', 'offset'} for e in reported), reported[:3]
     assert all(isinstance(e['at'], (int, float)) and 0 < e['at'] <= time.time() + 1 for e in reported), reported[:3]
+    for event in reported:
+        if event['event'] == 'played':
+            assert event['jingle_id'] == 9 and event['media_id'] == '1', \
+                ('Playback must retain its identity independently of the server lease', event)
+            start = next(e for e in reported if e['event'] == 'start' and e['token'] == event['token'])
+            assert start['jingle_id'] == 9 and start['offset'] == event['offset'], (start, event)
+            assert event['at'] - start['at'] >= event['offset'] - .15, \
+                ('Prefetch must not report playback before the scheduled start', start, event)
     assert all(body.get('version') == 'test' for path, body, _ in calls if path == '/sweepers/heartbeat'), \
         'Heartbeats must report the loaded module version'
     assert 'Queue arrangement skipped' not in result.stdout, ('Arrangement call failed', result.stdout[-2000:])
@@ -230,9 +242,9 @@ thread.run(delay=7., {{shutdown()}})
         assert 0 <= applied < started, 'A settings change must keep the prepared sweeper'
         assert {'event': 'played', 'token': '123'} in events, 'Prepared sweeper not reported as played'
         assert max(amplitude(samples, 880, onset + t / 10) for t in range(25, 50)) > 5000, 'Prepared sweeper inaudible'
-    elif args.scenario in ('skip', 'unavailable', 'hot-pending', 'before-jingle'):
+    elif args.scenario in ('skip', 'reverb-skip', 'unavailable', 'hot-pending', 'before-jingle'):
         assert max(amplitude(samples, 880, t / 10) for t in range(5, 60)) < 100, 'Unexpected sweeper'
-        if args.scenario in ('skip', 'hot-pending', 'before-jingle'):
+        if args.scenario in ('skip', 'reverb-skip', 'hot-pending', 'before-jingle'):
             assert {'event': 'release', 'token': '123'} in events, 'Skipped reservation not released'
             assert not any(e['event'] == 'played' for e in events), 'Cancelled plan counted as playback'
         if args.scenario == 'before-jingle':
@@ -277,6 +289,13 @@ thread.run(delay=7., {{shutdown()}})
             'Spacing-blocked reservations must be acknowledged before fetching and planning the matched song'
         assert 'Song with intro moved forward: queue 130 now plays before 125' in result.stdout, \
             'Reordering was not logged'
+    elif args.scenario == 'reverb-pending':
+        assert max(amplitude(samples, 880, onset + t / 10) for t in range(5, 28)) < 100, \
+            'Reverb prefetch must not emit sweeper audio'
+        assert max(amplitude(samples, 880, onset + t / 10) for t in range(32, 45)) > 2000, \
+            'Delayed sweeper with reverb must be audible'
+        assert sum(e == {'event': 'played', 'token': '123'} for e in events) == 1, \
+            'Delayed reverb playback must be confirmed once'
     else:
         ducked = amplitude(samples, 440, onset + 1.4)
         assert .40 < ducked / normal < .65, (normal, ducked)

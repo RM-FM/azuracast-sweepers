@@ -357,6 +357,11 @@ Decisions appear under `sweepers` in the station's Liquidsoap log. The Playback
 Timeline retains seven days in the station file `sweepers-history.json`, with the
 last 24 hours shown by default. It records forward moves, replacements and reasons
 for unsuccessful matching.
+Playback confirmations carry the sweeper identity and timing independently of
+the server reservation, so a temporary API outage does not lose confirmed playback
+when a lease expires. Older entries without confirmation show Unconfirmed rather
+than asserting that no sweeper played. Spacing follows actual Liquidsoap playback,
+not the presence of a server acknowledgment.
 
 Intro scanning stops and shows an error on audio or page-loading failures. Tracks
 ending before the five-second preview finishes advance immediately.

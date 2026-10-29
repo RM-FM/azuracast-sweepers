@@ -893,15 +893,15 @@ test("playback timeline lists all tracks, highlights songs with a sweeper and ex
         const all = rows();
         assert.equal(all.length, 8, "All played tracks are listed");
         assert.deepEqual(all.map((row) => row.className),
-            ["timeline-plain", "timeline-missed", "timeline-jingle", "timeline-played", "timeline-missed", "timeline-played", "timeline-plain", "timeline-missed"]);
+            ["timeline-plain", "timeline-missed", "timeline-jingle", "timeline-played", "timeline-plain", "timeline-played", "timeline-plain", "timeline-missed"]);
         const tag = (row) => {
             const badge = cell(row, 2).querySelector(".badge");
             return badge ? [badge.textContent.trim(), [...badge.classList].find((name) => name.startsWith("text-bg-"))] : null;
         };
         assert.deepEqual(all.map(tag), [
             ["Upcoming", "text-bg-info"], ["Missed", "text-bg-danger"], null,
-            ["Played", "text-bg-success"], ["Missed", "text-bg-danger"], ["Played", "text-bg-success"], null, ["Missed", "text-bg-danger"],
-        ], "Green for played, red when a due sweeper could not play, no tag for intended skips");
+            ["Played", "text-bg-success"], ["Unconfirmed", "text-bg-warning"], ["Played", "text-bg-success"], null, ["Missed", "text-bg-danger"],
+        ], "Missing confirmation is distinct from a confirmed miss or an intended skip");
         assert.deepEqual(parts(all[0], 3), ["Sweeper coming up"], "The current song's sweeper is still pending");
         assert.deepEqual(parts(all[1], 3), ["No intro end set", "Not moved forward: no queued song has a fitting intro"]);
         assert.deepEqual(parts(all[2], 1), ["Dropin 01", "RadioMonster.FM"]);
@@ -914,7 +914,7 @@ test("playback timeline lists all tracks, highlights songs with a sweeper and ex
         assert.equal(cell(all[1], 4).textContent.trim(), "Set ✎", "A missing intro end can be set");
         assert.equal(cell(all[2], 4).querySelector("button"), null, "Jingles have no intro to edit");
         assert.equal(cell(all[1], 5).textContent.trim(), "", "No start time without a sweeper");
-        assert.deepEqual(parts(all[4], 3), ["Sweeper did not start"]);
+        assert.deepEqual(parts(all[4], 3), ["Playback confirmation missing"]);
         assert.deepEqual(parts(all[4], 1), ["I'm Your Man", "Wham!", "Replaced No Intro from the same playlist"]);
         assert.equal(cell(all[4], 1).querySelector(".timeline-moved").getAttribute("title"), "Original Artist – No Intro");
         assert.deepEqual(parts(all[5], 1), ["untagged.mp3"]);

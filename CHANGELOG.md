@@ -9,6 +9,9 @@
 
 ### Fixes
 
+- Preserve sweeper playback confirmations and rotation history across expired
+  reservations and API outages. Unconfirmed timeline entries no longer claim a
+  sweeper failed to start; prefetch and cancelled reverb sources do not count as playback.
 - Load Sweeper pages through AzuraCast's router and station layout without a
   dashboard reload or a hidden station page; preserve direct links and browser history.
 - Stabilize waveform zoom in the Intro Manager and align its timeline, zoom,
@@ -27,7 +30,7 @@
 ### Update notes
 
 - **AzuraCast Broadcast (Liquidsoap) restart: Required** to load reservation releases,
-  planning retries and playback event timestamps. This change is not yet released.
+  planning retries and self-contained playback confirmations. This change is not yet released.
 
 ## 1.2.0 - 2026-10-28
 
