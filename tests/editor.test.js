@@ -52,6 +52,7 @@ const writes = [];
 let releaseSave;
 let needsRestart = false;
 let mediaResponse = null;
+let stateResponse = null;
 const mediaRequests = [];
 let moduleState = { state: "active", message: "The sweeper module is loaded and active on this station." };
 let restartInfo = null;
@@ -66,6 +67,7 @@ globalThis.fetch = async (url, options) => {
         restarts.push(options);
         data = { success: true, message: "Station restarted." };
     } else if (url.endsWith("/state")) {
+        if (stateResponse) return stateResponse();
         data = { csrf: "session-token", station: { id: 1, name: "Test" }, restart: restartInfo, queue_length: 3, module: moduleState, settings: {
             enabled: true, playlist_ids: [], limit_delay: false, max_wait: 10, margin: .5, duck_db: -7, jingle_gain: 1,
             songs_after_jingle: 1, songs_after_sweeper: 1, songs_before_jingle: 0, early_start: 2,
@@ -160,6 +162,35 @@ const save = async () => {
     document.querySelector("article form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     await settle();
 };
+
+test("initial state failures show an error without rendering unloaded pages", async () => {
+    for (const view of ["settings", "intros", "history"]) {
+        for (const html of [false, true]) {
+            stateResponse = () => ({
+                ok: false,
+                json: async () => {
+                    if (html) throw new SyntaxError("Unexpected token <");
+                    return { message: "Cannot read sweeper state." };
+                },
+            });
+            const app = createApp(App, { base: "/sweepers/1", csrf: "", view });
+            const renderErrors = [];
+            app.config.errorHandler = (error) => renderErrors.push(error);
+            app.mount(document.querySelector("#app"));
+            try {
+                await settle();
+                assert.match(document.querySelector('[role="alert"]').textContent,
+                    html ? /session expired or the server could not complete/ : /Cannot read sweeper state/);
+                assert.equal(document.querySelector("section.card"), null);
+                assert.equal(document.querySelector(".spinner-border"), null);
+                assert.deepEqual(renderErrors, []);
+            } finally {
+                app.unmount();
+                stateResponse = null;
+            }
+        }
+    }
+});
 
 test("intro editor saves one field from numeric, marker and playhead input", async () => {
     const app = createApp(App, { base: "/sweepers/1", csrf: "", view: "intros" });

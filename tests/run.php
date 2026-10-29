@@ -624,6 +624,23 @@ try {
         return $data;
     });
     check(!isset($state->read($directory)['log']), 'A cleared timeline stays cleared.');
+    if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+        $user = posix_getpwnam('nobody');
+        check($user !== false, 'A non-root account is available for ownership checks.');
+        chown($directory, $user['uid']);
+        chgrp($directory, $user['gid']);
+        $state->update($directory, static fn(array $data) => [
+            'history' => ['42' => 300], 'log' => [['at' => 6.5]],
+        ] + $data);
+        clearstatcache();
+        foreach (['sweepers.json', 'sweepers-history.json'] as $name) {
+            check(fileowner($directory . '/' . $name) === $user['uid'], 'Root maintenance keeps the directory owner.');
+            check(filegroup($directory . '/' . $name) === $user['gid'], 'Root maintenance keeps the directory group.');
+            check((fileperms($directory . '/' . $name) & 0777) === 0600, 'State files stay private.');
+        }
+        check(fileowner($directory . '/sweepers.lock') === $user['uid'], 'Root maintenance keeps the lock owner.');
+        check(filegroup($directory . '/sweepers.lock') === $user['gid'], 'Root maintenance keeps the lock group.');
+    }
 } finally {
     foreach (glob($directory . '/*') as $path) {
         unlink($path);

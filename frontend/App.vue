@@ -17,7 +17,7 @@
             </div>
         </div>
 
-        <section v-if="!loading && current === 'settings'" class="card mb-3" role="region" aria-labelledby="sweepers-settings-heading">
+        <section v-if="!loading && stateLoaded && current === 'settings'" class="card mb-3" role="region" aria-labelledby="sweepers-settings-heading">
             <div class="card-header text-bg-primary">
                 <h2 id="sweepers-settings-heading" class="card-title my-0">Sweeper Settings</h2>
             </div>
@@ -275,7 +275,7 @@
             </form>
         </section>
 
-        <section v-if="!loading && current === 'intros'" class="card mb-3" role="region" aria-labelledby="sweepers-cues-heading">
+        <section v-if="!loading && stateLoaded && current === 'intros'" class="card mb-3" role="region" aria-labelledby="sweepers-cues-heading">
             <div class="card-header text-bg-primary">
                 <div class="d-lg-flex align-items-center">
                     <h2 id="sweepers-cues-heading" class="card-title flex-fill my-0">Intro Manager</h2>
@@ -403,7 +403,7 @@
             </div>
         </section>
 
-        <section v-if="!loading && current === 'history'" class="card mb-3" role="region" aria-labelledby="sweepers-history-heading">
+        <section v-if="!loading && stateLoaded && current === 'history'" class="card mb-3" role="region" aria-labelledby="sweepers-history-heading">
             <div class="card-header text-bg-primary">
                 <div class="d-lg-flex align-items-center">
                     <h2 id="sweepers-history-heading" class="card-title flex-fill my-0">Sweeper Playback Timeline</h2>
@@ -586,6 +586,7 @@ watch(page, () => { selected.value = null; }, { flush: "sync" });
 const draft = ref("");
 const position = ref(0);
 const loading = ref(true);
+const stateLoaded = ref(false);
 const saving = ref(false);
 const notice = ref("");
 const error = ref("");
@@ -1177,6 +1178,7 @@ onMounted(async () => {
         settings.value = state.settings;
         playlists.value = state.playlists;
         jinglePlaylists.value = state.jingle_playlists ?? [];
+        stateLoaded.value = true;
         api("release").then((result) => { release.value = result; }, () => {});
         if (current.value === "intros") await loadMedia();
         if (current.value === "history") await loadHistory();

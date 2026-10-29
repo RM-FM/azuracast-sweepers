@@ -21,6 +21,7 @@ final class State
         }
 
         try {
+            self::ownership($directory, $directory . '/sweepers.lock');
             $path = $directory . '/sweepers.json';
             $historyPath = $directory . '/sweepers-history.json';
             $stored = self::load($path);
@@ -56,7 +57,15 @@ final class State
 
     private static function load(string $path): array
     {
-        return is_file($path) ? json_decode(file_get_contents($path), true, flags: JSON_THROW_ON_ERROR) : [];
+        if (!is_file($path)) {
+            return [];
+        }
+        $json = file_get_contents($path);
+        if ($json === false) {
+            throw new RuntimeException('Cannot read sweeper state: ' . $path);
+        }
+
+        return json_decode($json, true, flags: JSON_THROW_ON_ERROR);
     }
 
     private static function save(string $directory, string $path, array $data, int $flags): void
@@ -66,6 +75,7 @@ final class State
             throw new RuntimeException('Cannot create sweeper state.');
         }
         try {
+            self::ownership($directory, $temporary);
             $json = json_encode($data, $flags | JSON_THROW_ON_ERROR);
             if (file_put_contents($temporary, $json . "\n") === false || !rename($temporary, $path)) {
                 throw new RuntimeException('Cannot save sweeper state.');
@@ -74,6 +84,20 @@ final class State
             if (is_file($temporary)) {
                 unlink($temporary);
             }
+        }
+    }
+
+    private static function ownership(string $directory, string $path): void
+    {
+        // CLI maintenance must not leave state or its lock owned by root.
+        $owner = fileowner($directory);
+        $group = filegroup($directory);
+        if (
+            $owner === false || $group === false
+            || (fileowner($path) !== $owner && !chown($path, $owner))
+            || (filegroup($path) !== $group && !chgrp($path, $group))
+        ) {
+            throw new RuntimeException('Cannot set sweeper state ownership: ' . $path);
         }
     }
 }

@@ -88,6 +88,12 @@ offers **Restart Broadcasting** to users with Broadcasting permission.
 An older-module warning means the running station has not yet loaded the
 installed module; it does not by itself mean the module is inactive.
 
+Run manual PHP maintenance inside the web container with
+`docker compose exec -T --user azuracast web php`, not as root. The plugin keeps
+state files private and assigns newly written files to the station config directory's
+owner and group. The Settings restart button uses the backend-only restart endpoint
+and leaves Icecast running.
+
 > [!IMPORTANT]
 > For manual updates, delete the route cache only after all PHP processes run the
 > new code. Otherwise an old process can rebuild it and plugin routes stop working.
