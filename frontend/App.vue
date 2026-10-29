@@ -17,7 +17,7 @@
             </div>
         </div>
 
-        <section v-if="!loading && current === 'settings'" class="card mb-3" role="region" aria-labelledby="sweepers-settings-heading">
+        <section v-if="!loading && stateLoaded && current === 'settings'" class="card mb-3" role="region" aria-labelledby="sweepers-settings-heading">
             <div class="card-header text-bg-primary">
                 <h2 id="sweepers-settings-heading" class="card-title my-0">Sweeper Settings</h2>
             </div>
@@ -162,6 +162,11 @@
                                     The replaced song returns to the playlist rotation, not directly to the end of the playback queue. Either option can be used on its own.
                                 </div>
                             </div>
+                            <div v-if="settings.swap_from_playlist" class="form-group col-md-6">
+                                <label class="form-label" for="sweepers-replacement-limit">Maximum replacements per song</label>
+                                <input id="sweepers-replacement-limit" v-model.number="settings.replacement_limit" class="form-control" type="number" min="0" max="1000" step="1" required>
+                                <div class="form-text">After this many replacements, the song keeps its next turn, even without a sweeper. The count resets when it starts playing. 0 allows unlimited replacements.</div>
+                            </div>
                             <div v-if="settings.swap_for_intro || settings.swap_from_playlist" class="form-group col-md-12">
                                 <div class="form-check form-switch">
                                     <input id="sweepers-swap-sequential" v-model="settings.swap_sequential" class="form-check-input" type="checkbox" role="switch">
@@ -270,7 +275,7 @@
             </form>
         </section>
 
-        <section v-if="!loading && current === 'intros'" class="card mb-3" role="region" aria-labelledby="sweepers-cues-heading">
+        <section v-if="!loading && stateLoaded && current === 'intros'" class="card mb-3" role="region" aria-labelledby="sweepers-cues-heading">
             <div class="card-header text-bg-primary">
                 <div class="d-lg-flex align-items-center">
                     <h2 id="sweepers-cues-heading" class="card-title flex-fill my-0">Intro Manager</h2>
@@ -350,12 +355,7 @@
                                 <td colspan="4" class="p-0">
                                     <article class="card border-0 shadow-none">
                                         <div class="card-header text-bg-primary">
-                                            <div class="d-lg-flex align-items-center">
-                                                <h2 class="card-title flex-fill my-0 text-break">{{ selected.path }}</h2>
-                                                <div class="flex-shrink buttons ms-lg-2 mt-2 mt-lg-0">
-                                                    <button class="btn btn-dark" type="button" @click="selected = null">Close Editor</button>
-                                                </div>
-                                            </div>
+                                            <h2 class="card-title my-0 text-break">{{ selected.path }}</h2>
                                         </div>
                                         <div class="card-body">
                                             <p class="card-text">Duration {{ formatDuration(selected.duration) }}</p>
@@ -369,21 +369,17 @@
                                                 @intro="draft = $event"
                                             >
                                                 <template #controls="{ ready }">
-                                                    <button class="btn btn-secondary" type="button" :disabled="!ready" @click="draft = Math.round(position * 100) / 100">Set</button>
-                                                    <button class="btn btn-secondary" type="button" :disabled="marker === null || !ready" @click="waveform?.playAt(marker)">Listen Intro</button>
+                                                    <div class="btn-group btn-group-sm">
+                                                        <button class="btn btn-primary" type="button" :disabled="!ready" @click="draft = Math.round(position * 100) / 100">Set Intro</button>
+                                                        <button class="btn btn-secondary" type="button" :disabled="!ready" @click="draft = 0">No Intro</button>
+                                                    </div>
                                                 </template>
                                             </Waveform>
-                                            <form class="row g-3 align-items-end" @submit.prevent="saveIntro">
-                                                <div class="form-group col-md-4">
-                                                    <label class="form-label" for="sweepers-intro-end">Intro End (s)</label>
-                                                    <input id="sweepers-intro-end" v-model="draft" class="form-control" type="number" min="0" :max="selected.duration" step="0.01">
-                                                </div>
-                                                <div class="col-md-8 buttons">
-                                                    <button class="btn btn-secondary" type="button" @click="draft = 0">No Intro</button>
-                                                    <button class="btn btn-secondary" type="button" @click="draft = ''">Clear</button>
-                                                    <button type="submit" class="btn btn-primary" :disabled="saving || !validDraft">Save Intro</button>
-                                                </div>
-                                            </form>
+                                            <p class="card-text mt-3 mb-0" data-intro-value>Intro End: {{ formatIntro(marker) }}</p>
+                                        </div>
+                                        <div class="card-footer d-flex justify-content-end gap-2">
+                                            <button class="btn btn-secondary" type="button" @click="selected = null">Close</button>
+                                            <button class="btn btn-primary" type="button" :disabled="saving || !validDraft" @click="saveIntro">Save Changes</button>
                                         </div>
                                     </article>
                                 </td>
@@ -398,7 +394,7 @@
             </div>
         </section>
 
-        <section v-if="!loading && current === 'history'" class="card mb-3" role="region" aria-labelledby="sweepers-history-heading">
+        <section v-if="!loading && stateLoaded && current === 'history'" class="card mb-3" role="region" aria-labelledby="sweepers-history-heading">
             <div class="card-header text-bg-primary">
                 <div class="d-lg-flex align-items-center">
                     <h2 id="sweepers-history-heading" class="card-title flex-fill my-0">Sweeper Playback Timeline</h2>
@@ -581,6 +577,7 @@ watch(page, () => { selected.value = null; }, { flush: "sync" });
 const draft = ref("");
 const position = ref(0);
 const loading = ref(true);
+const stateLoaded = ref(false);
 const saving = ref(false);
 const notice = ref("");
 const error = ref("");
@@ -676,12 +673,12 @@ const reasons = {
     settings: "Cancelled by a settings change",
     unavailable: "Sweeper could not be loaded",
     error: "Planning error",
-    not_planned: "Not planned (station just started)",
+    not_planned: "No planning decision recorded",
 };
 
 function reasonText(entry) {
     if (entry.result === "scheduled") {
-        return entry.upcoming ? "Sweeper coming up" : "Sweeper did not start";
+        return entry.upcoming ? "Sweeper coming up" : "Playback confirmation missing";
     }
     return reasons[result(entry)] ?? "No sweeper";
 }
@@ -696,6 +693,7 @@ const unmovedReasons = {
     move_jingle: "Not moved forward: a jingle would follow too soon",
     move_sequential: "Not moved forward: sequential playlist order",
     replace_none: "Not replaced: no fitting song in this playlist",
+    replace_limit: "Kept in place: song reached its replacement limit",
     replace_ineligible: "Not replaced: this queue entry cannot be replaced",
     replace_duplicates: "Not replaced: repetition rules exclude the fitting songs",
     replace_changed: "Not replaced: the queue or playlist changed during selection",
@@ -712,6 +710,7 @@ const intendedSkips = new Set([
 function status(entry) {
     if (entry.result === "played") return { label: "Played", class: "text-bg-success" };
     if (entry.upcoming) return { label: "Upcoming", class: "text-bg-info" };
+    if (entry.result === "scheduled") return { label: "Unconfirmed", class: "text-bg-warning" };
     if (intendedSkips.has(result(entry))) return null;
     return { label: "Missed", class: "text-bg-danger" };
 }
@@ -1126,7 +1125,7 @@ async function save(action) {
 let moduleRefresh;
 
 async function restartBroadcasting() {
-    if (!window.confirm("Restart broadcasting? This briefly disconnects your listeners.")) return;
+    if (!window.confirm("Restart Liquidsoap broadcasting only? Audio is briefly interrupted; Icecast stays running.")) return;
     restarting.value = true;
     error.value = "";
     notice.value = "";
@@ -1140,7 +1139,7 @@ async function restartBroadcasting() {
         if (!response.ok || result.success === false) {
             throw new Error(result.message || "Broadcasting could not be restarted.");
         }
-        notice.value = "Broadcasting restarted. The module status updates within a minute.";
+        notice.value = "Broadcasting restarted (Liquidsoap only). Icecast was not restarted. The module status updates within a minute.";
         clearTimeout(moduleRefresh);
         moduleRefresh = setTimeout(refreshModule, 20000);
     } catch (exception) {
@@ -1171,6 +1170,7 @@ onMounted(async () => {
         settings.value = state.settings;
         playlists.value = state.playlists;
         jinglePlaylists.value = state.jingle_playlists ?? [];
+        stateLoaded.value = true;
         api("release").then((result) => { release.value = result; }, () => {});
         if (current.value === "intros") await loadMedia();
         if (current.value === "history") await loadHistory();

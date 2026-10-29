@@ -74,6 +74,11 @@ a broadcasting restart.
 The pages require station Media permission; changing settings and restarting
 broadcasting also require Broadcasting permission.
 
+Sweeper pages use AzuraCast's station layout and client-side router. Switching
+between them does not reload the dashboard; direct links and browser history
+open the selected page. Former `?sweepers=...` station links redirect to the
+corresponding page.
+
 ## Everyday use
 
 | Page | Use it to |
@@ -93,9 +98,11 @@ the vocals start, in seconds from the **original file start**:
 | `0` | No intro, no sweeper |
 | Positive number | The vocals start here |
 
-Open **Sweepers → Intro Manager**, select a song and drag the waveform marker, set it at
-the playhead, or enter the seconds. You can also open the editor from a track's intro
-value in the Playback Timeline.
+Open **Sweepers → Intro Manager** and select a song. Use the waveform timeline,
+zoom and volume controls with Play/Stop, then **Set Intro** at the playhead or drag
+the intro marker. **No Intro** sets zero. **Save Changes** saves only the intro end;
+**Close** discards unsaved edits. There is no numeric input or Clear action.
+You can also open the editor from a track's intro value in the Playback Timeline.
 
 Search updates as you type. **Only unknown/untagged tracks** shows songs with blank
 intro ends; a saved zero counts as tagged. Pagination covers all matching songs.

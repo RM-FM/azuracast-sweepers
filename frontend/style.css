@@ -37,6 +37,55 @@
 
 .sweepers-page .waveform {
     min-height: 128px;
+    border: 1px solid var(--bs-tertiary-bg, #d7dde5);
+    border-radius: 4px;
+}
+
+.sweepers-page .waveform-editor {
+    min-width: 0;
+    max-width: 100%;
+    contain: inline-size;
+}
+
+.sweepers-page .waveform {
+    width: 0;
+    min-width: 100%;
+    overflow: hidden;
+}
+
+.sweepers-page .waveform ::part(region-content) {
+    white-space: nowrap;
+}
+
+.sweepers-page .intro-editor-row .card-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: .5rem;
+    padding: 1rem 1.25rem;
+}
+
+.sweepers-page:not(.embedded) .waveform-levels > div > label,
+.sweepers-page:not(.embedded) .waveform-levels > div > div,
+.sweepers-page:not(.embedded) .waveform-transport {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+}
+
+.sweepers-page:not(.embedded) .waveform-levels input {
+    flex: 1;
+    min-width: 0;
+}
+
+.sweepers-page:not(.embedded) .waveform-levels .btn-link {
+    border: 0;
+    padding: 0;
+    color: inherit;
+    background: transparent;
+}
+
+.sweepers-page:not(.embedded) .waveform-transport > span {
+    margin-left: auto;
 }
 
 .sweepers-page .sweepers-icon {

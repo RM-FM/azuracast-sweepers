@@ -17,7 +17,7 @@ export default defineComponent({
         expose({ ready: ref(true), playAt() {}, pause() {} });
         return () => h('div', [
             h('span', { id: 'marker' }, props.intro === null ? 'blank' : String(props.intro)),
-            h('button', { type: 'button', id: 'move-marker', onClick: () => emit('intro', 14.75) }, 'Move marker'),
+            h('button', { type: 'button', id: 'move-marker', onClick: () => emit('intro', globalThis.__testIntro ?? 14.75) }, 'Move marker'),
             h('button', { type: 'button', id: 'seek', onClick: () => emit('position', 18.36) }, 'Seek'),
             slots.controls?.({ ready: true })
         ]);
@@ -52,6 +52,7 @@ const writes = [];
 let releaseSave;
 let needsRestart = false;
 let mediaResponse = null;
+let stateResponse = null;
 const mediaRequests = [];
 let moduleState = { state: "active", message: "The sweeper module is loaded and active on this station." };
 let restartInfo = null;
@@ -62,15 +63,17 @@ globalThis.fetch = async (url, options) => {
     let data;
     if (url.endsWith("/release")) {
         data = releaseInfo;
-    } else if (url === "/api/station/1/restart") {
+    } else if (url === "/api/station/1/backend/restart") {
         restarts.push(options);
         data = { success: true, message: "Station restarted." };
     } else if (url.endsWith("/state")) {
+        if (stateResponse) return stateResponse();
         data = { csrf: "session-token", station: { id: 1, name: "Test" }, restart: restartInfo, queue_length: 3, module: moduleState, settings: {
             enabled: true, playlist_ids: [], limit_delay: false, max_wait: 10, margin: .5, duck_db: -7, jingle_gain: 1,
             songs_after_jingle: 1, songs_after_sweeper: 1, songs_before_jingle: 0, early_start: 2,
             count_jingle_mode: true, jingle_playlist_ids: [], longest_fit: false, length_tolerance: 20, swap_for_intro: false,
             reverb: false, reverb_intensity: 25, swap_sequential: false, swap_from_playlist: false,
+            replacement_limit: 2,
             excluded_playlist_ids: [], sweeper_gap: 1,
         }, playlists: [
             { id: 10, name: "Sweepers", enabled: true, scheduled: false, source: "songs" },
@@ -119,6 +122,9 @@ globalThis.fetch = async (url, options) => {
                 moved: false, moved_before: null },
             { at: 1792946000, offset: null, result: "intro_before_cue", song: { id: 8, artist: "Sting", title: "Fragile", path: "sting.mp3", intro: 0 },
                 sweeper: null, moved: false, moved_before: null },
+            { at: 1792945000, offset: null, result: "not_planned",
+                song: { title: "Unplanned song", path: "unplanned.mp3", intro: 10 },
+                sweeper: null, moved: false, moved_before: null },
         ].filter((row) => !url.includes("played=1") || row.result === "played");
         data = { rows, total: rows.length, page: 1, per_page: 25, retention_days: 7 };
     } else {
@@ -149,18 +155,46 @@ const click = async (label) => {
     button.dispatchEvent(new Event("click", { bubbles: true }));
     await settle();
 };
-const input = () => document.querySelector("article input[type=number]");
-const setInput = async (value) => {
-    input().value = value;
-    input().dispatchEvent(new Event("input", { bubbles: true }));
-    await settle();
+const setMarker = async (value) => {
+    globalThis.__testIntro = Number(value);
+    await click("Move marker");
+    delete globalThis.__testIntro;
 };
 const save = async () => {
-    document.querySelector("article form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    await settle();
+    const button = [...document.querySelectorAll("article button")].find((node) => node.textContent === "Save Changes");
+    if (!button.disabled) await click("Save Changes");
 };
 
-test("intro editor saves one field from numeric, marker and playhead input", async () => {
+test("initial state failures show an error without rendering unloaded pages", async () => {
+    for (const view of ["settings", "intros", "history"]) {
+        for (const html of [false, true]) {
+            stateResponse = () => ({
+                ok: false,
+                json: async () => {
+                    if (html) throw new SyntaxError("Unexpected token <");
+                    return { message: "Cannot read sweeper state." };
+                },
+            });
+            const app = createApp(App, { base: "/sweepers/1", csrf: "", view });
+            const renderErrors = [];
+            app.config.errorHandler = (error) => renderErrors.push(error);
+            app.mount(document.querySelector("#app"));
+            try {
+                await settle();
+                assert.match(document.querySelector('[role="alert"]').textContent,
+                    html ? /session expired or the server could not complete/ : /Cannot read sweeper state/);
+                assert.equal(document.querySelector("section.card"), null);
+                assert.equal(document.querySelector(".spinner-border"), null);
+                assert.deepEqual(renderErrors, []);
+            } finally {
+                app.unmount();
+                stateResponse = null;
+            }
+        }
+    }
+});
+
+test("intro editor uses native-style controls and saves only marker, playhead or zero", async () => {
     const app = createApp(App, { base: "/sweepers/1", csrf: "", view: "intros" });
     app.mount(document.querySelector("#app"));
     try {
@@ -176,13 +210,20 @@ test("intro editor saves one field from numeric, marker and playhead input", asy
         assert.ok(!editorText.includes("Original file position"));
         assert.ok(!editorText.includes("Move the marker"));
         assert.ok(!editorText.includes("Listen −3"));
-        for (const label of ["Set", "Listen Intro", "No Intro", "Clear", "Save Intro"]) {
+        for (const label of ["Set Intro", "No Intro", "Close", "Save Changes"]) {
             assert.ok([...document.querySelectorAll("article button")].some((button) => button.textContent.trim() === label));
         }
+        assert.equal(document.querySelector("article input[type=number]"), null);
+        assert.equal(document.querySelector("article .card-header button"), null);
+        assert.doesNotMatch(editorText, /Close Editor|Listen Intro|Clear/);
+        assert.deepEqual([...document.querySelectorAll("article .card-footer button")].map((node) => node.textContent),
+            ["Close", "Save Changes"]);
         assert.equal(document.querySelector(".media-list tbody tr").querySelector("article h2").textContent, "First song",
             "The editor replaces the track row");
         assert.equal(document.querySelectorAll(".media-track").length, 1);
-        await setInput("12.5");
+        await save();
+        assert.deepEqual(writes.at(-1).body, { intro_end: 10 }, "An untouched marker retains its value");
+        await setMarker("12.5");
         assert.equal(document.querySelector("#marker").textContent, "12.5");
         await save();
         assert.deepEqual(writes.at(-1).body, { intro_end: 12.5 });
@@ -190,25 +231,22 @@ test("intro editor saves one field from numeric, marker and playhead input", asy
         assert.equal(writes.at(-1).options.headers["X-CSRF-Token"], "session-token");
         assert.equal(writes.at(-1).options.credentials, "same-origin");
         await click("Move marker");
-        assert.equal(input().value, "14.75");
+        assert.equal(document.querySelector("#marker").textContent, "14.75");
         await save();
         assert.deepEqual(writes.at(-1).body, { intro_end: 14.75 });
         await click("Seek");
-        await click("Set");
-        assert.equal(input().value, "18.36");
+        await click("Set Intro");
+        assert.equal(document.querySelector("#marker").textContent, "18.36");
         await save();
         assert.deepEqual(writes.at(-1).body, { intro_end: 18.36 });
         await click("No Intro");
         await save();
         assert.deepEqual(writes.at(-1).body, { intro_end: 0 });
-        await click("Clear");
-        await save();
-        assert.deepEqual(writes.at(-1).body, { intro_end: null });
-        await setInput("181");
+        await setMarker("181");
         const count = writes.length;
         await save();
         assert.equal(writes.length, count, "Out-of-file cue was submitted");
-        await setInput("14");
+        await setMarker("14");
         releaseSave = true;
         await save();
         document.querySelector('.media-track button[aria-label="Edit intro: Second song"]').click();
@@ -216,7 +254,12 @@ test("intro editor saves one field from numeric, marker and playhead input", asy
         releaseSave();
         releaseSave = null;
         await settle();
-        assert.equal(input().value, "6", "Saving the first song changed the second song's draft");
+        assert.equal(document.querySelector("#marker").textContent, "6", "Saving the first song changed the second song's draft");
+        const writesBeforeClose = writes.length;
+        await setMarker("8");
+        await click("Close");
+        assert.equal(document.querySelector("article"), null);
+        assert.equal(writes.length, writesBeforeClose, "Closing never saves a draft");
     } finally {
         app.unmount();
     }
@@ -464,7 +507,7 @@ test("unknown intro switch filters server-side, resets pages and removes newly t
         await debounceSearch();
         assert.ok(mediaRequests.at(-1).includes("search=test&unknown=1&page=1"));
         await click("Edit intro");
-        await setInput("12");
+        await setMarker("12");
         tagged = true;
         await save();
         assert.equal(document.querySelector("article"), null);
@@ -510,12 +553,17 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(field("Move a song with an intro forward").checked, false, "Moving songs forward is off by default");
         assert.equal(first.swap_for_intro, false);
         assert.equal(first.swap_from_playlist, false);
+        assert.equal(first.replacement_limit, 2);
+        assert.equal(document.getElementById("sweepers-replacement-limit"), null);
         assert.equal(field("Swap with another song from same playlist").checked, false);
         assert.ok(document.querySelector("section.card").textContent.includes("Improve Sweeper-to-Song Matching"));
         await change("Swap with another song from same playlist", true, true);
+        assert.equal(field("Maximum replacements per song").value, "2");
+        await change("Maximum replacements per song", 0);
         await change("Also move or swap songs from sequential playlists", true, true);
         const replacementOnly = await submit();
         assert.equal(replacementOnly.swap_from_playlist, true);
+        assert.equal(replacementOnly.replacement_limit, 0, "Zero persists as unlimited replacements");
         assert.equal(replacementOnly.swap_for_intro, false, "Replacement can be enabled without queued-song movement");
         assert.equal(replacementOnly.swap_sequential, true, "Sequential control is available for replacement alone");
         await change("Swap with another song from same playlist", false, true);
@@ -769,9 +817,9 @@ test("module status tells when a one-time restart is still required", async () =
     }
 });
 
-test("restart button restarts broadcasting through AzuraCast's API after confirmation", async () => {
+test("restart button restarts only Liquidsoap through AzuraCast's backend API after confirmation", async () => {
     moduleState = { state: "outdated", message: "This station runs an older sweeper module than the installed plugin." };
-    restartInfo = { url: "/api/station/1/restart", csrf: "api-token" };
+    restartInfo = { url: "/api/station/1/backend/restart", csrf: "api-token" };
     const confirms = [];
     globalThis.window.confirm = (message) => { confirms.push(message); return confirms.length > 1; };
     const app = createApp(App, { base: "/sweepers/1", csrf: "session-token" });
@@ -782,6 +830,7 @@ test("restart button restarts broadcasting through AzuraCast's API after confirm
         assert.equal(button?.textContent.trim(), "Restart Broadcasting");
         await click("Restart Broadcasting");
         assert.equal(restarts.length, 0, "Cancelling the confirmation does not restart");
+        assert.match(confirms[0], /Liquidsoap broadcasting only.*Icecast stays running/);
         await click("Restart Broadcasting");
         assert.equal(restarts.length, 1);
         assert.equal(restarts[0].method, "POST");
@@ -842,17 +891,17 @@ test("playback timeline lists all tracks, highlights songs with a sweeper and ex
         const parts = (row, column) => [...cell(row, column).querySelectorAll(".timeline-title, .timeline-artist, .timeline-moved, .timeline-reason, .timeline-unmoved")]
             .map((node) => node.textContent.replace(/\s+/g, " ").trim());
         const all = rows();
-        assert.equal(all.length, 7, "All played tracks are listed");
+        assert.equal(all.length, 8, "All played tracks are listed");
         assert.deepEqual(all.map((row) => row.className),
-            ["timeline-plain", "timeline-missed", "timeline-jingle", "timeline-played", "timeline-missed", "timeline-played", "timeline-plain"]);
+            ["timeline-plain", "timeline-missed", "timeline-jingle", "timeline-played", "timeline-plain", "timeline-played", "timeline-plain", "timeline-missed"]);
         const tag = (row) => {
             const badge = cell(row, 2).querySelector(".badge");
             return badge ? [badge.textContent.trim(), [...badge.classList].find((name) => name.startsWith("text-bg-"))] : null;
         };
         assert.deepEqual(all.map(tag), [
             ["Upcoming", "text-bg-info"], ["Missed", "text-bg-danger"], null,
-            ["Played", "text-bg-success"], ["Missed", "text-bg-danger"], ["Played", "text-bg-success"], null,
-        ], "Green for played, red when a due sweeper could not play, no tag for intended skips");
+            ["Played", "text-bg-success"], ["Unconfirmed", "text-bg-warning"], ["Played", "text-bg-success"], null, ["Missed", "text-bg-danger"],
+        ], "Missing confirmation is distinct from a confirmed miss or an intended skip");
         assert.deepEqual(parts(all[0], 3), ["Sweeper coming up"], "The current song's sweeper is still pending");
         assert.deepEqual(parts(all[1], 3), ["No intro end set", "Not moved forward: no queued song has a fitting intro"]);
         assert.deepEqual(parts(all[2], 1), ["Dropin 01", "RadioMonster.FM"]);
@@ -865,7 +914,7 @@ test("playback timeline lists all tracks, highlights songs with a sweeper and ex
         assert.equal(cell(all[1], 4).textContent.trim(), "Set ✎", "A missing intro end can be set");
         assert.equal(cell(all[2], 4).querySelector("button"), null, "Jingles have no intro to edit");
         assert.equal(cell(all[1], 5).textContent.trim(), "", "No start time without a sweeper");
-        assert.deepEqual(parts(all[4], 3), ["Sweeper did not start"]);
+        assert.deepEqual(parts(all[4], 3), ["Playback confirmation missing"]);
         assert.deepEqual(parts(all[4], 1), ["I'm Your Man", "Wham!", "Replaced No Intro from the same playlist"]);
         assert.equal(cell(all[4], 1).querySelector(".timeline-moved").getAttribute("title"), "Original Artist – No Intro");
         assert.deepEqual(parts(all[5], 1), ["untagged.mp3"]);
@@ -873,6 +922,8 @@ test("playback timeline lists all tracks, highlights songs with a sweeper and ex
         assert.deepEqual(parts(all[6], 3), ["No intro"], "A 0 s intro means no intro, also in older entries");
         assert.equal(cell(all[6], 4).textContent.trim(), "0.0 s ✎");
         assert.equal(all[5].querySelector(".timeline-moved"), null, "Songs in their planned order are not marked");
+        assert.deepEqual(parts(all[7], 3), ["No planning decision recorded"]);
+        assert.doesNotMatch(document.querySelector("#app").textContent, /station just started/);
         assert.deepEqual([...document.querySelectorAll("#app thead th")].map((th) => th.textContent.trim()),
             ["Date/Time (Station)", "Track", "Sweeper Status", "Sweeper or Reason", "Intro", "Started After"]);
         const text = document.querySelector("#app").textContent;
@@ -919,7 +970,9 @@ test("playback timeline lists all tracks, highlights songs with a sweeper and ex
         assert.deepEqual(mediaLookups, ["/sweepers/1/media?id=5"]);
         assert.equal(document.querySelector("article h2").textContent, "queen.mp3", "The intro editor opens on that song");
         assert.equal(document.querySelector("#search").value, "queen.mp3");
-        assert.equal(input().value, "");
+        assert.equal(document.querySelector("#marker").textContent, "blank");
+        await save();
+        assert.deepEqual(writes.at(-1).body, { intro_end: null }, "Saving an untouched unknown intro keeps it blank");
     } finally {
         app.unmount();
     }

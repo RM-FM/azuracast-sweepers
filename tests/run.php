@@ -446,6 +446,25 @@ $timeline = Planner::apply($timeline, $start('7', 'after_jingle'));
 check($timeline['log'][0]['result'] === 'after_jingle', 'Module reasons are shown.');
 $timeline = Planner::apply($timeline, $start('8', 'none'));
 check($timeline['log'][0]['result'] === 'not_planned', 'A song the plugin never saw is marked as not planned.');
+$delayedAt = microtime(true) - 300;
+$delayed = Planner::apply([], ['at' => $delayedAt] + $start('80', 'none'));
+check($delayed['log'][0]['at'] === $delayedAt, 'A delayed start keeps its original event time.');
+$delayed = Planner::apply($delayed, ['at' => $delayedAt + 2] + $start('80', 'none'));
+check(count($delayed['log']) === 1 && $delayed['log'][0]['at'] === $delayedAt, 'A retried start keeps its original time.');
+$failed = Planner::apply([], ['event' => 'release', 'token' => '81', 'detail' => 'error', 'at' => $delayedAt]);
+$failed = Planner::apply($failed, ['at' => $delayedAt + 1] + $start('81', 'none'));
+check($failed['log'][0]['result'] === 'error', 'An API failure stays a planning error when the song starts.');
+$playedAt = microtime(true) - 200;
+$delayed = Planner::apply(['plans' => ['82' => $plan(46)]], [
+    'event' => 'played', 'token' => '82', 'at' => $playedAt,
+]);
+check(
+    $delayed['history'][46] === $playedAt && $delayed['log'][0]['at'] === $playedAt,
+    'Delayed playback reports retain the audible time for history and repetition protection.'
+);
+foreach (['invalid', -1, INF, microtime(true) + 3600] as $at) {
+    rejects(static fn() => Planner::apply([], ['at' => $at] + $start('83', 'none')));
+}
 $timeline = Planner::apply($timeline, $start('9', 'scheduled'));
 $timeline = Planner::apply($timeline, ['event' => 'release', 'token' => '9', 'detail' => 'skipped']);
 check(
@@ -468,6 +487,64 @@ check(
     $legacy['log'][0]['result'] === 'played' && $legacy['log'][0]['jingle_id'] === 45,
     'Modules without start events still record played sweepers.'
 );
+$receiptAt = microtime(true) - 600;
+$receipt = ['event' => 'played', 'token' => '90', 'at' => $receiptAt + 3.5,
+    'jingle_id' => 47, 'offset' => 3.5, 'media_id' => '7', 'title' => 'Song', 'artist' => 'Artist'];
+$recovered = Planner::apply([], ['at' => $receiptAt, 'jingle_id' => 47, 'offset' => 3.5] + $start('90', 'scheduled'));
+check(
+    $recovered['log'][0]['jingle_id'] === 47 && empty($recovered['history']),
+    'A scheduled receipt preserves its sweeper identity without counting prefetch as playback.'
+);
+$recovered = Planner::apply($recovered, $receipt);
+check(
+    $recovered['log'][0]['result'] === 'played' && $recovered['log'][0]['at'] === $receiptAt
+        && $recovered['log'][0]['offset'] === 3.5 && $recovered['history'][47] === $receiptAt + 3.5
+        && empty($recovered['plans']),
+    'A self-contained playback receipt survives a missing reservation without reviving it.'
+);
+check(Planner::apply($recovered, $receipt) === $recovered, 'A playback receipt remains idempotent without a reservation.');
+$standalone = Planner::apply([], $receipt);
+check(
+    $standalone['log'][0]['result'] === 'played' && $standalone['log'][0]['song_id'] === 7
+        && $standalone['log'][0]['title'] === 'Song' && $standalone['history'][47] === $receiptAt + 3.5,
+    'Playback can be recorded when both the reservation and track-start event are missing.'
+);
+$oldModule = Planner::apply(['plans' => ['91' => $plan(48)]], $start('91', 'scheduled'));
+unset($oldModule['plans']['91']);
+$oldModule = Planner::apply($oldModule, ['event' => 'played', 'token' => '91', 'at' => $receiptAt]);
+check(
+    $oldModule['log'][0]['result'] === 'played' && $oldModule['history'][48] === $receiptAt
+        && $oldModule['log'][0]['offset'] === 3.5,
+    'Older playback events recover from the identity stored at track start.'
+);
+$unknown = Planner::apply([], $start('92', 'scheduled'));
+$unknown = Planner::apply($unknown, ['event' => 'played', 'token' => '92']);
+check(
+    $unknown['log'][0]['result'] === 'played' && $unknown['log'][0]['jingle_id'] === null && empty($unknown['history']),
+    'An older playback confirmation is not discarded when its sweeper identity is unavailable.'
+);
+$backlog = $recovered;
+$backlog['log'][0]['result'] = 'scheduled';
+$backlog['log'] = [...array_fill(0, 25, ['token' => '100', 'result' => 'after_sweeper']), ...$backlog['log']];
+$backlog['history'][47] = $receiptAt + 100;
+$backlog = Planner::apply($backlog, $receipt);
+check(
+    count($backlog['log']) === 26 && $backlog['log'][25]['result'] === 'played'
+        && $backlog['history'][47] === $receiptAt + 100,
+    'A long buffered backlog updates the existing song without moving repetition history backwards.'
+);
+check(Planner::apply($backlog, $receipt) === $backlog, 'Long-backlog playback retries do not duplicate entries.');
+foreach ([
+    ['jingle_id' => '47'], ['jingle_id' => -1], ['offset' => -1], ['offset' => INF], ['offset' => '3.5'],
+    ['offset' => null],
+] as $invalid) {
+    rejects(static fn() => Planner::apply([], $invalid + $receipt));
+}
+$unconfirmedRows = \Plugin\AzuracastSweepers\Service\History::rows(
+    [['at' => $receiptAt, 'result' => 'scheduled', 'offset' => 3.5]],
+    []
+);
+check($unconfirmedRows[0]['offset'] === null, 'A planned offset is not presented as confirmed playback.');
 $moved = Planner::apply(['moved' => ['13' => ['at' => 1, 'before' => 9]]], $start('13', 'none'));
 check($moved['log'][0]['moved_before'] === 9 && !isset($moved['moved']['13']), 'A moved song is marked when it starts.');
 $unmoved = Planner::apply(['unmoved' => ['14' => ['at' => 1, 'reason' => 'move_none']]], $start('14', 'none'));
@@ -534,6 +611,22 @@ check(
     'Replacement is independent, persists and refreshes the runtime revision.'
 );
 rejects(static fn() => Settings::fromArray(['swap_from_playlist' => 'yes']));
+check(Settings::fromArray([])->replacementLimit === 2, 'The replacement limit defaults to two.');
+foreach ([0, 1, 2, 1000] as $limit) {
+    $limitedSettings = Settings::fromArray(['replacement_limit' => $limit]);
+    check(
+        $limitedSettings->replacementLimit === $limit
+            && Settings::fromArray($limitedSettings->toArray())->replacementLimit === $limit,
+        'The replacement limit persists including zero for unlimited.'
+    );
+}
+foreach ([-1, 1001, 1.5, '2', true] as $invalid) {
+    rejects(static fn() => Settings::fromArray(['replacement_limit' => $invalid]));
+}
+check(
+    (new Settings(replacementLimit: 3))->revision() !== (new Settings())->revision(),
+    'Replacement limit changes refresh the settings revision.'
+);
 check(
     Arrangement::replacement([$song(21), $song(22)], $due, $replacementOnly, 3, $intros())['id'] === 21,
     'Only the next unsent song is proposed for replacement.'
@@ -608,6 +701,23 @@ try {
         return $data;
     });
     check(!isset($state->read($directory)['log']), 'A cleared timeline stays cleared.');
+    if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+        $user = posix_getpwnam('nobody');
+        check($user !== false, 'A non-root account is available for ownership checks.');
+        chown($directory, $user['uid']);
+        chgrp($directory, $user['gid']);
+        $state->update($directory, static fn(array $data) => [
+            'history' => ['42' => 300], 'log' => [['at' => 6.5]],
+        ] + $data);
+        clearstatcache();
+        foreach (['sweepers.json', 'sweepers-history.json'] as $name) {
+            check(fileowner($directory . '/' . $name) === $user['uid'], 'Root maintenance keeps the directory owner.');
+            check(filegroup($directory . '/' . $name) === $user['gid'], 'Root maintenance keeps the directory group.');
+            check((fileperms($directory . '/' . $name) & 0777) === 0600, 'State files stay private.');
+        }
+        check(fileowner($directory . '/sweepers.lock') === $user['uid'], 'Root maintenance keeps the lock owner.');
+        check(filegroup($directory . '/sweepers.lock') === $user['gid'], 'Root maintenance keeps the lock group.');
+    }
 } finally {
     foreach (glob($directory . '/*') as $path) {
         unlink($path);

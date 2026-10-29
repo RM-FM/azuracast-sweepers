@@ -84,21 +84,23 @@ def sweepers.stale_reason(token) =
     if list.mem(token, sweepers.blocked()) then "jingle_follows" else "disabled" end
 end
 
-def sweepers.event(event, token, detail, m) =
+def sweepers.event(~jingle_id=0, ~offset=0., event, token, detail, m) =
     sweepers.events := list.prefix(128, [{
         event=event, token=token, detail=detail,
-        media_id=m["media_id"], title=m["title"], artist=m["artist"]
+        at=time(),
+        media_id=m["media_id"], title=m["title"], artist=m["artist"],
+        jingle_id=jingle_id, offset=offset
     }, ...sweepers.events()])
 end
 
-def sweepers.notify(~detail="", event, token) =
+def sweepers.notify(~detail="", ~jingle_id=0, ~offset=0., ~metadata=[], event, token) =
     if token != "" then
         if event == "played" then
             log(label="sweepers", "Sweeper started for queue #{token}")
             sweepers.songs_since_sweeper := 0
             sweepers.previous_clear := false
         end
-        sweepers.event(event, token, detail, [])
+        sweepers.event(jingle_id=jingle_id, offset=offset, event, token, detail, metadata)
         sweepers.plans := list.assoc.remove(token, sweepers.plans())
     end
 end
@@ -341,6 +343,7 @@ def sweepers.arrange() =
             response = sweepers.api_call(timeout=2., "sweepers/arrange", json.stringify({
                 counted=sweepers.counted(),
                 budget=1.5,
+                release_spacing=true,
                 songs_since_jingle=sweepers.songs_since_jingle(),
                 songs_since_sweeper=sweepers.songs_since_sweeper(),
                 previous_song=sweepers.previous_song(),
@@ -348,7 +351,12 @@ def sweepers.arrange() =
                 jingles=sweepers.measurements()
             }))
             if null.defined(response) then
-                let json.parse (r : {moved?: string, before?: string}) = null.get(response)
+                let json.parse (r : {moved?: string, before?: string, released?: [string]}) = null.get(response)
+                released = null.get(default=[], r?.released)
+                list.iter(fun (token) -> sweepers.notify("release", token), released)
+                if released != [] then
+                    ignore(sweepers.heartbeat())
+                end
                 moved = null.get(default="", r?.moved)
                 before = null.get(default="", r?.before)
                 if moved != "" then
@@ -384,12 +392,16 @@ def sweepers.next_song() =
                         cue_in=cue_in,
                         cue_out=window_end
                     })
-                    response = sweepers.api_call(timeout=1., "sweepers/plan", body)
-                    if null.defined(response) then
+                    response = ref(sweepers.api_call(timeout=1., "sweepers/plan", body))
+                    if not null.defined(response()) then
+                        log(label="sweepers", "Retrying planning for queue #{token}")
+                        response := sweepers.api_call(timeout=1., "sweepers/plan", body)
+                    end
+                    if null.defined(response()) then
                         let json.parse (p : {
-                            token: string, uri: string, offset: float,
+                            token: string, jingle_id?: int, uri: string, offset: float,
                             duck_duration: float, gain: float, duck_gain: float, reverb?: float, length?: float
-                        }) = null.get(response)
+                        }) = null.get(response())
                         ready = ref(false)
                         overlay = source.fail()
                         overlay =
@@ -398,7 +410,16 @@ def sweepers.next_song() =
                                 if request.resolve(timeout=1., jr) then
                                     ready := true
                                     s = amplify(override=null, p.gain, request.once(jr))
-                                    s.on_track(synchronous=true, fun (_) -> sweepers.notify("played", p.token))
+                                    s.on_track(synchronous=true, fun (_) -> begin
+                                        if sweepers.active() == p.token then
+                                            sweepers.notify(
+                                                jingle_id=null.get(default=0, p?.jingle_id),
+                                                offset=p.offset, metadata=m, "played", p.token
+                                            )
+                                        else
+                                            log(level=2, label="sweepers", "Inactive sweeper source started for queue #{p.token}")
+                                        end
+                                    end)
                                     reverb = null.get(default=0., p?.reverb)
                                     length = null.get(default=0., p?.length)
                                     if reverb > 0. and length > 0. then sweepers.reverb(reverb, length, s) else s end
@@ -417,12 +438,14 @@ def sweepers.next_song() =
                             log(label="sweepers", "Sweeper prepared for queue #{token}: starts #{p.offset} s after cue-in")
                             list.iter(fun (entry) -> sweepers.notify("release", fst(entry)), list.slice(offset=15, sweepers.plans()))
                             sweepers.plans := [(token, {
-                                source=overlay, ready=true, offset=p.offset,
+                                source=overlay, ready=true, offset=p.offset, jingle_id=null.get(default=0, p?.jingle_id),
                                 duration=p.duck_duration, duck_gain=p.duck_gain
                             }), ...list.assoc.remove(token, sweepers.plans())]
                         elsif ready() then
                             sweepers.notify(detail=sweepers.stale_reason(p.token), "release", p.token)
                         end
+                    else
+                        sweepers.notify(detail="error", "release", token)
                     end
                 end
             end
@@ -520,9 +543,12 @@ def sweepers.mix(music) =
                     elsif sweepers.current(token) then "scheduled"
                     else sweepers.stale_reason(token) end
                 end
-            sweepers.event("start", token, outcome, m)
             if planned then
                 p = list.assoc(token, sweepers.plans())
+                sweepers.event(
+                    jingle_id=if outcome == "scheduled" then p.jingle_id else 0 end,
+                    offset=p.offset, "start", token, outcome, m
+                )
                 sweepers.duck_gain := p.duck_gain
                 if outcome == "scheduled" then
                     sweepers.pending := {
@@ -537,6 +563,8 @@ def sweepers.mix(music) =
                     end
                     sweepers.notify(detail=outcome, "release", token)
                 end
+            else
+                sweepers.event("start", token, outcome, m)
             end
         end
     end)

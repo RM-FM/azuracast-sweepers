@@ -15,8 +15,8 @@ export function stationContext(pathname, basePath) {
 
     return {
         stationPath,
-        href: `${stationPath}?sweepers=settings`,
-        links: Object.fromEntries(views.map(([view]) => [view, `${stationPath}?sweepers=${view}`])),
+        href: `${stationPath}/sweepers/settings`,
+        links: Object.fromEntries(views.map(([view]) => [view, `${stationPath}/sweepers/${view}`])),
         apiBase: `${basePath}/sweepers/${match[1]}`,
     };
 }
@@ -31,64 +31,131 @@ export function currentView(search) {
     return views.some(([view]) => view === value) ? value : null;
 }
 
+export function registerRoutes(router, basePath, loadPage) {
+    const station = router.getRoutes().find((route) =>
+        route.path === "/station/:station_id" && route.children.some((child) => child.path === ""));
+    if (!station?.components?.default) {
+        throw new Error("AzuraCast's station layout route is unavailable.");
+    }
+
+    return router.addRoute({
+        path: "/station/:station_id/sweepers",
+        component: station.components.default,
+        children: views.map(([view]) => ({
+            path: view,
+            name: `sweepers:${view}`,
+            component: loadPage,
+            props: (route) => ({
+                base: `${basePath}/sweepers/${route.params.station_id}`,
+                view,
+            }),
+        })),
+    });
+}
+
+function loadStyles(document, href) {
+    return new Promise((resolve, reject) => {
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = href;
+        link.onload = resolve;
+        link.onerror = () => {
+            link.remove();
+            reject(new Error("Unable to load the Sweepers stylesheet."));
+        };
+        document.head.append(link);
+    });
+}
+
 export function mountNavigation(document, window, basePath = "") {
     let stopped = false;
     let frame = null;
-    let panel = null;
-    let unmount = null;
-    let originalContent = null;
-    let originalDisplay = "";
+    let router = null;
+    let removeRoutes = null;
+    let removeAfterEach = null;
+    let removeOnError = null;
+    let pageModule = null;
+    let stylesheet = null;
+    let connectionFailed = false;
+    let lastError = null;
 
-    function removePanel() {
-        unmount?.();
-        unmount = null;
-        panel?.remove();
-        panel = null;
-        if (originalContent?.isConnected) {
-            originalContent.style.display = originalDisplay;
+    function reportError(error) {
+        if (stopped || error === lastError) return;
+        lastError = error;
+        window.console.error("AzuraCast Sweepers:", error);
+        let alert = document.getElementById("azuracast-sweepers-navigation-error");
+        if (!alert) {
+            alert = document.createElement("div");
+            alert.id = "azuracast-sweepers-navigation-error";
+            alert.className = "alert alert-danger";
+            alert.setAttribute("role", "alert");
+            (document.getElementById("content") || document.getElementById("dashboard") || document.body).prepend(alert);
         }
-        originalContent = null;
+        alert.textContent = "Unable to load Sweepers. Reload the page or check the plugin frontend build and AzuraCast compatibility.";
     }
 
-    function showPanel(context, view) {
-        const content = document.getElementById("content");
-        if (!content?.parentElement) {
-            return;
+    function navigate(target, replace = false) {
+        lastError = null;
+        document.getElementById("azuracast-sweepers-navigation-error")?.remove();
+        router[replace ? "replace" : "push"](target).catch(reportError);
+    }
+
+    function redirectLegacy(route) {
+        const view = currentView(new URL(route.fullPath, window.location.origin).search);
+        if (view && /^\/station\/[1-9]\d*\/?$/.test(route.path)) {
+            const query = {...route.query};
+            delete query.sweepers;
+            navigate({path: `${route.path.replace(/\/$/, "")}/sweepers/${view}`, query, hash: route.hash}, true);
+            return true;
         }
-        if (panel?.isConnected && originalContent === content && panel.dataset.apiBase === context.apiBase
-            && panel.dataset.view === view) {
-            return;
+        return false;
+    }
+
+    function connectRouter() {
+        if (router || connectionFailed) return;
+        const nativeRouter = document.getElementById("dashboard")?.__vue_app__?.config.globalProperties.$router;
+        if (!nativeRouter) return;
+        try {
+            removeRoutes = registerRoutes(nativeRouter, basePath, () => {
+                if (!pageModule) {
+                    const assets = `${basePath}/sweepers/assets`;
+                    stylesheet ??= loadStyles(document, `${assets}/app.css`).catch((error) => {
+                        stylesheet = null;
+                        throw error;
+                    });
+                    pageModule = Promise.all([
+                        import(`${assets}/app.js`),
+                        stylesheet,
+                    ]).then(([module]) => module.SweepersPage).catch((error) => {
+                        pageModule = null;
+                        throw error;
+                    });
+                }
+                return pageModule;
+            });
+            router = nativeRouter;
+            removeAfterEach = router.afterEach((to, from, failure) => {
+                if (!failure) redirectLegacy(to);
+                schedule();
+            });
+            removeOnError = router.onError((error, to) => {
+                if (/^\/station\/[1-9]\d*\/sweepers\//.test(to.path)) reportError(error);
+            });
+            router.isReady().then(() => {
+                if (stopped) return;
+                const route = router.currentRoute.value;
+                if (!redirectLegacy(route)
+                    && /^\/station\/[1-9]\d*\/sweepers\/(?:settings|intros|history)\/?$/.test(route.path)
+                    && !route.name?.startsWith("sweepers:")) {
+                    // Direct links may have resolved before the plugin registered its routes.
+                    navigate(route.fullPath, true);
+                }
+                schedule();
+            }).catch(reportError);
+        } catch (error) {
+            connectionFailed = true;
+            reportError(error);
         }
-        removePanel();
-        originalContent = content;
-        originalDisplay = content.style.display;
-        content.style.display = "none";
-        panel = document.createElement("div");
-        panel.id = "azuracast-sweepers-panel";
-        panel.className = "container";
-        panel.dataset.apiBase = context.apiBase;
-        panel.dataset.view = view;
-        const root = document.createElement("div");
-        root.id = "app";
-        root.className = "sweepers-page embedded";
-        root.dataset.base = context.apiBase;
-        root.dataset.csrf = "";
-        root.dataset.view = view;
-        root.textContent = "Loading Sweepers…";
-        panel.append(root);
-        content.after(panel);
-        const css = document.createElement("link");
-        css.rel = "stylesheet";
-        css.href = `${context.apiBase}/assets/app.css`;
-        panel.prepend(css);
-        import(`${context.apiBase}/assets/app.js`).then(({mountSweepers}) => {
-            if (panel?.contains(root)) {
-                unmount = mountSweepers(root);
-            }
-        }).catch(() => {
-            root.textContent = "Unable to load Sweepers. Reload the page or check the plugin frontend build.";
-            if (originalContent === content) content.style.display = originalDisplay;
-        });
     }
 
     function refresh() {
@@ -96,8 +163,11 @@ export function mountNavigation(document, window, basePath = "") {
         if (stopped) {
             return;
         }
+        connectRouter();
         const context = stationContext(window.location.pathname, basePath);
-        const view = currentView(new URL(window.location.href).search);
+        const pathname = window.location.pathname.replace(/\/$/, "");
+        const view = context && views.find(([key]) =>
+            pathname === `${context.stationPath}/sweepers/${key}`)?.[0];
         const menu = document.querySelector("#sidebar-submenu-media > .navdrawer-nav");
         const mediaItem = menu?.parentElement.closest("li.nav-item");
         const stationMenu = mediaItem?.parentElement;
@@ -108,13 +178,7 @@ export function mountNavigation(document, window, basePath = "") {
         });
         if (!hasMediaAccess || !stationMenu?.matches("ul.navdrawer-nav")) {
             existing?.remove();
-            removePanel();
             return;
-        }
-        if (view) {
-            showPanel(context, view);
-        } else {
-            removePanel();
         }
         // Rebuilding would reset the user's own open/close of the group.
         const signature = `${context.stationPath}|${view ?? ""}`;
@@ -181,6 +245,29 @@ export function mountNavigation(document, window, basePath = "") {
         }
     }
 
+    function onClick(event) {
+        const anchor = event.target.closest?.(`#${itemId} a[href]`);
+        if (!router || !anchor || event.defaultPrevented || event.button > 0
+            || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+            || anchor.hasAttribute("download") || (anchor.target && anchor.target !== "_self")
+            || anchor.getAttribute("href").startsWith("#")) {
+            return;
+        }
+        const url = new URL(anchor.href, window.location.href);
+        if (url.origin !== window.location.origin) return;
+        event.preventDefault();
+        navigate(`${url.pathname.slice(basePath.length)}${url.search}${url.hash}`);
+    }
+
+    function onReady() {
+        connectRouter();
+        if (!router && !connectionFailed) {
+            connectionFailed = true;
+            reportError(new Error("AzuraCast's Vue Router is unavailable."));
+        }
+        schedule();
+    }
+
     const observer = new window.MutationObserver(schedule);
     observer.observe(document.body, {
         childList: true,
@@ -188,20 +275,25 @@ export function mountNavigation(document, window, basePath = "") {
         attributes: true,
         attributeFilter: ["href"],
     });
-    window.addEventListener("popstate", schedule);
+    document.addEventListener("click", onClick);
+    document.addEventListener("vue-ready", onReady);
     window.addEventListener("pageshow", schedule);
     refresh();
 
     return () => {
         stopped = true;
         observer.disconnect();
-        window.removeEventListener("popstate", schedule);
+        document.removeEventListener("click", onClick);
+        document.removeEventListener("vue-ready", onReady);
         window.removeEventListener("pageshow", schedule);
         if (frame !== null) {
             window.cancelAnimationFrame(frame);
         }
         document.getElementById(itemId)?.remove();
-        removePanel();
+        document.getElementById("azuracast-sweepers-navigation-error")?.remove();
+        removeAfterEach?.();
+        removeOnError?.();
+        removeRoutes?.();
     };
 }
 

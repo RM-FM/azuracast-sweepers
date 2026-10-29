@@ -1,5 +1,37 @@
 # Release notes
 
+## 1.2.1 - 2026-10-29
+
+### Improvements
+
+- Limit how often the same song can be replaced before keeping its next turn.
+  The default is two replacements; zero allows unlimited replacements.
+
+### Fixes
+
+- Preserve sweeper playback confirmations and rotation history across expired
+  reservations and API outages. Unconfirmed timeline entries no longer claim a
+  sweeper failed to start; prefetch and cancelled reverb sources do not count as playback.
+- Load Sweeper pages through AzuraCast's router and station layout without a
+  dashboard reload or a hidden station page; preserve direct links and browser history.
+- Stabilize waveform zoom in the Intro Manager and align its timeline, zoom,
+  volume, Play/Stop and Close/Save controls with AzuraCast's visual editor.
+  Intro editing uses Set Intro and No Intro instead of a numeric input or Clear.
+- Retry a failed sweeper-planning request once and report persistent failures as
+  planning errors. Buffered playback events retain their original timestamps;
+  missing decisions no longer imply a station restart.
+- Keep station state readable after root-run maintenance and show loading errors
+  instead of a blank plugin page.
+- The Settings restart button restarts only Liquidsoap, leaving Icecast running.
+- Song matching releases sweeper reservations for prefetched songs blocked by spacing,
+  so they no longer prevent a fitting queued-song move or same-playlist replacement.
+  Played-sweeper repetition protection is unchanged.
+
+### Update notes
+
+- **AzuraCast Broadcast (Liquidsoap) restart: Required** to load reservation releases,
+  planning retries and self-contained playback confirmations.
+
 ## 1.2.0 - 2026-10-28
 
 ### Features

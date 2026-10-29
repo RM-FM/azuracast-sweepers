@@ -5,12 +5,6 @@ name: AzuraCast compatibility
 on:
   schedule:
     - cron: '17 4 * * *'
-  workflow_dispatch:
-  push:
-    branches: [develop]
-    paths:
-      - .github/workflows/azuracast-compat.yml
-      - tests/compat.php
 
 permissions:
   contents: read
@@ -91,19 +85,21 @@ jobs:
     if: needs.target.outputs.changed == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Check the sidebar and page markup the navigation script attaches to
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: Check native routing, station layout and sidebar integration
         env:
           COMMIT: ${{ needs.target.outputs.commit }}
         run: |
-          base="https://raw.githubusercontent.com/AzuraCast/AzuraCast/$COMMIT/frontend/components"
-          expect() {
-            curl --fail --silent --show-error --location "$base/$1" | grep -qF -- "$2" \
-              || { echo "FAIL $1 no longer contains: $2"; exit 1; }
-          }
-          expect Common/SidebarMenu.vue "'sidebar-submenu-'+category.key"
-          expect Common/SidebarMenu.vue 'class="navdrawer-nav"'
-          expect Layout/DashboardWithSidebar.vue 'id="content"'
-          expect Stations/menu.ts 'key: "media"'
+          root=$(mktemp -d)
+          trap 'rm -rf "$root"' EXIT
+          php tests/compat.php --frontend-files | while IFS= read -r file; do
+            mkdir -p "$root/$(dirname "$file")"
+            curl --fail --silent --show-error --location \
+              "https://raw.githubusercontent.com/AzuraCast/AzuraCast/$COMMIT/$file" --output "$root/$file"
+          done
+          AZURACAST_FRONTEND_ROOT="$root" php tests/compat.php --frontend-only
 
   liquidsoap:
     needs: target
@@ -142,7 +138,7 @@ jobs:
         run: bash tests/failsafe.sh /tmp/azuracast-runtime
       - name: Render playback with AzuraCast's AutoDJ factory
         run: |
-          for scenario in normal skip live unavailable spacing playlist-spacing hot-enable hot-disable hot-pending hot-change hot-error before-jingle computed-autocue provided-autocue arrange reverb; do
+          for scenario in normal skip live unavailable spacing playlist-spacing hot-enable hot-disable hot-pending hot-change hot-error before-jingle computed-autocue provided-autocue arrange reverb plan-retry plan-lost-response heartbeat-outage reverb-pending reverb-skip; do
             python3 tests/playback.py --scenario "$scenario" \
               --runtime /tmp/azuracast-runtime \
               --liquidsoap "docker run --rm --network host --user $(id -u):$(id -g) \

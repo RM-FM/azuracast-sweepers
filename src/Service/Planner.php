@@ -158,6 +158,7 @@ final readonly class Planner
                     . '",liq_cue_out="' . $timing->cueOut . '":media:' . ltrim($jingle->path, '/');
                 $result = [
                     'token' => $token,
+                    'jingle_id' => $jingle->id,
                     'revision' => $settings->revision(),
                     'uri' => $uri,
                     ...$fit,
@@ -254,11 +255,16 @@ final readonly class Planner
         $type = (string)($event['event'] ?? '');
         $token = (string)($event['token'] ?? '');
         $detail = substr((string)($event['detail'] ?? ''), 0, 32);
+        $now = microtime(true);
+        $at = $event['at'] ?? $now;
+        if ((!is_int($at) && !is_float($at)) || !is_finite((float)$at) || $at <= 0 || $at > $now + 60) {
+            throw new InvalidArgumentException('Invalid reservation event time.');
+        }
         $plan = $token === '' ? null : ($data['plans'][$token] ?? null);
         $log = $data['log'] ?? [];
         $index = null;
         // Events are re-sent until acknowledged.
-        foreach (array_slice($log, 0, 20, true) as $key => $entry) {
+        foreach ($log as $key => $entry) {
             if ($token !== '' && ($entry['token'] ?? null) === $token) {
                 $index = $key;
                 break;
@@ -279,14 +285,19 @@ final readonly class Planner
             $unmoved = $data['unmoved'][$token]['reason'] ?? null;
             unset($data['moved'][$token], $data['unmoved'][$token], $data['decisions'][$token]);
             $mediaId = (string)($event['media_id'] ?? '');
+            if (preg_match('/^\d{1,10}$/D', $mediaId)) {
+                unset($data['replacement_counts'][(int)$mediaId]);
+            }
             $data['log'] = self::retain([[
-                'at' => microtime(true),
+                'at' => (float)$at,
                 'token' => $token,
                 'song_id' => preg_match('/^\d{1,10}$/D', $mediaId) ? (int)$mediaId : null,
                 'title' => mb_substr((string)($event['title'] ?? ''), 0, 200),
                 'artist' => mb_substr((string)($event['artist'] ?? ''), 0, 200),
                 'result' => $result,
-                'jingle_id' => $result === 'scheduled' ? ($plan['jingle_id'] ?? null) : null,
+                ...($result === 'scheduled'
+                    ? self::playback($event, $plan, null)
+                    : ['jingle_id' => null]),
                 ...($moved === null ? [] : [
                     ($moved['replacement'] ?? false) ? 'replaced_before' : 'moved_before' => $moved['before'] ?? null,
                 ]),
@@ -304,17 +315,24 @@ final readonly class Planner
                 $data['log'][$index]['jingle_id'] = null;
             }
         }
-        if ($plan === null) {
-            return $data;
-        }
-        if ($type === 'played' && !($plan['played'] ?? false)) {
-            $now = microtime(true);
-            $data['history'][$plan['jingle_id']] = $now;
-            $data['plans'][$token]['played'] = true;
+        if ($type === 'played' && $token !== '') {
+            if (($index !== null && $log[$index]['result'] === 'played') || ($plan['played'] ?? false)) {
+                return $data;
+            }
+            $playback = self::playback($event, $plan, $index === null ? null : $log[$index]);
+            if ($plan === null && $index === null && $playback['jingle_id'] === null) {
+                return $data;
+            }
+            if ($playback['jingle_id'] !== null) {
+                $id = $playback['jingle_id'];
+                $data['history'][$id] = max((float)($data['history'][$id] ?? 0), (float)$at);
+            }
+            if ($plan !== null) {
+                $data['plans'][$token]['played'] = true;
+            }
             $played = [
                 'result' => 'played',
-                'jingle_id' => $plan['jingle_id'],
-                'offset' => $plan['payload']['offset'] ?? null,
+                ...$playback,
             ];
             if ($index !== null) {
                 $data['log'][$index] = [...$log[$index], ...$played];
@@ -325,9 +343,14 @@ final readonly class Planner
             $moved = $data['moved'][$token] ?? null;
             unset($data['moved'][$token]);
             $data['log'] = self::retain([[
-                'at' => $now,
+                'at' => (float)$at,
                 'token' => $token,
-                'song_id' => $plan['song_id'] ?? null,
+                'song_id' => $plan['song_id'] ?? (
+                    preg_match('/^\d{1,10}$/D', (string)($event['media_id'] ?? ''))
+                        ? (int)$event['media_id'] : null
+                ),
+                'title' => mb_substr((string)($event['title'] ?? ''), 0, 200),
+                'artist' => mb_substr((string)($event['artist'] ?? ''), 0, 200),
                 ...$played,
                 ...($moved === null ? [] : [
                     ($moved['replacement'] ?? false) ? 'replaced_before' : 'moved_before' => $moved['before'] ?? null,
@@ -338,6 +361,29 @@ final readonly class Planner
         }
 
         return $data;
+    }
+
+    private static function playback(array $event, ?array $plan, ?array $entry): array
+    {
+        $id = $event['jingle_id'] ?? 0;
+        if (!is_int($id) || $id < 0) {
+            throw new InvalidArgumentException('Invalid playback sweeper ID.');
+        }
+        $offset = $id > 0 ? ($event['offset'] ?? null) : ($plan['payload']['offset'] ?? $entry['offset'] ?? null);
+        if (
+            $offset !== null
+            && ((!is_int($offset) && !is_float($offset)) || !is_finite((float)$offset) || $offset < 0)
+        ) {
+            throw new InvalidArgumentException('Invalid playback offset.');
+        }
+        if ($id > 0 && $offset === null) {
+            throw new InvalidArgumentException('Missing playback offset.');
+        }
+
+        return [
+            'jingle_id' => $id > 0 ? $id : ($plan['jingle_id'] ?? $entry['jingle_id'] ?? null),
+            'offset' => $offset,
+        ];
     }
 
     /**
@@ -355,6 +401,7 @@ final readonly class Planner
     {
         return [
             'token' => $token,
+            'jingle_id' => 0,
             'revision' => $revision,
             'uri' => '',
             'offset' => 0.0,

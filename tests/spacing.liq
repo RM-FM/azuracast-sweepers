@@ -109,7 +109,7 @@ expect(not sweepers.current("51"), "A queued jingle cancels that song's plan")
 expect(sweepers.current("52"), "Other plans remain valid")
 blocked_overlay = source.fail()
 sweepers.plans := [("51", {
-    source=blocked_overlay, ready=true, offset=1., duration=1., duck_gain=0.5
+    source=blocked_overlay, ready=true, offset=1., jingle_id=9, duration=1., duck_gain=0.5
 })]
 sweepers.pending := {source=blocked_overlay, due=1., duck_end=2., token="51"}
 ignore(sweepers.next_overlay())
@@ -119,7 +119,7 @@ sweepers.blocked := []
 
 overlay = source.fail()
 sweepers.plans := [("31", {
-    source=overlay, ready=true, offset=1., duration=1., duck_gain=0.5
+    source=overlay, ready=true, offset=1., jingle_id=9, duration=1., duck_gain=0.5
 })]
 sweepers.pending := {source=overlay, due=1., duck_end=2., token="31"}
 test_configure(enabled=false)

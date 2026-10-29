@@ -87,7 +87,10 @@ final readonly class PanelController
                 'needs_restart' => $station->needs_restart,
             ],
             'restart' => $canRestart ? [
-                'url' => $request->getRouter()->named('api:stations:restart', ['station_id' => $station->id]),
+                'url' => $request->getRouter()->named('api:stations:backend', [
+                    'station_id' => $station->id,
+                    'do' => 'restart',
+                ]),
                 'csrf' => $request->getCsrf()->generate(ApiAuth::API_CSRF_NAMESPACE),
             ] : null,
             'queue_length' => Queue::length($station),

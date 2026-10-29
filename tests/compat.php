@@ -4,6 +4,51 @@ declare(strict_types=1);
 
 // Checks the AzuraCast APIs the plugin relies on; run inside an AzuraCast image.
 
+$frontendContracts = [
+    'backend/src/Controller/Frontend/DashboardAction.php' => ["id: 'dashboard'"],
+    'frontend/layout.ts' => ['vueApp.mount(el);'],
+    'frontend/js/pages/Dashboard.js' => ['vueApp.use(router);'],
+    'frontend/components/Layout/AppWrapper.vue' => ['new CustomEvent("vue-ready")'],
+    'frontend/components/Stations/routes.ts' => [
+        'path: "/station/:station_id"',
+        'import("~/components/Stations/StationsLayout.vue")',
+    ],
+    'frontend/components/Common/SidebarMenu.vue' => [
+        "'sidebar-submenu-'+category.key",
+        'class="navdrawer-nav"',
+    ],
+    'frontend/components/Layout/DashboardWithSidebar.vue' => ['id="content"'],
+    'frontend/components/Stations/menu.ts' => ['key: "media"'],
+    'backend/config/routes/dashboard.php' => ["\$group->get('/{routes:.+}', DashboardAction::class);"],
+];
+if (in_array('--frontend-files', $argv, true)) {
+    echo implode("\n", array_keys($frontendContracts)), "\n";
+    exit(0);
+}
+if (in_array('--frontend-only', $argv, true)) {
+    $frontendRoot = getenv('AZURACAST_FRONTEND_ROOT');
+    if (!$frontendRoot) {
+        fwrite(STDERR, "Set AZURACAST_FRONTEND_ROOT to an AzuraCast source checkout.\n");
+        exit(2);
+    }
+    $failures = [];
+    foreach ($frontendContracts as $file => $needles) {
+        $path = $frontendRoot . '/' . $file;
+        $source = is_file($path) ? (string)file_get_contents($path) : '';
+        foreach ($needles as $needle) {
+            if (!str_contains($source, $needle)) {
+                $failures[] = "FAIL $file no longer contains: $needle";
+            }
+        }
+    }
+    if ($failures !== []) {
+        echo implode("\n", $failures), "\n";
+        exit(1);
+    }
+    echo "AzuraCast frontend compatibility: OK\n";
+    exit(0);
+}
+
 $root = getenv('AZURACAST_ROOT') ?: '/var/azuracast/www';
 if (!is_file($root . '/vendor/autoload.php')) {
     fwrite(STDERR, "Run this check inside an AzuraCast image.\n");
@@ -117,7 +162,7 @@ foreach ([$backend . '/config', $backend . '/src'] as $directory) {
         $sources .= file_get_contents($file) . "\n";
     }
 }
-foreach (['api:stations:restart', 'api:stations:files:play', 'api:stations:media:waveform'] as $route) {
+foreach (['api:stations:backend', 'api:stations:files:play', 'api:stations:media:waveform'] as $route) {
     if (!str_contains($sources, "'$route'")) {
         $failures[] = "Missing route name $route";
     }

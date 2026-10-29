@@ -49,6 +49,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
         $app->add(new SidebarNavigation($app->getBasePath()));
         $app->add(new ProtectIntroField(fn(): ?int => $this->media->fieldId(), $app->getBasePath()));
         $app->get('/sweepers/assets/navigation.js', PanelController::class . ':navigationAction');
+        $app->get('/sweepers/assets/{name:app\\.(?:js|css)}', PanelController::class . ':assetAction');
         $app->group('/sweepers/{station_id}', function (RouteCollectorProxy $group): void {
             $group->get('', PanelController::class . ':indexAction');
             $group->get('/assets/{name:app\\.(?:js|css)}', PanelController::class . ':assetAction');

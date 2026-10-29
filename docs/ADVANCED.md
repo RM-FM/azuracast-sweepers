@@ -88,6 +88,12 @@ offers **Restart Broadcasting** to users with Broadcasting permission.
 An older-module warning means the running station has not yet loaded the
 installed module; it does not by itself mean the module is inactive.
 
+Run manual PHP maintenance inside the web container with
+`docker compose exec -T --user azuracast web php`, not as root. The plugin keeps
+state files private and assigns newly written files to the station config directory's
+owner and group. The Settings restart button uses the backend-only restart endpoint
+and leaves Icecast running.
+
 > [!IMPORTANT]
 > For manual updates, delete the route cache only after all PHP processes run the
 > new code. Otherwise an old process can rebuild it and plugin routes stop working.
@@ -286,7 +292,13 @@ on. **Also move or swap songs from sequential playlists** applies to both option
 
 The displaced song returns to its existing playlist rotation slot, keeping its
 weight and history; it is not appended directly to the playback queue. It may be
-replaced again when encountered later. Songs still open in the current round are
+replaced again when encountered later. **Maximum replacements per song** defaults
+to 2; 0 allows unlimited replacements. After reaching the limit, the song keeps its
+next turn: neither matching option may displace it, even if no sweeper fits.
+The count is per station and song across playlist memberships, persists across
+restarts, and resets only when the song actually starts. Unsuccessful searches,
+queue prefetch and queued-song moves do not increase the count.
+Songs still open in the current round are
 tried first; if none fits, consumed songs follow, longest ago first, without
 reshuffling or resetting the round. Consumed means selected by AutoDJ, not
 necessarily already aired.
@@ -297,7 +309,9 @@ replacement retries within the budget (1.5 s with the current module, 0.5 s with
 older modules) and otherwise gives up. A song counts as fitting only if a sweeper is
 free for it: sweepers reserved for already fetched songs stay blocked, and such a
 reservation relaxes the repeat protection only when the spacing rules will let it
-play. Matching improves the chance of a sweeper; it does not guarantee one.
+play. Reservations for fetched songs blocked by spacing are released before planning
+the matched song; cancelled reservations never count as playback.
+Matching improves the chance of a sweeper; it does not guarantee one.
 AzuraCast continues rebuilding the queue's expected times. The timeline
 distinguishes moves from replacements and explains unsuccessful matches.
 
@@ -343,6 +357,11 @@ Decisions appear under `sweepers` in the station's Liquidsoap log. The Playback
 Timeline retains seven days in the station file `sweepers-history.json`, with the
 last 24 hours shown by default. It records forward moves, replacements and reasons
 for unsuccessful matching.
+Playback confirmations carry the sweeper identity and timing independently of
+the server reservation, so a temporary API outage does not lose confirmed playback
+when a lease expires. Older entries without confirmation show Unconfirmed rather
+than asserting that no sweeper played. Spacing follows actual Liquidsoap playback,
+not the presence of a server acknowledgment.
 
 Intro scanning stops and shows an error on audio or page-loading failures. Tracks
 ending before the five-second preview finishes advance immediately.
@@ -415,5 +434,3 @@ notifying the repository owner by email. A new upstream commit that still fails 
 a comment; a passing run closes the issue. GitHub schedules start from the default
 branch only; until the workflow reaches `main`, it runs when the workflow or
 `tests/compat.php` changes on `develop`.
-
-See also the [validation guide](VALIDATION.md).

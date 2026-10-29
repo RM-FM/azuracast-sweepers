@@ -30,7 +30,8 @@ final readonly class Settings
         public bool $swapSequential = false,
         public array $excludedPlaylistIds = [],
         public int $sweeperGap = 1,
-        public bool $swapFromPlaylist = false
+        public bool $swapFromPlaylist = false,
+        public int $replacementLimit = 2
     ) {
         foreach ([$maxWait, $margin, $duckDb, $jingleGain, $lengthTolerance, $earlyStart, $reverbIntensity] as $value) {
             if (!is_finite($value)) {
@@ -47,6 +48,7 @@ final readonly class Settings
             || $lengthTolerance < 0 || $lengthTolerance > 100 || $earlyStart < 0 || $earlyStart > 60
             || $reverbIntensity < 0 || $reverbIntensity > 100
             || $sweeperGap < 0 || $sweeperGap > 100
+            || $replacementLimit < 0 || $replacementLimit > 1000
         ) {
             throw new InvalidArgumentException('Invalid sweeper settings.');
         }
@@ -98,6 +100,10 @@ final readonly class Settings
         if (!is_array($excludedIds) || !array_is_list($excludedIds)) {
             throw new InvalidArgumentException('Invalid playlists without sweepers.');
         }
+        $replacementLimit = $data['replacement_limit'] ?? 2;
+        if (!is_int($replacementLimit)) {
+            throw new InvalidArgumentException('Invalid replacement limit.');
+        }
 
         // Earlier versions stored a disabled delay limit as max_wait null and an enabled one as a number.
         $limitDelay = $data['limit_delay'] ?? (array_key_exists('max_wait', $data) && $data['max_wait'] !== null);
@@ -145,7 +151,8 @@ final readonly class Settings
             swapSequential: $booleans['swap_sequential'],
             excludedPlaylistIds: $excludedIds,
             sweeperGap: $gaps['sweeper_gap'],
-            swapFromPlaylist: $booleans['swap_from_playlist']
+            swapFromPlaylist: $booleans['swap_from_playlist'],
+            replacementLimit: $replacementLimit
         );
     }
 
@@ -186,6 +193,7 @@ final readonly class Settings
             'early_start' => $this->earlyStart,
             'swap_for_intro' => $this->swapForIntro,
             'swap_from_playlist' => $this->swapFromPlaylist,
+            'replacement_limit' => $this->replacementLimit,
             'reverb' => $this->reverb,
             'reverb_intensity' => $this->reverbIntensity,
             'swap_sequential' => $this->swapSequential,

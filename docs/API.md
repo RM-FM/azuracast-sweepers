@@ -55,12 +55,14 @@ before all tracks were listed, when the sweeper started), `song` and `sweeper`
 (the displaced song, or `null`) and
 `unmoved` (why a needed move was not possible: `move_none`, `move_jingle`,
 `move_sequential`, `replace_none`, `replace_ineligible`, `replace_duplicates`,
-`replace_changed`, `replace_timeout`, `replace_busy`, or `null`).
-`result` is `played`, `scheduled` (sweeper not started yet) or the reason for no
+`replace_changed`, `replace_timeout`, `replace_busy`, `replace_limit`, or `null`).
+`result` is `played`, `scheduled` (awaiting playback confirmation) or the reason for no
 sweeper: `no_intro`, `intro_zero`, `intro_before_cue`, `no_fit`, `repeat`, `reserved`, `no_sweepers`,
 `off_schedule`, `jingle_follows`, `excluded`, `after_jingle`, `after_sweeper`, `jingle`, `other`,
 `live`, `disabled`, `late`, `skipped`, `settings`, `unavailable`, `error` or
 `not_planned`.
+An older `scheduled` entry is shown as Unconfirmed, not Missed: absence of a playback
+acknowledgment does not prove that the sweeper was inaudible.
 
 The reverb preview reads `GET /sweepers/{station_id}/media?playlist={playlist_ids}`
 (same permissions; comma-separated IDs). For Advanced playlists of the station it returns `rows` with
@@ -109,8 +111,19 @@ last counted track, `songs_since_jingle`, `songs_since_sweeper`, `previous_song`
 response is `{"moved": "<queue id>", "before": "<queue id>", "replaced": "<queue id>"}`.
 Forward moves set `moved` and `before`; replacements set only `replaced`, retaining
 the target queue ID and playlist chain. All are empty when nothing changed.
+Modules supporting spacing-reservation cancellation send `release_spacing: true`.
+The response may then include `released`, a list of fetched queue tokens whose
+reservations cannot survive the spacing rules. Matching may use those sweepers,
+but the server retains their reservations until acknowledged. The module cancels
+the listed local plans and sends their release events through `heartbeat` before
+fetching and planning the matched song. Older modules keep the conservative
+reservation behavior.
 `swap_for_intro` and `swap_from_playlist` independently enable the two strategies,
-in that order. Replacement uses the current native playlist rotation and native
+in that order. `replacement_limit` is an integer from 0 to 1000 (default 2; 0 means
+unlimited). Successful same-playlist replacements count against the displaced
+station media ID across playlist memberships. At the limit neither strategy may
+displace the song; the count resets on its actual track-start event, not prefetch.
+Replacement uses the current native playlist rotation and native
 duplicate prevention without allowing duplicates or resetting an exhausted rotation.
 The displaced row is removed from the native history used for candidate checks;
 actual played history and all other pending queue entries remain in effect.
@@ -138,11 +151,33 @@ Each heartbeat request includes the running module `version`; the plugin records
 at most every 30 seconds so the panel can tell whether the module runs, is outdated
 or still needs the one-time restart after installation or update.
 
-Heartbeat `events` carry `event`, `token`, `detail`, `media_id`, `title` and
-`artist`. `start` is sent once per started track with the module's outcome in
+Heartbeat `events` carry `event`, `token`, `detail`, `at`, `media_id`, `title` and
+`artist`, plus `jingle_id` and `offset`. Successful `plan` responses include the
+selected `jingle_id`; empty plans use zero. Scheduled track starts and actual
+playback events carry that identity and the planned offset in seconds after cue-in,
+so playback acknowledgments remain usable after the server reservation expires.
+Other events use zero for `jingle_id`. `start` is sent once per started track with the module's outcome in
 `detail` (`scheduled`, a reason such as `after_jingle`, or `none` when the plugin
 decided at planning time); `played` marks an actual sweeper start; `release` frees
 a reservation, with the reason in `detail` when the sweeper did not play.
+`at` is the event's Unix timestamp in seconds, including fractions. Buffered events
+keep their original start/playback time when the API recovers; older modules
+without `at` use receipt time. Invalid or more than 60 seconds future timestamps
+are rejected.
+Expired reservations are not revived by playback receipts. Confirmations are
+idempotent across retries and releases, including buffered backlogs, and delayed
+receipts never move a sweeper's last-played time backwards. Older modules can
+recover identity from an existing reservation or track-start entry; if neither
+retains the identity, an existing track can still be marked played without
+inventing a sweeper ID or changing its rotation history.
+
+A failed planning HTTP request is retried once before the song is handed back
+to AzuraCast, with the same queue token and timing and a one-second timeout per
+attempt. An existing reservation is reused if the first response was lost.
+Successful empty plans are not retried. Two failed attempts report `error`, not
+`not_planned`; the latter means no planning decision was recorded and does not
+prove that a station restarted. The song is handed back after at most two attempts
+even if the API is still unavailable; a song that has already started is not replanned.
 
 ## Panel rotation settings
 
