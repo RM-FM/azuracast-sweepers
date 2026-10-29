@@ -55,7 +55,7 @@ before all tracks were listed, when the sweeper started), `song` and `sweeper`
 (the displaced song, or `null`) and
 `unmoved` (why a needed move was not possible: `move_none`, `move_jingle`,
 `move_sequential`, `replace_none`, `replace_ineligible`, `replace_duplicates`,
-`replace_changed`, `replace_timeout`, `replace_busy`, or `null`).
+`replace_changed`, `replace_timeout`, `replace_busy`, `replace_limit`, or `null`).
 `result` is `played`, `scheduled` (sweeper not started yet) or the reason for no
 sweeper: `no_intro`, `intro_zero`, `intro_before_cue`, `no_fit`, `repeat`, `reserved`, `no_sweepers`,
 `off_schedule`, `jingle_follows`, `excluded`, `after_jingle`, `after_sweeper`, `jingle`, `other`,
@@ -109,8 +109,19 @@ last counted track, `songs_since_jingle`, `songs_since_sweeper`, `previous_song`
 response is `{"moved": "<queue id>", "before": "<queue id>", "replaced": "<queue id>"}`.
 Forward moves set `moved` and `before`; replacements set only `replaced`, retaining
 the target queue ID and playlist chain. All are empty when nothing changed.
+Modules supporting spacing-reservation cancellation send `release_spacing: true`.
+The response may then include `released`, a list of fetched queue tokens whose
+reservations cannot survive the spacing rules. Matching may use those sweepers,
+but the server retains their reservations until acknowledged. The module cancels
+the listed local plans and sends their release events through `heartbeat` before
+fetching and planning the matched song. Older modules keep the conservative
+reservation behavior.
 `swap_for_intro` and `swap_from_playlist` independently enable the two strategies,
-in that order. Replacement uses the current native playlist rotation and native
+in that order. `replacement_limit` is an integer from 0 to 1000 (default 2; 0 means
+unlimited). Successful same-playlist replacements count against the displaced
+station media ID across playlist memberships. At the limit neither strategy may
+displace the song; the count resets on its actual track-start event, not prefetch.
+Replacement uses the current native playlist rotation and native
 duplicate prevention without allowing duplicates or resetting an exhausted rotation.
 The displaced row is removed from the native history used for candidate checks;
 actual played history and all other pending queue entries remain in effect.

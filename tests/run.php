@@ -534,6 +534,22 @@ check(
     'Replacement is independent, persists and refreshes the runtime revision.'
 );
 rejects(static fn() => Settings::fromArray(['swap_from_playlist' => 'yes']));
+check(Settings::fromArray([])->replacementLimit === 2, 'The replacement limit defaults to two.');
+foreach ([0, 1, 2, 1000] as $limit) {
+    $limitedSettings = Settings::fromArray(['replacement_limit' => $limit]);
+    check(
+        $limitedSettings->replacementLimit === $limit
+            && Settings::fromArray($limitedSettings->toArray())->replacementLimit === $limit,
+        'The replacement limit persists including zero for unlimited.'
+    );
+}
+foreach ([-1, 1001, 1.5, '2', true] as $invalid) {
+    rejects(static fn() => Settings::fromArray(['replacement_limit' => $invalid]));
+}
+check(
+    (new Settings(replacementLimit: 3))->revision() !== (new Settings())->revision(),
+    'Replacement limit changes refresh the settings revision.'
+);
 check(
     Arrangement::replacement([$song(21), $song(22)], $due, $replacementOnly, 3, $intros())['id'] === 21,
     'Only the next unsent song is proposed for replacement.'

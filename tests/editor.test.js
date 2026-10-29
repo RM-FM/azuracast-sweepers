@@ -71,6 +71,7 @@ globalThis.fetch = async (url, options) => {
             songs_after_jingle: 1, songs_after_sweeper: 1, songs_before_jingle: 0, early_start: 2,
             count_jingle_mode: true, jingle_playlist_ids: [], longest_fit: false, length_tolerance: 20, swap_for_intro: false,
             reverb: false, reverb_intensity: 25, swap_sequential: false, swap_from_playlist: false,
+            replacement_limit: 2,
             excluded_playlist_ids: [], sweeper_gap: 1,
         }, playlists: [
             { id: 10, name: "Sweepers", enabled: true, scheduled: false, source: "songs" },
@@ -510,12 +511,17 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(field("Move a song with an intro forward").checked, false, "Moving songs forward is off by default");
         assert.equal(first.swap_for_intro, false);
         assert.equal(first.swap_from_playlist, false);
+        assert.equal(first.replacement_limit, 2);
+        assert.equal(document.getElementById("sweepers-replacement-limit"), null);
         assert.equal(field("Swap with another song from same playlist").checked, false);
         assert.ok(document.querySelector("section.card").textContent.includes("Improve Sweeper-to-Song Matching"));
         await change("Swap with another song from same playlist", true, true);
+        assert.equal(field("Maximum replacements per song").value, "2");
+        await change("Maximum replacements per song", 0);
         await change("Also move or swap songs from sequential playlists", true, true);
         const replacementOnly = await submit();
         assert.equal(replacementOnly.swap_from_playlist, true);
+        assert.equal(replacementOnly.replacement_limit, 0, "Zero persists as unlimited replacements");
         assert.equal(replacementOnly.swap_for_intro, false, "Replacement can be enabled without queued-song movement");
         assert.equal(replacementOnly.swap_sequential, true, "Sequential control is available for replacement alone");
         await change("Swap with another song from same playlist", false, true);

@@ -341,6 +341,7 @@ def sweepers.arrange() =
             response = sweepers.api_call(timeout=2., "sweepers/arrange", json.stringify({
                 counted=sweepers.counted(),
                 budget=1.5,
+                release_spacing=true,
                 songs_since_jingle=sweepers.songs_since_jingle(),
                 songs_since_sweeper=sweepers.songs_since_sweeper(),
                 previous_song=sweepers.previous_song(),
@@ -348,7 +349,12 @@ def sweepers.arrange() =
                 jingles=sweepers.measurements()
             }))
             if null.defined(response) then
-                let json.parse (r : {moved?: string, before?: string}) = null.get(response)
+                let json.parse (r : {moved?: string, before?: string, released?: [string]}) = null.get(response)
+                released = null.get(default=[], r?.released)
+                list.iter(fun (token) -> sweepers.notify("release", token), released)
+                if released != [] then
+                    ignore(sweepers.heartbeat())
+                end
                 moved = null.get(default="", r?.moved)
                 before = null.get(default="", r?.before)
                 if moved != "" then

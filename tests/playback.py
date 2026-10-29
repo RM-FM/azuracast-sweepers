@@ -95,7 +95,7 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
                              **({'reverb': 1., 'length': 2.} if args.scenario == 'reverb' else {}))
             elif self.path == '/sweepers/arrange':
                 moved = args.scenario == 'arrange' and not any(path == '/sweepers/arrange' for path, _, _ in calls[:-1])
-                value = {'moved': '130', 'before': '125'} if moved else {'moved': '', 'before': ''}
+                value = {'moved': '130', 'before': '125', 'released': ['999']} if moved else {'moved': '', 'before': ''}
             elif self.path == '/sweepers/heartbeat':
                 heartbeat_requests += 1
                 if heartbeat_requests >= 2 and args.scenario in ('hot-enable', 'hot-disable', 'hot-pending', 'hot-change'):
@@ -236,6 +236,13 @@ thread.run(delay=7., {{shutdown()}})
                        for key in ('songs_since_jingle', 'songs_since_sweeper')), body
             assert all(isinstance(body[key], bool) for key in ('previous_song', 'previous_clear')), body
             assert isinstance(body['jingles'], list), body
+            assert body['release_spacing'] is True, body
+        first_arrangement = next(i for i, (path, _, _) in enumerate(calls) if path == '/sweepers/arrange')
+        next_fetch = next(i for i in range(first_arrangement + 1, len(calls)) if calls[i][0] == '/nextsong')
+        assert any(path == '/sweepers/heartbeat' and
+                   any(event['event'] == 'release' and event['token'] == '999' for event in body['events'])
+                   for path, body, _ in calls[first_arrangement + 1:next_fetch]), \
+            'Spacing-blocked reservations must be acknowledged before fetching and planning the matched song'
         assert 'Song with intro moved forward: queue 130 now plays before 125' in result.stdout, \
             'Reordering was not logged'
     else:

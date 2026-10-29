@@ -104,6 +104,10 @@ final readonly class InternalController
         if (!is_numeric($budget) || !is_finite((float)$budget) || $budget < 0.1 || $budget > 5) {
             throw new InvalidArgumentException('Invalid budget.');
         }
+        $releaseSpacing = $body['release_spacing'] ?? false;
+        if (!is_bool($releaseSpacing)) {
+            throw new InvalidArgumentException('Invalid release_spacing.');
+        }
         $station = $request->getStation();
         $settings = Settings::fromArray($this->state->read($station->getRadioConfigDir())['settings'] ?? []);
         if (!$settings->enabled || (!$settings->swapForIntro && !$settings->swapFromPlaylist)) {
@@ -115,7 +119,8 @@ final readonly class InternalController
             $gap,
             (string)($body['counted'] ?? ''),
             $this->measurements($station, $settings, $body['jingles'] ?? []),
-            (float)$budget
+            (float)$budget,
+            $releaseSpacing
         ));
     }
 

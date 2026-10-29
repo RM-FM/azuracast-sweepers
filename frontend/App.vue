@@ -162,6 +162,11 @@
                                     The replaced song returns to the playlist rotation, not directly to the end of the playback queue. Either option can be used on its own.
                                 </div>
                             </div>
+                            <div v-if="settings.swap_from_playlist" class="form-group col-md-6">
+                                <label class="form-label" for="sweepers-replacement-limit">Maximum replacements per song</label>
+                                <input id="sweepers-replacement-limit" v-model.number="settings.replacement_limit" class="form-control" type="number" min="0" max="1000" step="1" required>
+                                <div class="form-text">After this many replacements, the song keeps its next turn, even without a sweeper. The count resets when it starts playing. 0 allows unlimited replacements.</div>
+                            </div>
                             <div v-if="settings.swap_for_intro || settings.swap_from_playlist" class="form-group col-md-12">
                                 <div class="form-check form-switch">
                                     <input id="sweepers-swap-sequential" v-model="settings.swap_sequential" class="form-check-input" type="checkbox" role="switch">
@@ -696,6 +701,7 @@ const unmovedReasons = {
     move_jingle: "Not moved forward: a jingle would follow too soon",
     move_sequential: "Not moved forward: sequential playlist order",
     replace_none: "Not replaced: no fitting song in this playlist",
+    replace_limit: "Kept in place: song reached its replacement limit",
     replace_ineligible: "Not replaced: this queue entry cannot be replaced",
     replace_duplicates: "Not replaced: repetition rules exclude the fitting songs",
     replace_changed: "Not replaced: the queue or playlist changed during selection",

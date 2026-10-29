@@ -279,6 +279,9 @@ final readonly class Planner
             $unmoved = $data['unmoved'][$token]['reason'] ?? null;
             unset($data['moved'][$token], $data['unmoved'][$token], $data['decisions'][$token]);
             $mediaId = (string)($event['media_id'] ?? '');
+            if (preg_match('/^\d{1,10}$/D', $mediaId)) {
+                unset($data['replacement_counts'][(int)$mediaId]);
+            }
             $data['log'] = self::retain([[
                 'at' => microtime(true),
                 'token' => $token,

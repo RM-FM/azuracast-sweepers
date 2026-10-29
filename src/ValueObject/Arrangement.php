@@ -8,12 +8,12 @@ final class Arrangement
 {
     /**
      * @param list<array{id: int, sent: bool, media_id: ?int, request_id: ?int, playlist_id: ?int,
-     *     is_jingle: bool, playlist_order: ?string, planned: bool, excluded?: bool}> $rows
+     *     is_jingle: bool, playlist_order: ?string, planned: bool, excluded?: bool, replacement_limited?: bool}> $rows
      *     In AzuraCast's play order.
      * @param array{songs_since_jingle: int, songs_since_sweeper: int, previous_song: bool, previous_clear: bool} $gap
      * @param callable(int): bool $usable
      * @param ?string $blocked Set when the next song needs a swap that is impossible: move_sequential,
-     *     move_jingle or move_none.
+     *     move_jingle, move_none or replace_limit.
      * @return array{0: int, 1: int}|null
      */
     public static function choose(
@@ -174,6 +174,11 @@ final class Arrangement
                 !$allowed || $row['planned'] || ($row['excluded'] ?? false)
                 || $usable((int)$row['media_id'])
             ) {
+                return null;
+            }
+            if ($row['replacement_limited'] ?? false) {
+                $blocked = 'replace_limit';
+
                 return null;
             }
             if (!self::movable($row, $song, $settings)) {

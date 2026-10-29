@@ -26,14 +26,15 @@ final readonly class Arranger
 
     /**
      * @param array<int, Timing> $measurements
-     * @return array{moved: string, before: string, replaced: string}
+     * @return array{moved: string, before: string, replaced: string, released?: list<string>}
      */
     public function arrange(
         Station $station,
         array $gap,
         string $counted,
         array $measurements,
-        float $budgetSeconds = self::DEFAULT_BUDGET_SECONDS
+        float $budgetSeconds = self::DEFAULT_BUDGET_SECONDS,
+        bool $releaseSpacing = false
     ): array {
         $deadline = hrtime(true) + (int)($budgetSeconds * 1_000_000_000);
         $none = ['moved' => '', 'before' => '', 'replaced' => ''];
@@ -57,6 +58,8 @@ final readonly class Arranger
         $excludedNames = $this->queue->excludedNames($station, $settings);
         foreach ($rows as &$row) {
             $row['planned'] = isset($plans[(string)$row['id']]);
+            $row['replacement_limited'] = $row['media_id'] !== null && $settings->replacementLimit > 0
+                && ($data['replacement_counts'][$row['media_id']] ?? 0) >= $settings->replacementLimit;
             $row['excluded'] = Queue::isExcluded(
                 $row['playlist_id'],
                 $row['playlist_chain'],
@@ -68,7 +71,25 @@ final readonly class Arranger
         // Reservations the module will drop for spacing must not relax the repeat protection.
         $playing = Arrangement::playing($rows, $gap, $settings);
         if (isset($plans[$counted])) {
-            $playing[] = $counted;
+            if (
+                !$releaseSpacing || ($gap['previous_song'] && (!$gap['previous_clear']
+                    || ($gap['songs_since_jingle'] >= $settings->songsAfterJingle
+                        && $gap['songs_since_sweeper'] >= $settings->songsAfterSweeper)))
+            ) {
+                $playing[] = $counted;
+            }
+        }
+        if ($releaseSpacing) {
+            $sent = array_column(array_filter($rows, static fn(array $row): bool => $row['sent']), 'id');
+            $sent[] = $counted;
+            $released = array_values(array_map('strval', array_diff(
+                array_keys(array_intersect_key($plans, array_flip($sent))),
+                $playing
+            )));
+            if ($released !== []) {
+                $none['released'] = $released;
+                $data['plans'] = array_diff_key($data['plans'] ?? [], array_flip($released));
+            }
         }
         $timings = array_diff_key(
             array_intersect_key($measurements, array_flip(array_map(static fn($jingle): int => $jingle->id, $active))),
@@ -90,7 +111,7 @@ final readonly class Arranger
             $media = array_column($rows, 'media_id', 'id');
             $this->remember($station, 'moved', (string)$choice[1], ['before' => $media[$choice[0]] ?? null]);
 
-            return ['moved' => (string)$choice[1], 'before' => (string)$choice[0], 'replaced' => ''];
+            return [...$none, 'moved' => (string)$choice[1], 'before' => (string)$choice[0]];
         }
         if ($settings->swapFromPlaylist) {
             $replacementReason = null;
@@ -117,7 +138,7 @@ final readonly class Arranger
                         'before' => $target['media_id'], 'replacement' => true,
                     ]);
 
-                    return ['moved' => '', 'before' => '', 'replaced' => (string)$target['id']];
+                    return [...$none, 'replaced' => (string)$target['id']];
                 }
             }
             $blocked = $replacementReason ?? $blocked;
@@ -140,6 +161,13 @@ final readonly class Arranger
             $data[$key] = array_slice($entries, -50, preserve_keys: true);
             if ($key === 'moved') {
                 unset($data['unmoved'][$token], $data['decisions'][$token]);
+                if ($entry['replacement'] ?? false) {
+                    $mediaId = $entry['before'];
+                    $data['replacement_counts'][$mediaId] = min(
+                        1000,
+                        ($data['replacement_counts'][$mediaId] ?? 0) + 1
+                    );
+                }
             }
 
             return $data;

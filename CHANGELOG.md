@@ -1,5 +1,23 @@
 # Release notes
 
+## Pending
+
+### Features
+
+- Limit how often the same song can be replaced before keeping its next turn.
+  The default is two replacements; zero allows unlimited replacements.
+
+### Fixes
+
+- Song matching releases sweeper reservations for prefetched songs blocked by spacing,
+  so they no longer prevent a fitting queued-song move or same-playlist replacement.
+  Played-sweeper repetition protection is unchanged.
+
+### Update notes
+
+- **AzuraCast Broadcast (Liquidsoap) restart: Required** to load the reservation-release
+  handshake before planning matched songs. This change is not yet released.
+
 ## 1.2.0 - 2026-10-28
 
 ### Features
