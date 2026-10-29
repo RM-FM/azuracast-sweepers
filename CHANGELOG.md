@@ -1,6 +1,6 @@
 # Release notes
 
-## 1.2.1 - Pending
+## 1.2.1 - 2026-10-29
 
 ### Features
 
@@ -30,7 +30,7 @@
 ### Update notes
 
 - **AzuraCast Broadcast (Liquidsoap) restart: Required** to load reservation releases,
-  planning retries and self-contained playback confirmations. This change is not yet released.
+  planning retries and self-contained playback confirmations.
 
 ## 1.2.0 - 2026-10-28
 
