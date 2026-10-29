@@ -89,7 +89,7 @@ export function mountNavigation(document, window, basePath = "") {
             alert.id = "azuracast-sweepers-navigation-error";
             alert.className = "alert alert-danger";
             alert.setAttribute("role", "alert");
-            (document.getElementById("content") || document.getElementById("app") || document.body).prepend(alert);
+            (document.getElementById("content") || document.getElementById("dashboard") || document.body).prepend(alert);
         }
         alert.textContent = "Unable to load Sweepers. Reload the page or check the plugin frontend build and AzuraCast compatibility.";
     }
@@ -113,7 +113,7 @@ export function mountNavigation(document, window, basePath = "") {
 
     function connectRouter() {
         if (router || connectionFailed) return;
-        const nativeRouter = document.getElementById("app")?.__vue_app__?.config.globalProperties.$router;
+        const nativeRouter = document.getElementById("dashboard")?.__vue_app__?.config.globalProperties.$router;
         if (!nativeRouter) return;
         try {
             removeRoutes = registerRoutes(nativeRouter, basePath, () => {

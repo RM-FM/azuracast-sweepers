@@ -11,7 +11,7 @@ function fixture(path = "/station/1", base = "", ready = Promise.resolve()) {
         <div id="sidebar-submenu-media" class="collapse"><ul class="navdrawer-nav">
             <li><a href="${base}/station/1/files">Music Files</a></li>
         </ul></div></li><li class="nav-item" id="next-item">Next</li></ul>
-        <div id="app"><main id="main"><div id="content">Native station content</div></main></div>
+        <div id="dashboard"><main id="main"><div id="content">Native station content</div></main></div>
         <script id="azuracast-sweepers-navigation"></script>
     </body></html>`);
     let location = new URL(path, "https://radio.example");
@@ -72,7 +72,7 @@ function fixture(path = "/station/1", base = "", ready = Promise.resolve()) {
         },
     };
     updateRoute(path);
-    document.getElementById("app").__vue_app__ = {config: {globalProperties: {$router: router}}};
+    document.getElementById("dashboard").__vue_app__ = {config: {globalProperties: {$router: router}}};
     const stop = mountNavigation(document, window, base);
     return {
         document, window, stop, router, routes, pushes, replacements, hooks, errors,
@@ -296,7 +296,7 @@ test("waits for the initial native navigation instead of replacing its pending r
 test("an unavailable native router produces a visible compatibility error and cleans up", () => {
     const f = fixture();
     f.stop();
-    delete f.document.getElementById("app").__vue_app__;
+    delete f.document.getElementById("dashboard").__vue_app__;
     const errors = [];
     const original = f.window.console.error;
     f.window.console.error = (...args) => errors.push(args);

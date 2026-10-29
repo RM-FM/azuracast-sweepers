@@ -5,6 +5,7 @@ declare(strict_types=1);
 // Checks the AzuraCast APIs the plugin relies on; run inside an AzuraCast image.
 
 $frontendContracts = [
+    'backend/src/Controller/Frontend/DashboardAction.php' => ["id: 'dashboard'"],
     'frontend/layout.ts' => ['vueApp.mount(el);'],
     'frontend/js/pages/Dashboard.js' => ['vueApp.use(router);'],
     'frontend/components/Layout/AppWrapper.vue' => ['new CustomEvent("vue-ready")'],
