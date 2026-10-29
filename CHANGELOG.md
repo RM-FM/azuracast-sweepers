@@ -1,5 +1,16 @@
 # Release notes
 
+## 1.2.2 - Pending
+
+### Fixes
+
+- Keep the end of a sweeper voice audible when reverb is on: the reverb stage now
+  has more room to play out the last audio before it ends.
+
+### Update notes
+
+- **AzuraCast Broadcast (Liquidsoap) restart: Required** to load the changed reverb stage.
+
 ## 1.2.1 - 2026-10-29
 
 ### Improvements

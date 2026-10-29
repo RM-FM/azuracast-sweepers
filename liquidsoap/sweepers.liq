@@ -318,7 +318,7 @@ let sweepers.reverb_decays = [
 
 def sweepers.reverb(level, length, s) =
     # Pads the tail with silence; sequence() would skip a request that is not ready yet.
-    padded = max_duration(length + 0.6, add(normalize=false, [s, blank()]))
+    padded = max_duration(length + 1.5, add(normalize=false, [s, blank()]))
     def graph(g) =
         let {audio} = source.tracks(ffmpeg.raw.encode.audio(%ffmpeg(%audio.raw), padded))
         voice = ffmpeg.filter.audio.input(g, audio)
