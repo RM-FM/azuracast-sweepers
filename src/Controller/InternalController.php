@@ -137,7 +137,11 @@ final readonly class InternalController
         foreach (is_array($rows) ? $rows : [] as $row) {
             $jingle = $allowed[$row['media_id'] ?? 0] ?? null;
             if ($jingle !== null && ($row['identity'] ?? '') === $this->media->timingIdentity($station, $jingle)) {
-                $timing = Timing::fromMetadata((array)($row['metadata'] ?? []), $jingle->length);
+                $timing = Timing::fromMetadata(
+                    (array)($row['metadata'] ?? []),
+                    $jingle->length,
+                    $station->backend_config->enable_replaygain_metadata
+                );
                 if ($timing !== null) {
                     $measurements[$jingle->id] = $timing;
                 }

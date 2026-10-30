@@ -51,7 +51,7 @@ export function createReverbPreview(AudioContextClass, fetchAudio) {
         const source = context.createBufferSource();
         source.buffer = audio;
         source.connect(context.destination);
-        // FFmpeg's default two-pole filters.
+        // Second-order Butterworth filters, as in the Liquidsoap module.
         const highpass = context.createBiquadFilter();
         highpass.type = "highpass";
         highpass.frequency.value = REVERB_HIGHPASS_HZ;

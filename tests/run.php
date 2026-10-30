@@ -128,6 +128,15 @@ check(
 );
 $metadata['liq_amplify'] = '0.5';
 check(abs(Timing::fromMetadata($metadata, 12)->gainDb + 6.0206) < 0.001, 'Linear amplification metadata.');
+$metadata['liq_amplify'] = '-3 dB';
+$metadata['liq_normalize_track_gain'] = '-2.5 dB';
+check(Timing::fromMetadata($metadata, 12)->gainDb === -3.0, 'ReplayGain is ignored when the station does not apply it.');
+check(Timing::fromMetadata($metadata, 12, true)->gainDb === -5.5, 'ReplayGain adds to amplification like on songs.');
+$metadata['liq_normalize_track_gain'] = 'loud';
+check(Timing::fromMetadata($metadata, 12, true) === null, 'Invalid ReplayGain metadata.');
+check(Timing::fromMetadata($metadata, 12) !== null, 'Unused ReplayGain metadata is not validated.');
+$metadata['liq_amplify'] = 'x dB';
+check(Timing::fromMetadata($metadata, 12) === null, 'Invalid amplification metadata.');
 check(Settings::fromArray($settings->toArray())->toArray() === $settings->toArray(), 'Settings round trip.');
 check(Settings::fromArray($settings->toArray())->revision() === $settings->revision(), 'Stable settings revision.');
 foreach ([

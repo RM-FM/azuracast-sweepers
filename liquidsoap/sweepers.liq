@@ -197,13 +197,20 @@ end
 
 let sweepers.jingles = source.dynamic(id="sweepers", self_sync=false, track_sensitive=false, sweepers.next_overlay)
 
+# Songs are only normalized by AzuraCast's own AutoCue, so the fallback may not normalize sweepers otherwise.
+def sweepers.fallback_loudness(m) =
+    user_supplied = list.exists(fun (k) -> m[k] != "", ["liq_amplify", ...settings.autocue.amplify_aliases()])
+    settings.azuracast.compute_autocue() and settings.autocue.preferred() == "azuracast" and
+        settings.autocue.amplify_behavior() != "ignore" and not user_supplied
+end
+
 # Only used when AzuraCast supplies no cue values; never written to AzuraCast's cache.
 def sweepers.compute_autocue(m, filename) =
     computed = autocue.internal.implementation(request_metadata=m, file_metadata=m, filename)
     if null.defined(computed) then
         c = null.get(computed)
         start_next = c?.start_next
-        loudness = c?.amplify
+        loudness = if sweepers.fallback_loudness(m) then c?.amplify else null end
         [
             ("autocue_cue_in", "#{c.cue_in}"),
             ("autocue_cue_out", "#{c.cue_out}"),
@@ -246,18 +253,22 @@ def sweepers.refresh_catalog() =
                     provided = ((resolved["liq_cue_in"] != "" or resolved["autocue_cue_in"] != "") and
                         (resolved["liq_cue_out"] != "" or resolved["autocue_cue_out"] != ""))
                     m = if provided then resolved else sweepers.compute_autocue(resolved, request.filename(r)) end
-                    origin = if provided then "azuracast" elsif m["autocue_cue_out"] != "" then "computed" else "none" end
+                    origin = if provided then "provided" elsif m["autocue_cue_out"] != "" then "computed" else "none" end
                     if origin == "computed" then
-                        log(label="sweepers", "AutoCue computed for sweeper #{job.media_id}: AzuraCast supplied no cue values")
+                        loudness = if sweepers.fallback_loudness(resolved) then "normalized" else "unchanged" end
+                        log(label="sweepers", "AutoCue computed for sweeper #{job.media_id}: AzuraCast supplied no cue values; loudness #{loudness} like songs")
                     elsif origin == "none" then
                         log(label="sweepers", "No cue values for sweeper #{job.media_id}; it will not be used")
                     end
                     sweepers.measurements := [{
                         media_id=job.media_id, identity=job.identity, source=origin,
+                        autocue=if origin == "computed" then "internal" else m["liq_autocue"] end,
                         metadata={
                             liq_cue_in=m["liq_cue_in"], liq_cue_out=m["liq_cue_out"],
                             liq_cross_start_next=m["liq_cross_start_next"], liq_fade_out=m["liq_fade_out"],
-                            liq_amplify=m["liq_amplify"], autocue_cue_in=m["autocue_cue_in"],
+                            liq_amplify=if settings.azuracast.apply_amplify() then m["liq_amplify"] else "" end,
+                            liq_normalize_track_gain=m[settings.normalize_track_gain_metadata()],
+                            autocue_cue_in=m["autocue_cue_in"],
                             autocue_cue_out=m["autocue_cue_out"], autocue_start_next=m["autocue_start_next"],
                             autocue_fade_out=m["autocue_fade_out"]
                         }
@@ -310,7 +321,7 @@ end
 
 let sweepers.original_next_song = azuracast.autodj_next_song
 
-# Must match frontend/reverb.js. FFmpeg filters: Liquidsoap's own echo and comb add no tail here.
+# Must match frontend/reverb.js.
 let sweepers.reverb_delays = [37, 53, 67, 79, 97, 113, 131, 149, 173, 199, 227, 257, 293, 331, 373, 419]
 let sweepers.reverb_decays = [
     0.203, 0.177, 0.157, 0.141, 0.121, 0.106, 0.09, 0.077, 0.063, 0.05, 0.039, 0.031, 0.022, 0.016, 0.011, 0.008
@@ -319,21 +330,12 @@ let sweepers.reverb_decays = [
 def sweepers.reverb(level, length, s) =
     # Pads the tail with silence; sequence() would skip a request that is not ready yet.
     padded = max_duration(length + 0.6, add(normalize=false, [s, blank()]))
-    def graph(g) =
-        let {audio} = source.tracks(ffmpeg.raw.encode.audio(%ffmpeg(%audio.raw), padded))
-        voice = ffmpeg.filter.audio.input(g, audio)
-        let (parts, _) = ffmpeg.filter.asplit(outputs=2, g, voice)
-        wet = ffmpeg.filter.highpass(g, list.nth(parts, 1), frequency=250.)
-        wet = ffmpeg.filter.lowpass(g, wet, frequency=3000.)
-        wet = ffmpeg.filter.aecho(
-            g, wet, in_gain=0., out_gain=1.,
-            delays=string.concat(separator="|", list.map(fun (ms) -> "#{ms}", sweepers.reverb_delays)),
-            decays=string.concat(separator="|", list.map(fun (decay) -> "#{decay * level}", sweepers.reverb_decays))
-        )
-        mixed = ffmpeg.filter.amix(g, inputs=2, normalize=false, [list.nth(parts, 0), wet], [])
-        source({audio=ffmpeg.filter.audio.output(g, mixed)})
-    end
-    ffmpeg.raw.decode.audio(ffmpeg.filter.create(graph))
+    band = filter.iir.butterworth.low(frequency=3000., order=2, filter.iir.butterworth.high(frequency=250., order=2, padded))
+    # comb() adds one delayed, scaled copy; FFmpeg filter graphs run on their own clock and break on Liquidsoap 2.5.
+    taps = list.mapi(fun (i, ms) -> comb(
+        delay=float_of_int(ms) / 1000., feedback=dB_of_lin(level * list.nth(sweepers.reverb_decays, i)), band
+    ), sweepers.reverb_delays)
+    add(normalize=false, [padded, ...taps, amplify(-1. * float_of_int(list.length(taps)), band)])
 end
 
 # Runs right before AzuraCast sends its next song, so nothing else can reorder the queue meanwhile.

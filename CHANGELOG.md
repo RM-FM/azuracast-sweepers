@@ -1,5 +1,21 @@
 # Release notes
 
+## 1.2.2 - 2026-10-30
+
+### Fixes
+
+- Sweeper reverb uses Liquidsoap's native filters and plays the full voice with its
+  tail on Liquidsoap 2.4 and 2.5; it no longer cuts the end or starts reading the
+  sweeper before it is due. The sound is unchanged.
+- Sweepers follow the station's loudness handling: without AzuraCast AutoCue they
+  keep their level instead of being normalized, manual amplification is kept, disabled
+  amplification is respected and enabled ReplayGain is applied as on songs.
+
+### Update notes
+
+- **AzuraCast Broadcast (Liquidsoap) restart: Required** to load the new reverb
+  and loudness handling.
+
 ## 1.2.1 - 2026-10-29
 
 ### Improvements
