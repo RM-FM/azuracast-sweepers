@@ -51,7 +51,8 @@ final readonly class Timing
         return new self($cueIn, $cueOut, $handover, $gain);
     }
 
-    public static function fromMetadata(array $metadata, float $duration): ?self
+    // ReplayGain counts only where the station applies it to songs as well.
+    public static function fromMetadata(array $metadata, float $duration, bool $replayGain = false): ?self
     {
         $value = static function (string $effective, string $cached) use ($metadata): mixed {
             $value = $metadata[$effective] ?? '';
@@ -59,14 +60,9 @@ final readonly class Timing
 
             return $value === '' ? null : $value;
         };
-        $amplify = trim((string)($metadata['liq_amplify'] ?? ''));
-        if ($amplify === '') {
-            $gainDb = 0.0;
-        } elseif (str_ends_with($amplify, 'dB')) {
-            $gainDb = trim(substr($amplify, 0, -2));
-        } elseif (is_numeric($amplify) && (float)$amplify > 0) {
-            $gainDb = 20 * log10((float)$amplify);
-        } else {
+        $gainDb = self::decibels($metadata['liq_amplify'] ?? '');
+        $trackGainDb = $replayGain ? self::decibels($metadata['liq_normalize_track_gain'] ?? '') : 0.0;
+        if ($gainDb === null || $trackGainDb === null) {
             return null;
         }
 
@@ -75,8 +71,24 @@ final readonly class Timing
             'cue_out' => $value('liq_cue_out', 'autocue_cue_out'),
             'cross_start_next' => $value('liq_cross_start_next', 'autocue_start_next'),
             'fade_out' => $value('liq_fade_out', 'autocue_fade_out') ?: 0.0,
-            'amplify' => $gainDb,
+            'amplify' => $gainDb + $trackGainDb,
         ], $duration);
+    }
+
+    // Liquidsoap reads gain metadata either as "<n> dB" or as a linear factor.
+    private static function decibels(mixed $gain): ?float
+    {
+        $gain = trim((string)$gain);
+        if ($gain === '') {
+            return 0.0;
+        }
+        if (str_ends_with($gain, 'dB')) {
+            $gain = trim(substr($gain, 0, -2));
+
+            return is_numeric($gain) ? (float)$gain : null;
+        }
+
+        return is_numeric($gain) && (float)$gain > 0 ? 20 * log10((float)$gain) : null;
     }
 
     public function fit(float $introEnd, float $songCueIn, float $songCueOut, Settings $settings): ?array

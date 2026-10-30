@@ -346,6 +346,13 @@ This avoids timing distortions from silence or very quiet artefacts. It runs onl
 on sweepers, does not update AzuraCast cue fields or AutoCue cache, and does not
 detect song intros. Song intros still come from `intro_end`.
 
+A sweeper's level is corrected exactly as AzuraCast would correct it as a song:
+by its amplification (manual, AutoCue or file tags) unless amplification is
+disabled, plus ReplayGain when the station enables it. The fallback analysis
+normalizes loudness only when the station's own AutoCue is enabled and no
+amplification was set; otherwise sweepers keep their level, like songs.
+**Sweeper gain** applies on top.
+
 ### Safety and diagnostics
 
 - Unreadable settings cause the station to start with sweepers off.
