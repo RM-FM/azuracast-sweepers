@@ -1,5 +1,17 @@
 # Release notes
 
+## Pending
+
+### Fixes
+
+- Sweeper reverb uses Liquidsoap's native filters and plays the full voice with its
+  tail on Liquidsoap 2.4 and 2.5; it no longer cuts the end or starts reading the
+  sweeper before it is due. The sound is unchanged.
+
+### Update notes
+
+- **AzuraCast Broadcast (Liquidsoap) restart: Required** to load the new reverb.
+
 ## 1.2.1 - 2026-10-29
 
 ### Improvements

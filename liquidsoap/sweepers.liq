@@ -310,7 +310,7 @@ end
 
 let sweepers.original_next_song = azuracast.autodj_next_song
 
-# Must match frontend/reverb.js. FFmpeg filters: Liquidsoap's own echo and comb add no tail here.
+# Must match frontend/reverb.js.
 let sweepers.reverb_delays = [37, 53, 67, 79, 97, 113, 131, 149, 173, 199, 227, 257, 293, 331, 373, 419]
 let sweepers.reverb_decays = [
     0.203, 0.177, 0.157, 0.141, 0.121, 0.106, 0.09, 0.077, 0.063, 0.05, 0.039, 0.031, 0.022, 0.016, 0.011, 0.008
@@ -319,21 +319,12 @@ let sweepers.reverb_decays = [
 def sweepers.reverb(level, length, s) =
     # Pads the tail with silence; sequence() would skip a request that is not ready yet.
     padded = max_duration(length + 0.6, add(normalize=false, [s, blank()]))
-    def graph(g) =
-        let {audio} = source.tracks(ffmpeg.raw.encode.audio(%ffmpeg(%audio.raw), padded))
-        voice = ffmpeg.filter.audio.input(g, audio)
-        let (parts, _) = ffmpeg.filter.asplit(outputs=2, g, voice)
-        wet = ffmpeg.filter.highpass(g, list.nth(parts, 1), frequency=250.)
-        wet = ffmpeg.filter.lowpass(g, wet, frequency=3000.)
-        wet = ffmpeg.filter.aecho(
-            g, wet, in_gain=0., out_gain=1.,
-            delays=string.concat(separator="|", list.map(fun (ms) -> "#{ms}", sweepers.reverb_delays)),
-            decays=string.concat(separator="|", list.map(fun (decay) -> "#{decay * level}", sweepers.reverb_decays))
-        )
-        mixed = ffmpeg.filter.amix(g, inputs=2, normalize=false, [list.nth(parts, 0), wet], [])
-        source({audio=ffmpeg.filter.audio.output(g, mixed)})
-    end
-    ffmpeg.raw.decode.audio(ffmpeg.filter.create(graph))
+    band = filter.iir.butterworth.low(frequency=3000., order=2, filter.iir.butterworth.high(frequency=250., order=2, padded))
+    # comb() adds one delayed, scaled copy; FFmpeg filter graphs run on their own clock and break on Liquidsoap 2.5.
+    taps = list.mapi(fun (i, ms) -> comb(
+        delay=float_of_int(ms) / 1000., feedback=dB_of_lin(level * list.nth(sweepers.reverb_decays, i)), band
+    ), sweepers.reverb_delays)
+    add(normalize=false, [padded, ...taps, amplify(-1. * float_of_int(list.length(taps)), band)])
 end
 
 # Runs right before AzuraCast sends its next song, so nothing else can reorder the queue meanwhile.

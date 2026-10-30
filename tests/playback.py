@@ -329,6 +329,8 @@ thread.run(delay=7., {{shutdown()}})
             assert {'event': 'release', 'token': '124'} not in events, 'Empty plans must not emit release events'
             assert 'Sweeper prepared for queue 123' in result.stdout, 'Prepared sweeper not logged'
             assert 'Sweeper started for queue 123' in result.stdout, 'Started sweeper not logged'
+    if args.scenario.startswith('reverb'):
+        assert 'Inactive sweeper source started' not in result.stdout, 'Reverb must not read the sweeper before it is due'
     if args.scenario == 'hot-error':
         assert 'Live settings refresh failed:' in result.stdout, 'Invalid heartbeat was not reported'
         assert 'Live settings applied: changed' not in result.stdout, 'Invalid heartbeat changed settings'
