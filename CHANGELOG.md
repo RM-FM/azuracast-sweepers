@@ -1,6 +1,6 @@
 # Release notes
 
-## Pending
+## 1.2.2 - 2026-10-30
 
 ### Fixes
 
