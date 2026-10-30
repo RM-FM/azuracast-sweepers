@@ -109,9 +109,9 @@ final readonly class Media
 
             if ($entry === null) {
                 $entry = new StationMediaCustomField($media, $field);
-                $this->em->persist($entry);
             }
             $entry->value = $intro === null ? null : (string)$intro;
+            $this->em->persist($entry);
 
             return $intro;
         });
