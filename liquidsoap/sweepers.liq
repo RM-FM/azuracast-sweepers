@@ -197,13 +197,20 @@ end
 
 let sweepers.jingles = source.dynamic(id="sweepers", self_sync=false, track_sensitive=false, sweepers.next_overlay)
 
+# Songs are only normalized by AzuraCast's own AutoCue, so the fallback may not normalize sweepers otherwise.
+def sweepers.fallback_loudness(m) =
+    user_supplied = list.exists(fun (k) -> m[k] != "", ["liq_amplify", ...settings.autocue.amplify_aliases()])
+    settings.azuracast.compute_autocue() and settings.autocue.preferred() == "azuracast" and
+        settings.autocue.amplify_behavior() != "ignore" and not user_supplied
+end
+
 # Only used when AzuraCast supplies no cue values; never written to AzuraCast's cache.
 def sweepers.compute_autocue(m, filename) =
     computed = autocue.internal.implementation(request_metadata=m, file_metadata=m, filename)
     if null.defined(computed) then
         c = null.get(computed)
         start_next = c?.start_next
-        loudness = c?.amplify
+        loudness = if sweepers.fallback_loudness(m) then c?.amplify else null end
         [
             ("autocue_cue_in", "#{c.cue_in}"),
             ("autocue_cue_out", "#{c.cue_out}"),
@@ -246,18 +253,22 @@ def sweepers.refresh_catalog() =
                     provided = ((resolved["liq_cue_in"] != "" or resolved["autocue_cue_in"] != "") and
                         (resolved["liq_cue_out"] != "" or resolved["autocue_cue_out"] != ""))
                     m = if provided then resolved else sweepers.compute_autocue(resolved, request.filename(r)) end
-                    origin = if provided then "azuracast" elsif m["autocue_cue_out"] != "" then "computed" else "none" end
+                    origin = if provided then "provided" elsif m["autocue_cue_out"] != "" then "computed" else "none" end
                     if origin == "computed" then
-                        log(label="sweepers", "AutoCue computed for sweeper #{job.media_id}: AzuraCast supplied no cue values")
+                        loudness = if sweepers.fallback_loudness(resolved) then "normalized" else "unchanged" end
+                        log(label="sweepers", "AutoCue computed for sweeper #{job.media_id}: AzuraCast supplied no cue values; loudness #{loudness} like songs")
                     elsif origin == "none" then
                         log(label="sweepers", "No cue values for sweeper #{job.media_id}; it will not be used")
                     end
                     sweepers.measurements := [{
                         media_id=job.media_id, identity=job.identity, source=origin,
+                        autocue=if origin == "computed" then "internal" else m["liq_autocue"] end,
                         metadata={
                             liq_cue_in=m["liq_cue_in"], liq_cue_out=m["liq_cue_out"],
                             liq_cross_start_next=m["liq_cross_start_next"], liq_fade_out=m["liq_fade_out"],
-                            liq_amplify=m["liq_amplify"], autocue_cue_in=m["autocue_cue_in"],
+                            liq_amplify=if settings.azuracast.apply_amplify() then m["liq_amplify"] else "" end,
+                            liq_normalize_track_gain=m[settings.normalize_track_gain_metadata()],
+                            autocue_cue_in=m["autocue_cue_in"],
                             autocue_cue_out=m["autocue_cue_out"], autocue_start_next=m["autocue_start_next"],
                             autocue_fade_out=m["autocue_fade_out"]
                         }

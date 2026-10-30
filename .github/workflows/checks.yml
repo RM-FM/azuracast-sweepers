@@ -169,7 +169,7 @@ jobs:
             binary: liquidsoap
             runtime: aafac693c6b065432ebfb751c92d4bfe9ef3d770
             # Its own AutoCue measurement hits the FFmpeg filter clock error.
-            skip: computed-autocue
+            skip: computed-autocue station-autocue
     name: ${{ matrix.name }}
     env:
       LIQUIDSOAP_IMAGE: ${{ matrix.image }}
@@ -208,7 +208,7 @@ jobs:
       - name: Render playback and cancellation with AzuraCast's AutoDJ factory
         if: needs.check-plan.outputs.run-playback == 'true'
         run: |
-          for scenario in normal skip live unavailable spacing playlist-spacing hot-enable hot-disable hot-pending hot-change hot-error before-jingle computed-autocue provided-autocue arrange reverb plan-retry plan-lost-response heartbeat-outage reverb-pending reverb-skip; do
+          for scenario in normal skip live unavailable spacing playlist-spacing hot-enable hot-disable hot-pending hot-change hot-error before-jingle computed-autocue provided-autocue station-autocue amplify-off replaygain arrange reverb plan-retry plan-lost-response heartbeat-outage reverb-pending reverb-skip; do
             [[ " ${{ matrix.skip }} " == *" $scenario "* ]] && { echo "Skipping $scenario"; continue; }
             python3 tests/playback.py --scenario "$scenario" \
               --runtime /tmp/azuracast-runtime \

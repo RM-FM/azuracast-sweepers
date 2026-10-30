@@ -120,8 +120,8 @@ foreach ($methods as $class => $names) {
 }
 
 $properties = [
-    'App\Entity\Station' => ['id', 'short_name'],
-    'App\Entity\StationBackendConfiguration' => ['use_manual_autodj'],
+    'App\Entity\Station' => ['id', 'short_name', 'backend_config'],
+    'App\Entity\StationBackendConfiguration' => ['use_manual_autodj', 'enable_replaygain_metadata'],
     'App\Entity\StationMedia' => ['id', 'length', 'song_id', 'artist', 'title'],
     'App\Entity\StationPlaylist' => ['station', 'name', 'type', 'order', 'source', 'is_enabled', 'is_jingle'],
     'App\Entity\StationPlaylistMedia' => ['id', 'playlist', 'media', 'weight', 'is_queued', 'last_played'],
@@ -169,7 +169,14 @@ foreach (['api:stations:backend', 'api:stations:files:play', 'api:stations:media
 }
 
 require_once $plugin . '/src/Service/Module.php';
-foreach ([Plugin\AzuracastSweepers\Service\Module::AUTODJ, Plugin\AzuracastSweepers\Service\Module::CROSSFADE] as $line) {
+// Sweeper gain mirrors how AzuraCast applies amplification and ReplayGain to songs.
+$lines = [
+    Plugin\AzuracastSweepers\Service\Module::AUTODJ,
+    Plugin\AzuracastSweepers\Service\Module::CROSSFADE,
+    'radio = azuracast.apply_amplify(radio)',
+    'radio = replaygain(radio)',
+];
+foreach ($lines as $line) {
     if (!str_contains($sources, $line)) {
         $failures[] = "Liquidsoap configuration no longer contains: $line";
     }

@@ -18,7 +18,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--liquidsoap', default='liquidsoap')
 parser.add_argument('--scenario', choices=['normal', 'skip', 'live', 'unavailable', 'spacing', 'playlist-spacing',
                                           'hot-enable', 'hot-disable', 'hot-pending', 'hot-change', 'hot-error',
-                                          'before-jingle', 'computed-autocue', 'provided-autocue', 'arrange', 'reverb',
+                                          'before-jingle', 'computed-autocue', 'provided-autocue', 'station-autocue',
+                                          'amplify-off', 'replaygain', 'arrange', 'reverb',
                                           'plan-retry', 'plan-lost-response', 'heartbeat-outage',
                                           'reverb-pending', 'reverb-skip'], default='normal')
 parser.add_argument('--runtime', type=Path, required=True)
@@ -26,7 +27,7 @@ args = parser.parse_args()
 plugin = Path(__file__).resolve().parents[1]
 rate = 44100
 spacing = args.scenario in ('spacing', 'playlist-spacing')
-autocue = args.scenario in ('computed-autocue', 'provided-autocue')
+autocue = args.scenario in ('computed-autocue', 'provided-autocue', 'station-autocue', 'amplify-off', 'replaygain')
 short_tracks = spacing or autocue or args.scenario in ('hot-enable', 'arrange', 'heartbeat-outage')
 warmup_duration = .5 if autocue else .1
 
@@ -83,12 +84,13 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
             elif self.path == '/sweepers/catalog':
                 time.sleep(1.5)
                 value = []
-                if args.scenario == 'computed-autocue':
+                if args.scenario in ('computed-autocue', 'station-autocue'):
                     value = [{'media_id': 9, 'identity': 'cued', 'uri': f'{root}/cued.wav'}]
-                elif args.scenario == 'provided-autocue':
+                elif autocue:
+                    amplify = '' if args.scenario == 'replaygain' else ',liq_amplify="-3.00 dB"'
                     value = [{'media_id': 9, 'identity': 'cued', 'uri': (
                         'annotate:azuracast_autocue="true",autocue_cue_in="0.25",autocue_cue_out="2.75",'
-                        f'autocue_fade_in="0.00",autocue_fade_out="0.50",liq_amplify="-3.00 dB":{root}/cued.wav')}]
+                        f'autocue_fade_in="0.00",autocue_fade_out="0.50"{amplify}:{root}/cued.wav')}]
             elif self.path == '/sweepers/plan':
                 value = dict(token=json.loads(body)['token'], jingle_id=9, revision=live_settings['revision'],
                              uri=f'annotate:liq_cue_in="0",liq_cue_out="{0.5 if short_tracks else 2}":{root}/sweeper.wav' if short_tracks or json.loads(body)['token'] == '123' else '',
@@ -142,9 +144,13 @@ radio.on_metadata(synchronous=true, fun (m) -> begin
     end
 end)
 '''
+    station = {'station-autocue': 'settings.azuracast.compute_autocue := true',
+               'amplify-off': 'settings.azuracast.apply_amplify := false',
+               'replaygain': 'enable_replaygain_metadata()'}.get(args.scenario, '')
     script.write_text(f'''settings.init.allow_root := true
 %include {json.dumps(str(args.runtime.resolve() / 'azuracast.liq'))}
 %include {json.dumps(str(plugin / 'liquidsoap/sweepers.liq'))}
+{station}
 sweepers.load(version={json.dumps('test')}, {{enabled={'false' if args.scenario == 'hot-enable' else 'true'}, revision="initial",
     songs_after_jingle={1 if spacing else 0}, songs_after_sweeper={1 if spacing else 0},
     count_jingle_mode=true, jingle_playlists=[7]}})
@@ -255,16 +261,25 @@ thread.run(delay=7., {{shutdown()}})
         jingle = measured[-1]
         timing = jingle['metadata']
         if args.scenario == 'computed-autocue':
-            assert jingle['source'] == 'computed', jingle
+            assert (jingle['source'], jingle['autocue']) == ('computed', 'internal'), jingle
             # Values come from Liquidsoap's built-in AutoCue; the plugin must pass them on unchanged.
             assert 0 <= float(timing['autocue_cue_in']) <= .6, ('Implausible cue-in', timing)
             assert 2.2 <= float(timing['autocue_cue_out']) <= 3.5, ('Implausible cue-out', timing)
             assert float(timing['autocue_fade_out']) >= 0, ('Missing fade-out', timing)
-            assert timing['liq_amplify'].endswith('dB'), ('Loudness not measured', timing)
+            assert timing['liq_amplify'] == '', ('Songs are not normalized without station AutoCue', timing)
             assert 'AutoCue computed for sweeper 9' in result.stdout, 'Fallback not logged'
+            assert 'loudness unchanged like songs' in result.stdout, 'Loudness decision not logged'
+        elif args.scenario == 'station-autocue':
+            assert (jingle['source'], jingle['autocue']) == ('provided', 'azuracast'), jingle
+            assert timing['liq_amplify'].endswith('dB'), ('Station AutoCue loudness missing', timing)
+            assert 'AutoCue computed' not in result.stdout, 'AzuraCast values must not be recomputed'
         else:
-            assert jingle['source'] == 'azuracast', jingle
-            assert (timing['autocue_cue_in'], timing['autocue_cue_out'], timing['liq_amplify']) == ('0.25', '2.75', '-3.00 dB'), timing
+            assert (jingle['source'], jingle['autocue']) == ('provided', 'azuracast'), jingle
+            assert (timing['autocue_cue_in'], timing['autocue_cue_out']) == ('0.25', '2.75'), timing
+            amplify = '-3.00 dB' if args.scenario == 'provided-autocue' else ''
+            assert timing['liq_amplify'] == amplify, ('Amplification differs from songs', timing)
+            replaygain = timing['liq_normalize_track_gain']
+            assert replaygain.endswith('dB') if args.scenario == 'replaygain' else replaygain == '', timing
             assert 'AutoCue computed' not in result.stdout, 'AzuraCast values must not be recomputed'
     elif args.scenario == 'arrange':
         fetches = [(path, body) for path, body, _ in calls if path in ('/sweepers/arrange', '/nextsong')]
