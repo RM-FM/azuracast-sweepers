@@ -163,14 +163,14 @@ jobs:
             image: ghcr.io/azuracast/azuracast@sha256:00514c7e5f96e4142a162955905591108750594c849730e3ab1485ef26a292a1
             binary: /usr/bin/liquidsoap
             runtime: aafac693c6b065432ebfb751c92d4bfe9ef3d770
-          # Upstream Liquidsoap 2.5 rolling build, ahead of AzuraCast's own image; its AutoCue does not measure yet.
+          # Upstream Liquidsoap 2.5 rolling build, ahead of AzuraCast's own image.
           - name: liquidsoap-2.5-rolling
             image: savonet/liquidsoap@sha256:53357214aa295a7e480a73e940839d96de52fd6201128d3f470ccdb2aba8b785
             binary: liquidsoap
             runtime: aafac693c6b065432ebfb751c92d4bfe9ef3d770
-            experimental: true
+            # Its own AutoCue measurement hits the FFmpeg filter clock error.
+            skip: computed-autocue
     name: ${{ matrix.name }}
-    continue-on-error: ${{ matrix.experimental == true }}
     env:
       LIQUIDSOAP_IMAGE: ${{ matrix.image }}
       LIQUIDSOAP_BIN: ${{ matrix.binary }}
@@ -209,6 +209,7 @@ jobs:
         if: needs.check-plan.outputs.run-playback == 'true'
         run: |
           for scenario in normal skip live unavailable spacing playlist-spacing hot-enable hot-disable hot-pending hot-change hot-error before-jingle computed-autocue provided-autocue arrange reverb plan-retry plan-lost-response heartbeat-outage reverb-pending reverb-skip; do
+            [[ " ${{ matrix.skip }} " == *" $scenario "* ]] && { echo "Skipping $scenario"; continue; }
             python3 tests/playback.py --scenario "$scenario" \
               --runtime /tmp/azuracast-runtime \
               --liquidsoap "docker run --rm --network host --user $(id -u):$(id -g) \
