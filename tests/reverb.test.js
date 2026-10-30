@@ -12,8 +12,8 @@ test("browser preview uses exactly the reverb chain of the Liquidsoap module", a
     assert.deepEqual(list("reverb_delays"), REVERB_DELAYS_MS);
     assert.deepEqual(list("reverb_decays"), REVERB_DECAYS);
     const reverb = module.slice(module.indexOf("def sweepers.reverb"));
-    assert.equal(Number(reverb.match(/highpass\(.*?frequency=([\d.]+)/s)[1]), REVERB_HIGHPASS_HZ);
-    assert.equal(Number(reverb.match(/lowpass\(.*?frequency=([\d.]+)/s)[1]), REVERB_LOWPASS_HZ);
+    assert.equal(Number(reverb.match(/butterworth\.high\(frequency=([\d.]+), order=2/)[1]), REVERB_HIGHPASS_HZ);
+    assert.equal(Number(reverb.match(/butterworth\.low\(frequency=([\d.]+), order=2/)[1]), REVERB_LOWPASS_HZ);
 });
 
 test("preview level follows the switch and the intensity like the module", () => {
