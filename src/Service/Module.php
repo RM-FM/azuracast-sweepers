@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Plugin\AzuracastSweepers\Service;
 
+use App\Event\Radio\WriteLiquidsoapConfiguration;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
+use ReflectionProperty;
 
 final class Module
 {
@@ -64,6 +66,30 @@ final class Module
     private static function running(string $version): bool
     {
         return in_array($version, [self::version(), ...self::EQUIVALENT[self::version()] ?? []], true);
+    }
+
+    /**
+     * @param array<int, string> $changes
+     */
+    public static function replaceLines(WriteLiquidsoapConfiguration $event, array $changes): void
+    {
+        $entries = (new ReflectionProperty($event, 'configLines'))->getValue($event);
+        $offset = 0;
+        foreach ($entries as $index => $entry) {
+            $lines = explode("\n", $entry);
+            $changed = false;
+            foreach ($lines as &$line) {
+                if (array_key_exists($offset, $changes)) {
+                    $line = $changes[$offset];
+                    $changed = true;
+                }
+                ++$offset;
+            }
+            unset($line);
+            if ($changed) {
+                $event->replaceLine($index, implode("\n", $lines));
+            }
+        }
     }
 
     /**

@@ -126,7 +126,7 @@ jobs:
         run: |
           docker run --rm --network host --entrypoint php \
             -v "$PWD:/plugin:ro" \
-            ghcr.io/azuracast/azuracast@sha256:00514c7e5f96e4142a162955905591108750594c849730e3ab1485ef26a292a1 \
+            ghcr.io/azuracast/azuracast:stable \
             /plugin/tests/replacement.php
 
   frontend:
@@ -153,39 +153,29 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Earlier AzuraCast release with Liquidsoap 2.4.5.
-          - name: liquidsoap-2.4.5
-            image: savonet/liquidsoap:v2.4.5
-            binary: liquidsoap
-            runtime: 19d68c47b1e4d569885ca7cf4c40609cbabefda7
-          # AzuraCast's own image (Liquidsoap 2.5.0) with its matching runtime, as running in production.
-          - name: azuracast-liquidsoap-2.5.0
-            image: ghcr.io/azuracast/azuracast@sha256:00514c7e5f96e4142a162955905591108750594c849730e3ab1485ef26a292a1
+          - name: azuracast-stable-liquidsoap-2.4.6
+            image: ghcr.io/azuracast/azuracast:stable
             binary: /usr/bin/liquidsoap
-            runtime: aafac693c6b065432ebfb751c92d4bfe9ef3d770
-          # Upstream Liquidsoap 2.5 rolling build, ahead of AzuraCast's own image.
-          - name: liquidsoap-2.5-rolling
-            image: savonet/liquidsoap@sha256:53357214aa295a7e480a73e940839d96de52fd6201128d3f470ccdb2aba8b785
-            binary: liquidsoap
-            runtime: aafac693c6b065432ebfb751c92d4bfe9ef3d770
-            # Its own AutoCue measurement hits the FFmpeg filter clock error.
-            skip: computed-autocue station-autocue
+          - name: azuracast-rolling-liquidsoap-2.4.6
+            image: ghcr.io/azuracast/azuracast:latest
+            binary: /usr/bin/liquidsoap
     name: ${{ matrix.name }}
     env:
       LIQUIDSOAP_IMAGE: ${{ matrix.image }}
       LIQUIDSOAP_BIN: ${{ matrix.binary }}
     steps:
       - uses: actions/checkout@v4
-      - name: Fetch the matching AzuraCast runtime
-        run: |
-          mkdir -p /tmp/azuracast-runtime
-          for file in azuracast crossfade utilities; do
-            curl --fail --silent --show-error --location \
-              "https://raw.githubusercontent.com/AzuraCast/AzuraCast/${{ matrix.runtime }}/util/docker/stations/liquidsoap/$file.liq" \
-              --output "/tmp/azuracast-runtime/$file.liq"
-          done
       - name: Pull the Liquidsoap image
         run: docker pull --quiet "$LIQUIDSOAP_IMAGE"
+      - name: Verify Liquidsoap 2.4.6 and extract the matching runtime
+        run: |
+          version=$(docker run --rm --entrypoint "$LIQUIDSOAP_BIN" "$LIQUIDSOAP_IMAGE" --version)
+          grep -Fx 'Liquidsoap 2.4.6' <<<"$version"
+          mkdir -p /tmp/azuracast-runtime
+          for file in azuracast crossfade utilities; do
+            docker run --rm --entrypoint cat "$LIQUIDSOAP_IMAGE" \
+              "/var/azuracast/liquidsoap/$file.liq" > "/tmp/azuracast-runtime/$file.liq"
+          done
       - uses: actions/setup-python@v5
         if: needs.check-plan.outputs.run-playback == 'true'
         with:
@@ -208,8 +198,7 @@ jobs:
       - name: Render playback and cancellation with AzuraCast's AutoDJ factory
         if: needs.check-plan.outputs.run-playback == 'true'
         run: |
-          for scenario in normal skip live unavailable spacing playlist-spacing hot-enable hot-disable hot-pending hot-change hot-error before-jingle computed-autocue provided-autocue station-autocue amplify-off replaygain arrange reverb plan-retry plan-lost-response heartbeat-outage reverb-pending reverb-skip; do
-            [[ " ${{ matrix.skip }} " == *" $scenario "* ]] && { echo "Skipping $scenario"; continue; }
+          for scenario in normal skip live live-switch live-switch-idle live-switch-disabled unavailable spacing playlist-spacing hot-enable hot-disable hot-pending hot-change hot-error before-jingle computed-autocue provided-autocue station-autocue amplify-off replaygain arrange reverb plan-retry plan-lost-response heartbeat-outage reverb-pending reverb-skip; do
             python3 tests/playback.py --scenario "$scenario" \
               --runtime /tmp/azuracast-runtime \
               --liquidsoap "docker run --rm --network host --user $(id -u):$(id -g) \

@@ -123,6 +123,10 @@ jobs:
               --output "/tmp/azuracast-runtime/$file.liq"
           done
       - run: docker pull --quiet "$LIQUIDSOAP_IMAGE"
+      - name: Require Liquidsoap 2.4.6
+        run: |
+          version=$(docker run --rm --entrypoint "$LIQUIDSOAP_BIN" "$LIQUIDSOAP_IMAGE" --version)
+          grep -Fx 'Liquidsoap 2.4.6' <<<"$version"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -138,7 +142,7 @@ jobs:
         run: bash tests/failsafe.sh /tmp/azuracast-runtime
       - name: Render playback with AzuraCast's AutoDJ factory
         run: |
-          for scenario in normal skip live unavailable spacing playlist-spacing hot-enable hot-disable hot-pending hot-change hot-error before-jingle computed-autocue provided-autocue station-autocue amplify-off replaygain arrange reverb plan-retry plan-lost-response heartbeat-outage reverb-pending reverb-skip; do
+          for scenario in normal skip live live-switch live-switch-idle live-switch-disabled unavailable spacing playlist-spacing hot-enable hot-disable hot-pending hot-change hot-error before-jingle computed-autocue provided-autocue station-autocue amplify-off replaygain arrange reverb plan-retry plan-lost-response heartbeat-outage reverb-pending reverb-skip; do
             python3 tests/playback.py --scenario "$scenario" \
               --runtime /tmp/azuracast-runtime \
               --liquidsoap "docker run --rm --network host --user $(id -u):$(id -g) \
