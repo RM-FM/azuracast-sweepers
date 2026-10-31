@@ -16,7 +16,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--liquidsoap', default='liquidsoap')
-parser.add_argument('--scenario', choices=['normal', 'skip', 'live', 'unavailable', 'spacing', 'playlist-spacing',
+parser.add_argument('--scenario', choices=['normal', 'skip', 'live', 'live-switch', 'live-switch-idle',
+                                          'live-switch-disabled', 'unavailable', 'spacing', 'playlist-spacing',
                                           'hot-enable', 'hot-disable', 'hot-pending', 'hot-change', 'hot-error',
                                           'before-jingle', 'computed-autocue', 'provided-autocue', 'station-autocue',
                                           'amplify-off', 'replaygain', 'arrange', 'reverb',
@@ -26,6 +27,8 @@ parser.add_argument('--runtime', type=Path, required=True)
 args = parser.parse_args()
 plugin = Path(__file__).resolve().parents[1]
 rate = 44100
+live_switch = args.scenario.startswith('live-switch')
+takeover_delay = 1.6 if args.scenario == 'live-switch' else .8
 spacing = args.scenario in ('spacing', 'playlist-spacing')
 autocue = args.scenario in ('computed-autocue', 'provided-autocue', 'station-autocue', 'amplify-off', 'replaygain')
 short_tracks = spacing or autocue or args.scenario in ('hot-enable', 'arrange', 'heartbeat-outage')
@@ -58,7 +61,7 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
     song_requests = 0
     warmed_up = False
     heartbeat_requests = 0
-    initial_settings = dict(enabled=args.scenario != 'hot-enable', revision='initial',
+    initial_settings = dict(enabled=args.scenario not in ('hot-enable', 'live-switch-disabled'), revision='initial',
                             songs_after_jingle=1 if spacing else 0, songs_after_sweeper=1 if spacing else 0,
                             count_jingle_mode=True, jingle_playlists=[7])
     live_settings = initial_settings.copy()
@@ -135,6 +138,9 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
               'live': 'thread.run(delay=2., {azuracast.live_enabled := true})'}.get(args.scenario, '')
     if args.scenario.startswith('hot-') or args.scenario == 'before-jingle':
         action = 'thread.run(delay=1.6, {ignore(sweepers.heartbeat())})'
+    if live_switch:
+        action = f'''thread.run(delay={takeover_delay}, {{live_ready := true; azuracast.live_enabled := true}})
+        thread.run(delay=3.8, {{live_ready := false; azuracast.live_enabled := false}})'''
     if action:
         action = f'''action_started = ref(false)
 radio.on_metadata(synchronous=true, fun (m) -> begin
@@ -147,18 +153,36 @@ end)
     station = {'station-autocue': 'settings.azuracast.compute_autocue := true',
                'amplify-off': 'settings.azuracast.apply_amplify := false',
                'replaygain': 'enable_replaygain_metadata()'}.get(args.scenario, '')
+    live_source = '''live_ready = ref(false)
+live = source.available(sine(1320.), {live_ready()})''' if live_switch else ''
+    live_fallback = '''radio_without_live = radio
+ignore(radio_without_live)
+radio = fallback(id="live_fallback", track_sensitive=true, replay_metadata=true, [live, radio])
+def check_live() =
+    if live.is_ready() then
+        if not azuracast.to_live() then
+            azuracast.to_live := true
+            radio_without_live.skip()
+        end
+    else
+        azuracast.to_live := false
+    end
+end
+radio.on_frame(synchronous=true, check_live)''' if live_switch else ''
     script.write_text(f'''settings.init.allow_root := true
 %include {json.dumps(str(args.runtime.resolve() / 'azuracast.liq'))}
 %include {json.dumps(str(plugin / 'liquidsoap/sweepers.liq'))}
 {station}
-sweepers.load(version={json.dumps('test')}, {{enabled={'false' if args.scenario == 'hot-enable' else 'true'}, revision="initial",
+sweepers.load(version={json.dumps('test')}, {{enabled={'true' if initial_settings['enabled'] else 'false'}, revision="initial",
     songs_after_jingle={1 if spacing else 0}, songs_after_sweeper={1 if spacing else 0},
     count_jingle_mode=true, jingle_playlists=[7]}})
 settings.azuracast.api_url := "http://127.0.0.1:{server.server_port}"
 radio = sweepers.enable_autodj(fallback([blank(duration=0.1)]))
 music = radio
 radio = sweepers.mix(radio)
+{live_source}
 {action}
+{live_fallback}
 radio.on_metadata(synchronous=true, fun (m) -> print("SONG_METADATA #{{m}}"))
 output.file(%wav, {json.dumps(str(root / 'mix.wav'))}, radio)
 thread.run(delay=6.6, {{ignore(sweepers.heartbeat())}})
@@ -178,7 +202,10 @@ thread.run(delay=7., {{shutdown()}})
     (plugin / '.checks' / f'playback-{args.scenario}.wav').write_bytes((root / 'mix.wav').read_bytes())
     onset = next(t / 100 for t in range(500) if amplitude(samples, 440, t / 100, .02) > 3000)
     normal = amplitude(samples, 440, onset + .5)
-    assert any(path == '/sweepers/plan' for path, _, _ in calls), 'Native factory bypassed plugin'
+    if args.scenario == 'live-switch-disabled':
+        assert not any(path == '/sweepers/plan' for path, _, _ in calls), 'Disabled plugin planned a sweeper'
+    else:
+        assert any(path == '/sweepers/plan' for path, _, _ in calls), 'Native factory bypassed plugin'
     metadata = [int(re.search(r'\("sq_id", "(\d+)"\)', line)[1])
                 for line in result.stdout.splitlines() if line.startswith('SONG_METADATA') and '("sq_id",' in line]
     assert (124 if spacing else 123) in metadata, 'Song metadata lost'
@@ -216,7 +243,19 @@ thread.run(delay=7., {{shutdown()}})
             assert releases.get('123') != 'error', 'A recovered request must not be reported as failed'
             assert sum(e == {'event': 'played', 'token': '123'} for e in events) == 1, \
                 'A recovered request must play exactly one sweeper'
-    if args.scenario == 'heartbeat-outage':
+    if live_switch:
+        during_live = onset + takeover_delay + .5
+        assert amplitude(samples, 1320, during_live) > 5000, 'Live audio missing after takeover'
+        assert amplitude(samples, 440, during_live) < 50, 'AutoDJ audio continued over live'
+        assert amplitude(samples, 880, during_live) < 50, 'Sweeper audio continued over live'
+        assert amplitude(samples, 440, onset + 4.3) > 5000, 'AutoDJ audio missing after disconnect'
+        assert amplitude(samples, 1320, onset + 4.3) < 50, 'Live audio continued after disconnect'
+        if args.scenario == 'live-switch':
+            assert amplitude(samples, 880, onset + 1.2) > 5000, 'Sweeper inactive before takeover'
+            assert {'event': 'played', 'token': '123'} in events, 'Active sweeper playback missing'
+        else:
+            assert not any(e['event'] == 'played' for e in events), 'Idle or disabled sweeper counted as playback'
+    elif args.scenario == 'heartbeat-outage':
         batches = [body['events'] for path, body, _ in calls if path == '/sweepers/heartbeat' and body['events']]
         assert batches, 'Buffered playback events were not delivered'
         timestamps = {}

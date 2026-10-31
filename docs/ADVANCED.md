@@ -419,7 +419,8 @@ isolated MariaDB `sweepers_test` database (`SWEEPER_TEST_DB_HOST`). It uses real
 playlist repositories, duplicate prevention, queue and rotation entities with
 minimal station/library fixtures. Never point integration tests at a station database.
 
-CI tests pushes to `develop` and pull requests against pinned AzuraCast versions.
+CI tests pushes to `develop` and pull requests against AzuraCast Stable and Rolling
+images running Liquidsoap 2.4.6, using the runtime extracted from each image.
 The fast checks (PHP lint, phpcs, unit tests, Node tests, build, setup workflow,
 Liquidsoap type and spacing checks) run on every push. The slow suites run only
 when their inputs change: the playback scenarios and fail-safe check for

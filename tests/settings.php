@@ -476,6 +476,32 @@ namespace {
         expect(Module::status($heartbeat($now - 20, 'older'), $now)['state'] === 'outdated', 'Update needs a restart.');
         expect(Module::status($heartbeat($now - 600, Module::version()), $now)['state'] === 'restart', 'Stopped.');
         expect(Module::rollback(['radio = custom(radio)']) === null, 'Nothing to roll back.');
+        foreach (["# custom", "# custom\n\ncustom_value = 1\n", "# custom\r\ncustom_value = 1"] as $custom) {
+            $event = new WriteLiquidsoapConfiguration($station, writeToDisk: false);
+            $event->appendBlock(Module::includeLine());
+            $event->appendLines([$custom]);
+            $event->appendBlock(
+                Module::AUTODJ . "\nrequests = request.queue(id=\"requests\")\n"
+                . 'radio = fallback(id="requests_fallback", track_sensitive=true, [requests, radio])'
+                . "\n" . Module::CROSSFADE
+            );
+            $event->appendLines(["# custom after\ncustom_after = 2"]);
+            $original = $event->buildConfiguration();
+            $subscriber->mixer($event);
+            $wrapped = str_replace(
+                [Module::AUTODJ, Module::CROSSFADE],
+                [Module::WRAPPED_AUTODJ, Module::WRAPPED_CROSSFADE],
+                $original
+            );
+            expect($event->buildConfiguration() === $wrapped, 'Wrapping preserves queues and custom blocks.');
+            $event->appendBlock('output.dummy(radio)');
+            Module::replaceLines($event, Module::rollback(explode("\n", $event->buildConfiguration())) ?? []);
+            expect(
+                $event->buildConfiguration()
+                    === str_replace(Module::includeLine(), Module::UNLOADED, $original) . "\n\noutput.dummy(radio)",
+                'Rollback preserves custom blocks and later appended configuration.'
+            );
+        }
         echo "Module loading, fail-safe configuration and live settings passed.\n";
     } finally {
         foreach (glob($directory . '/*') as $path) {

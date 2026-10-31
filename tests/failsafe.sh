@@ -12,7 +12,7 @@ cp "$runtime"/*.liq "$work/upgraded/"
 sed -i 's/autodj_next_song/autodj_next_song_renamed/g' "$work/upgraded/azuracast.liq"
 grep -q 'autodj_next_song_renamed' "$work/upgraded/azuracast.liq"
 
-image=${LIQUIDSOAP_IMAGE:-savonet/liquidsoap:v2.4.5}
+image=${LIQUIDSOAP_IMAGE:-savonet/liquidsoap:v2.4.6}
 binary=${LIQUIDSOAP_BIN:-liquidsoap}
 
 check() {

@@ -120,6 +120,7 @@ foreach ($methods as $class => $names) {
 }
 
 $properties = [
+    'App\Event\Radio\WriteLiquidsoapConfiguration' => ['configLines'],
     'App\Entity\Station' => ['id', 'short_name', 'backend_config'],
     'App\Entity\StationBackendConfiguration' => ['use_manual_autodj', 'enable_replaygain_metadata'],
     'App\Entity\StationMedia' => ['id', 'length', 'song_id', 'artist', 'title'],

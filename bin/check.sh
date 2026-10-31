@@ -31,7 +31,7 @@ docker run --rm --user "$(id -u):$(id -g)" -e npm_config_cache=/tmp/npm-cache \
 if [[ "${1:-}" == "--liquidsoap" ]]; then
     runtime_dir=$(mktemp -d)
     trap 'rm -rf "$runtime_dir"' EXIT
-    revision=19d68c47b1e4d569885ca7cf4c40609cbabefda7
+    revision=0.24.0
     for file in azuracast crossfade utilities; do
         curl --fail --silent --show-error --location \
             "https://raw.githubusercontent.com/AzuraCast/AzuraCast/$revision/util/docker/stations/liquidsoap/$file.liq" \
@@ -39,6 +39,6 @@ if [[ "${1:-}" == "--liquidsoap" ]]; then
     done
     docker run --rm --entrypoint liquidsoap \
         -v "$PWD:/plugin:ro" -v "$runtime_dir:/azuracast:ro" \
-        savonet/liquidsoap:v2.4.5 --check /plugin/tests/liquidsoap.liq
+        savonet/liquidsoap:v2.4.6 --check /plugin/tests/liquidsoap.liq
     bash tests/failsafe.sh "$runtime_dir"
 fi

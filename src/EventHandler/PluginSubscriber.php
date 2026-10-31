@@ -128,9 +128,10 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
 
             return;
         }
-        // Single-line replacements keep AzuraCast's line indexes valid for later listeners.
-        $event->replaceLine($factories[0], Module::WRAPPED_AUTODJ);
-        $event->replaceLine($crossfades[0], Module::WRAPPED_CROSSFADE);
+        Module::replaceLines($event, [
+            $factories[0] => Module::WRAPPED_AUTODJ,
+            $crossfades[0] => Module::WRAPPED_CROSSFADE,
+        ]);
     }
 
     // Runs last: if Liquidsoap rejects the configuration only because of the module, start without it.
@@ -175,9 +176,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
      */
     private function rollback(WriteLiquidsoapConfiguration $event, array $lines): void
     {
-        foreach (Module::rollback($lines) ?? [] as $index => $line) {
-            $event->replaceLine($index, $line);
-        }
+        Module::replaceLines($event, Module::rollback($lines) ?? []);
     }
 
     private function record(
