@@ -8,5 +8,8 @@ def sweepers.sidechain(~blend, music, key) =
         1. - amount + amount * lin_of_dB(control.gain())
     end
     music = amplify(override=null, gain, music)
-    add(normalize=false, [music, source.drop.metadata(control)])
+    let {metadata=music_metadata, track_marks=music_track_marks} = source.tracks(music)
+    mixed = add(normalize=false, [music, source.drop.metadata(control)])
+    let {audio=mixed_audio} = source.tracks(mixed)
+    source({audio=mixed_audio, metadata=music_metadata, track_marks=music_track_marks})
 end

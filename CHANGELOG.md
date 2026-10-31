@@ -1,5 +1,23 @@
 # Release notes
 
+## 1.2.3 - 2026-10-31
+
+### Fixes
+
+- Save intro edits reliably when the custom field already exists.
+- Preserve AzuraCast request queues and multiline custom Liquidsoap configuration
+  when loading or unloading the sweeper module.
+- Preserve song track boundaries so DJ live audio can take over from AutoDJ and
+  return cleanly, including while a sweeper is playing.
+- Playback events and prepared sweepers recorded at the same moment from different
+  Liquidsoap threads are no longer lost, so timeline entries keep their start reason
+  and rotation history records every playback on Liquidsoap 2.5.
+
+### Update notes
+
+- **AzuraCast Broadcast (Liquidsoap) restart: Required** to load the updated module
+  and mixer with preserved song track boundaries.
+
 ## 1.2.2 - 2026-10-30
 
 ### Fixes
