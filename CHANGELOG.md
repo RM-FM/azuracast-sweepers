@@ -1,9 +1,10 @@
 # Release notes
 
-## 1.2.3 - Pending
+## 1.2.3 - 2026-10-31
 
 ### Fixes
 
+- Save intro edits reliably when the custom field already exists.
 - Preserve AzuraCast request queues and multiline custom Liquidsoap configuration
   when loading or unloading the sweeper module.
 - Preserve song track boundaries so DJ live audio can take over from AutoDJ and
