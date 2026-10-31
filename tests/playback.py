@@ -194,7 +194,9 @@ thread.run(delay=7., {{shutdown()}})
         if event['event'] == 'played':
             assert event['jingle_id'] == 9 and event['media_id'] == '1', \
                 ('Playback must retain its identity independently of the server lease', event)
-            start = next(e for e in reported if e['event'] == 'start' and e['token'] == event['token'])
+            start = next((e for e in reported if e['event'] == 'start' and e['token'] == event['token']), None)
+            assert start is not None, ('Playback confirmed without its start event', event,
+                                       [(e['event'], e['token'], e['detail'], e['at']) for e in reported])
             assert start['jingle_id'] == 9 and start['offset'] == event['offset'], (start, event)
             assert event['at'] - start['at'] >= event['offset'] - .15, \
                 ('Prefetch must not report playback before the scheduled start', start, event)

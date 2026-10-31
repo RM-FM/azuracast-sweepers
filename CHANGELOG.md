@@ -1,5 +1,17 @@
 # Release notes
 
+## Pending
+
+### Fixes
+
+- Playback events and prepared sweepers recorded at the same moment from different
+  Liquidsoap threads are no longer lost, so timeline entries keep their start reason
+  and rotation history records every playback on Liquidsoap 2.5.
+
+### Update notes
+
+- **AzuraCast Broadcast (Liquidsoap) restart: Required** to load the updated module.
+
 ## 1.2.2 - 2026-10-30
 
 ### Fixes

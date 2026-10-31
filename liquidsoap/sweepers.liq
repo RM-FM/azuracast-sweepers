@@ -84,13 +84,21 @@ def sweepers.stale_reason(token) =
     if list.mem(token, sweepers.blocked()) then "jingle_follows" else "disabled" end
 end
 
+# The clock, next-song and heartbeat threads update shared lists; Liquidsoap 2.4 has no atomic sections.
+%ifdef atomic
+def sweepers.atomic(f) = atomic(fast=true, f) end
+%else
+def sweepers.atomic(f) = f() end
+%endif
+
 def sweepers.event(~jingle_id=0, ~offset=0., event, token, detail, m) =
-    sweepers.events := list.prefix(128, [{
+    e = {
         event=event, token=token, detail=detail,
         at=time(),
         media_id=m["media_id"], title=m["title"], artist=m["artist"],
         jingle_id=jingle_id, offset=offset
-    }, ...sweepers.events()])
+    }
+    sweepers.atomic(fun () -> sweepers.events := list.prefix(128, [e, ...sweepers.events()]))
 end
 
 def sweepers.notify(~detail="", ~jingle_id=0, ~offset=0., ~metadata=[], event, token) =
@@ -101,7 +109,7 @@ def sweepers.notify(~detail="", ~jingle_id=0, ~offset=0., ~metadata=[], event, t
             sweepers.previous_clear := false
         end
         sweepers.event(jingle_id=jingle_id, offset=offset, event, token, detail, metadata)
-        sweepers.plans := list.assoc.remove(token, sweepers.plans())
+        sweepers.atomic(fun () -> sweepers.plans := list.assoc.remove(token, sweepers.plans()))
     end
 end
 
@@ -311,7 +319,7 @@ def sweepers.heartbeat() =
                 end
             end, result.blocked)
             sweepers.blocked := result.blocked
-            sweepers.events := list.filter(fun (e) -> not list.mem(e, events), sweepers.events())
+            sweepers.atomic(fun () -> sweepers.events := list.filter(fun (e) -> not list.mem(e, events), sweepers.events()))
         end
     catch err do
         log(label="sweepers", "Live settings refresh failed: #{error.message(err)}")
@@ -439,10 +447,11 @@ def sweepers.next_song() =
                         if ready() and sweepers.current(p.token) then
                             log(label="sweepers", "Sweeper prepared for queue #{token}: starts #{p.offset} s after cue-in")
                             list.iter(fun (entry) -> sweepers.notify("release", fst(entry)), list.slice(offset=15, sweepers.plans()))
-                            sweepers.plans := [(token, {
+                            plan = {
                                 source=overlay, ready=true, offset=p.offset, jingle_id=null.get(default=0, p?.jingle_id),
                                 duration=p.duck_duration, duck_gain=p.duck_gain
-                            }), ...list.assoc.remove(token, sweepers.plans())]
+                            }
+                            sweepers.atomic(fun () -> sweepers.plans := [(token, plan), ...list.assoc.remove(token, sweepers.plans())])
                         elsif ready() then
                             sweepers.notify(detail=sweepers.stale_reason(p.token), "release", p.token)
                         end
