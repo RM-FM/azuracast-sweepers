@@ -128,7 +128,7 @@ $properties = [
     'App\Entity\StationPlaylistMedia' => ['id', 'playlist', 'media', 'weight', 'is_queued', 'last_played'],
     'App\Entity\Api\StationPlaylistQueue' => ['spm_id', 'media_id', 'song_id', 'artist', 'title', 'last_played'],
     'App\Entity\StationQueue' => [
-        'id', 'playlist', 'media', 'song_id', 'title', 'artist', 'timestamp_cued', 'timestamp_played',
+        'id', 'playlist', 'media', 'request', 'song_id', 'title', 'artist', 'timestamp_cued', 'timestamp_played',
     ],
     'App\Entity\StationMediaCustomField' => ['field', 'media', 'value'],
     'App\Entity\CustomField' => ['short_name'],

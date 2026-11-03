@@ -8,6 +8,11 @@ let sweepers.duck_start = ref(-1.)
 let sweepers.duck_end = ref(-1.)
 let sweepers.seen = ref([])
 let sweepers.active = ref("")
+let sweepers.current_music_token = ref("")
+let sweepers.current_music_song = ref(false)
+let sweepers.current_music_metadata = ref([])
+let sweepers.pre_roll_active = ref("")
+let sweepers.pre_roll_sweeper = ref(0)
 let sweepers.events = ref([])
 let sweepers.measurements = ref([])
 let sweepers.catalog = ref([])
@@ -164,6 +169,8 @@ def sweepers.next_overlay() =
     if azuracast.live_enabled() and sweepers.active() != "" then
         sweepers.notify("release", sweepers.active())
         sweepers.active := ""
+        sweepers.pre_roll_active := ""
+        sweepers.pre_roll_sweeper := 0
         sweepers.pending := null
         sweepers.duck_end := -1.
         (source.fail() : source)
@@ -409,7 +416,7 @@ def sweepers.next_song() =
                     end
                     if null.defined(response()) then
                         let json.parse (p : {
-                            token: string, jingle_id?: int, uri: string, offset: float,
+                            token: string, jingle_id?: int, uri: string, offset: float, pre_roll?: bool,
                             duck_duration: float, gain: float, duck_gain: float, reverb?: float, length?: float
                         }) = null.get(response())
                         ready = ref(false)
@@ -449,7 +456,8 @@ def sweepers.next_song() =
                             list.iter(fun (entry) -> sweepers.notify("release", fst(entry)), list.slice(offset=15, sweepers.plans()))
                             plan = {
                                 source=overlay, ready=true, offset=p.offset, jingle_id=null.get(default=0, p?.jingle_id),
-                                duration=p.duck_duration, duck_gain=p.duck_gain
+                                duration=p.duck_duration, duck_gain=p.duck_gain,
+                                pre_roll=null.get(default=false, p?.pre_roll)
                             }
                             sweepers.atomic(fun () -> sweepers.plans := [(token, plan), ...list.assoc.remove(token, sweepers.plans())])
                         elsif ready() then
@@ -470,18 +478,46 @@ def sweepers.next_song() =
     end
 end
 
+def sweepers.pre_roll_dynamic(dynamic) =
+    source.dynamic(
+        id="sweepers_pre_roll", self_sync=false, track_sensitive=true, init=dynamic,
+        fun () -> begin
+            if sweepers.pre_roll_active() != "" then
+                null
+            else
+                candidates = list.filter(fun (entry) -> snd(entry).ready and snd(entry).pre_roll,
+                    list.rev(sweepers.plans()))
+                if candidates == [] then
+                    null
+                else
+                    entry = list.hd(candidates)
+                    token = fst(entry)
+                    p = snd(entry)
+                    if sweepers.current(token) then begin
+                        sweepers.pre_roll_active := token
+                        sweepers.pre_roll_sweeper := p.jingle_id
+                        sweepers.active := token
+                        sequence([p.source, dynamic])
+                    end else null end
+                end
+            end
+        end
+    )
+end
+
 def sweepers.enable_autodj(s) =
     if not sweepers.started() then
         sweepers.started := true
         thread.run.recurrent(fast=false, sweepers.refresh_catalog)
         thread.run.recurrent(fast=false, sweepers.heartbeat)
     end
-    dynamic = request.dynamic(
+    request_dynamic = request.dynamic(
         id="next_song",
         timeout=settings.azuracast.request_timeout(),
         retry_delay=10.,
         sweepers.next_song
     )
+    dynamic = sweepers.pre_roll_dynamic(request_dynamic)
 
 # AzuraCast's Liquidsoap 2.5 runtime has wait_for_next_song, and its fallback takes no track_sensitive.
 %ifdef azuracast.wait_for_next_song
@@ -498,7 +534,7 @@ def sweepers.enable_autodj(s) =
 
     s = fallback(id="autodj_fallback", [dynamic_startup, s])
 
-    ref_dynamic = ref(dynamic)
+    ref_dynamic = ref(request_dynamic)
     thread.run.recurrent(delay=0.25, { azuracast.wait_for_next_song(ref_dynamic()) })
 %else
     dynamic_startup = fallback(
@@ -515,7 +551,7 @@ def sweepers.enable_autodj(s) =
 
     s = fallback(id="autodj_fallback", track_sensitive = true, [dynamic_startup, s])
 
-    dynamic.on_track(synchronous=true, fun (_) -> azuracast.autodj_is_loading := false)
+    request_dynamic.on_track(synchronous=true, fun (_) -> azuracast.autodj_is_loading := false)
     thread.run(delay=120., { azuracast.autodj_is_loading := false })
 %endif
 
@@ -529,19 +565,35 @@ def sweepers.mix(music) =
     sweepers.now := now
     music.on_metadata(synchronous=true, fun (m) -> begin
         token = m["sq_id"]
+        isPreRollSweeper = sweepers.pre_roll_active() != "" and token == ""
+            and int_of_string(default=0, m["media_id"]) == sweepers.pre_roll_sweeper()
+        if token != "" and token == sweepers.pre_roll_active() then begin
+            sweepers.pre_roll_active := ""
+            sweepers.pre_roll_sweeper := 0
+        end
+        if token != sweepers.current_music_token() then
+            if sweepers.current_music_song() then
+                sweepers.event("end", sweepers.current_music_token(), "", sweepers.current_music_metadata())
+            end
+            sweepers.current_music_token := token
+            sweepers.current_music_song := token != "" and m["media_id"] != "" and not sweepers.is_jingle(m)
+            sweepers.current_music_metadata := m
+        end
         if token == "" or not list.mem(token, sweepers.seen()) then
             if token != "" then
                 sweepers.seen := list.prefix(64, [token, ...sweepers.seen()])
             end
             reason = sweepers.track_reason(m)
-            if null.defined(sweepers.pending()) then
-                sweepers.notify(detail="skipped", "release", null.get(sweepers.pending()).token)
+            if not isPreRollSweeper then
+                if null.defined(sweepers.pending()) then
+                    sweepers.notify(detail="skipped", "release", null.get(sweepers.pending()).token)
+                end
+                sweepers.notify("release", sweepers.active())
+                sweepers.active := ""
+                sweepers.pending := null
+                sweepers.reset := true
+                sweepers.duck_end := -1.
             end
-            sweepers.notify("release", sweepers.active())
-            sweepers.active := ""
-            sweepers.pending := null
-            sweepers.reset := true
-            sweepers.duck_end := -1.
             planned = list.assoc.mem(token, sweepers.plans())
             # "none": the plugin already decided when planning.
             outcome =

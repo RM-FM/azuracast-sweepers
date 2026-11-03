@@ -584,25 +584,27 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
             node.dispatchEvent(new Event("change", { bubbles: true }));
             await settle();
         };
-        assert.ok([...document.querySelectorAll("legend")].some((node) => node.textContent === "Sweeper Playlists"));
+        assert.ok([...document.querySelectorAll("legend")].some((node) => node.textContent === "Sweeper Routing"));
+        assert.ok([...document.querySelectorAll("legend")].some((node) => node.textContent === "Sweeper Routing"));
         assert.ok(document.querySelector("form.sweepers-settings").classList.contains("form"), "Settings use the native AzuraCast form styles");
         assert.equal(document.querySelectorAll(".sweepers-playlist-picker input[type=checkbox]").length, 0);
-        await openPicker("sweepers-playlist");
-        const addButton = document.getElementById("sweepers-playlist-toggle");
+        const defaultPoolId = "sweepers-route-pool-default";
+        await openPicker(defaultPoolId);
+        const addButton = document.getElementById(defaultPoolId + "-toggle");
         assert.equal(addButton.textContent.trim(), "Add Playlist");
         assert.ok(addButton.classList.contains("btn-primary"), "Add button uses AzuraCast's primary style");
         assert.ok(addButton.classList.contains("btn-sm"), "Add button matches the compact playlist toolbar buttons");
         assert.ok(addButton.querySelector("svg path").getAttribute("d"), "Add button includes its plus icon");
-        assert.deepEqual(playlistLabels("sweepers-playlist-"), ["Sweepers", "Christmas (scheduled)", "Retired (disabled)"],
+        assert.deepEqual(playlistLabels(defaultPoolId + "-"), ["Sweepers", "Christmas (scheduled)", "Retired (disabled)"],
             "Several sweeper playlists can be selected");
         assert.ok(addButton.classList.contains("dropdown-toggle"), "Button includes the native dropdown arrow");
-        const choices = document.getElementById("sweepers-playlist-choices");
+        const choices = document.getElementById(defaultPoolId + "-choices");
         assert.ok(choices.classList.contains("dropdown-menu"), "Selection uses the native dropdown styling");
         assert.equal(choices.querySelector('input[type="search"]'), null, "Playlist selection does not need search");
         assert.equal(choices.querySelector("button"), null, "Dropdown has no Save or Clear buttons");
         const writesBeforeSelection = writes.length;
-        await check("sweepers-playlist-10");
-        await check("sweepers-playlist-11");
+        await check(defaultPoolId + "-10");
+        await check(defaultPoolId + "-11");
         const songBadge = document.querySelector(".sweepers-playlist-picker .playlist-source-badge");
         const picker = addButton.closest(".sweepers-playlist-picker");
         assert.equal(picker.firstElementChild, songBadge.parentElement, "Selected tags stay above the button");
@@ -610,27 +612,53 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.ok(songBadge.classList.contains("gap-1"), "Labels use source badge spacing");
         assert.ok(songBadge.querySelector("svg.sm path"), "Song-based labels include the source icon");
         assert.equal(writes.length, writesBeforeSelection, "Selections update the form without autosaving");
-        assert.ok(document.getElementById("sweepers-playlist-10").checked, "Selected playlist remains checked in the open dropdown");
+        assert.ok(document.getElementById(defaultPoolId + "-10").checked, "Selected playlist remains checked in the open dropdown");
         assert.equal(addButton.getAttribute("aria-expanded"), "true", "Checkbox changes keep the dropdown open");
-        await check("sweepers-playlist-11", false);
+        await check(defaultPoolId + "-11", false);
         assert.equal(document.querySelector('[aria-label="Remove Christmas (scheduled)"]'), null, "Unchecking removes its tag immediately");
-        await check("sweepers-playlist-11");
+        await check(defaultPoolId + "-11");
         document.querySelector('[aria-label="Remove Sweepers"]').click();
         await settle();
-        assert.equal(document.getElementById("sweepers-playlist-10").checked, false, "Removing a tag unchecks its playlist");
+        assert.equal(document.getElementById(defaultPoolId + "-10").checked, false, "Removing a tag unchecks its playlist");
         const escape = new Event("keydown", { bubbles: true });
         escape.key = "Escape";
         choices.dispatchEvent(escape);
         await settle();
         assert.equal(addButton.getAttribute("aria-expanded"), "false", "Escape closes the dropdown");
-        assert.equal(document.getElementById("sweepers-playlist-choices"), null);
-        await openPicker("sweepers-playlist");
+        assert.equal(document.getElementById(defaultPoolId + "-choices"), null);
+        await openPicker(defaultPoolId);
         document.querySelector("h2").dispatchEvent(new Event("pointerdown", { bubbles: true }));
         await settle();
         assert.equal(addButton.getAttribute("aria-expanded"), "false", "Clicking outside closes the dropdown");
-        assert.deepEqual((await submit()).playlist_ids, [11], "Removing a label updates the saved selection");
-        await check("sweepers-playlist-10");
-        assert.deepEqual((await submit()).playlist_ids, [11, 10], "All selected sweeper playlists are saved");
+        assert.deepEqual((await submit()).playlist_ids, [11], "Removing a label updates the Default pool");
+        await check(defaultPoolId + "-10");
+        assert.deepEqual((await submit()).playlist_ids, [11, 10], "The Default pool stays in the legacy field");
+        const addRuleSelect = document.getElementById("sweepers-add-playlist-rule");
+        addRuleSelect.querySelector('option[value="11"]').selected = true;
+        addRuleSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        await settle();
+        await click("Add Playlist Rule");
+        const christmasPoolId = "sweepers-route-pool-playlist-11";
+        await check(christmasPoolId + "-10");
+        await change("Allow pre-roll", true, true);
+        assert.equal(document.querySelectorAll('input[id^="sweepers-max-preroll-"]').length, 0,
+            "Pre-roll has no configurable duration limit");
+        assert.equal(document.querySelectorAll('.sweepers-route .alert-warning[role="note"]').length, 1,
+            "Pre-roll warns when it disables song matching for a regular route");
+        const requestPreRoll = document.getElementById("sweepers-placement-preroll-listener_request");
+        requestPreRoll.checked = true;
+        requestPreRoll.dispatchEvent(new Event("change", { bubbles: true }));
+        await settle();
+        assert.equal(document.querySelectorAll('.sweepers-route .alert-warning[role="note"]').length, 1,
+            "Listener Request pre-roll does not show the matching warning");
+        await change("Minimum intervening songs", "3");
+        await change("Minimum elapsed minutes", "10");
+        const routedSettings = await submit();
+        assert.deepEqual(routedSettings.sweeper_routes.map((route) => route.key), ["default", "listener_request", "playlist:11"]);
+        assert.deepEqual(routedSettings.sweeper_routes.find((route) => route.key === "playlist:11").playlist_ids, [10]);
+        assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "default").pre_roll, true);
+        assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "listener_request").cooldown_songs, 3);
+        assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "listener_request").cooldown_minutes, 10);
         assert.equal(first.sweeper_gap, 1, "One other sweeper before a repeat by default");
         assert.equal(first.reverb, false, "Reverb is off by default");
         assert.ok(![...document.querySelectorAll("section.card label")].some((node) => node.textContent.includes("Reverb intensity")),
@@ -751,8 +779,8 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         assert.equal(status.querySelector("legend").textContent, "Status");
         assert.equal(status.closest('[role="tabpanel"]'), panel("general"));
         assert.deepEqual([...panel("general").querySelectorAll(":scope > fieldset > legend, :scope > .row > fieldset > legend")].map((node) => node.textContent),
-            ["Status", "Sweeper Playlists", "Exclude Playlists from Sweepers"]);
-        const sweeperColumn = document.getElementById("sweepers-playlist-toggle").closest("fieldset");
+            ["Status", "Sweeper Routing", "Exclude Playlists from Sweepers"]);
+        const sweeperColumn = document.getElementById("sweepers-route-pool-default-toggle").closest("fieldset");
         const excludedColumn = document.getElementById("sweepers-excluded-toggle").closest("fieldset").parentElement.closest("fieldset");
         assert.ok(sweeperColumn.classList.contains("col-12"));
         assert.ok(excludedColumn.classList.contains("col-12"));
@@ -910,7 +938,7 @@ test("playback timeline lists all tracks, highlights songs with a sweeper and ex
         assert.equal(cell(all[3], 1).querySelector(".timeline-moved").getAttribute("title"), "Queen – Bohemian Rhapsody");
         assert.deepEqual(parts(all[3], 3), ["Dropin 03 (no ads)", "RadioMonster.FM"]);
         assert.equal(cell(all[3], 4).textContent.trim(), "12.3 s ✎", "The song's intro end is shown");
-        assert.equal(cell(all[3], 5).textContent.trim(), "9.7 s");
+        assert.equal(cell(all[3], 5).textContent.trim(), "9.7 s after song");
         assert.equal(cell(all[1], 4).textContent.trim(), "Set ✎", "A missing intro end can be set");
         assert.equal(cell(all[2], 4).querySelector("button"), null, "Jingles have no intro to edit");
         assert.equal(cell(all[1], 5).textContent.trim(), "", "No start time without a sweeper");
@@ -925,7 +953,7 @@ test("playback timeline lists all tracks, highlights songs with a sweeper and ex
         assert.deepEqual(parts(all[7], 3), ["No planning decision recorded"]);
         assert.doesNotMatch(document.querySelector("#app").textContent, /station just started/);
         assert.deepEqual([...document.querySelectorAll("#app thead th")].map((th) => th.textContent.trim()),
-            ["Date/Time (Station)", "Track", "Sweeper Status", "Sweeper or Reason", "Intro", "Started After"]);
+            ["Date/Time (Station)", "Track", "Sweeper Status", "Sweeper or Reason", "Intro", "Sweeper Timing"]);
         const text = document.querySelector("#app").textContent;
         assert.doesNotMatch(text, /All played tracks|newest first|last 300/);
         const query = () => new URL(historyRequests.at(-1), "http://localhost").searchParams;
@@ -1013,14 +1041,14 @@ test("reverb preview plays the selected sweeper and follows the reverb settings 
     const button = () => document.querySelector(".sweepers-preview button");
     try {
         await settle();
-        assert.match(document.querySelector(".sweepers-preview").textContent, /Choose a sweeper playlist in General/);
+        assert.match(document.querySelector(".sweepers-preview").textContent, /Choose a sweeper pool in General/);
         assert.ok(button().disabled, "Nothing to play without a sweeper playlist");
         const playlist = async (id) => {
-            if (!document.getElementById("sweepers-playlist-choices")) {
-                document.getElementById("sweepers-playlist-toggle").click();
+            if (!document.getElementById("sweepers-route-pool-default-choices")) {
+                document.getElementById("sweepers-route-pool-default-toggle").click();
                 await settle();
             }
-            const node = document.getElementById(`sweepers-playlist-${id}`);
+            const node = document.getElementById(`sweepers-route-pool-default-${id}`);
             node.checked = true;
             node.dispatchEvent(new Event("change", { bubbles: true }));
             await settle();

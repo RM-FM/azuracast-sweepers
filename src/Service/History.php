@@ -101,6 +101,12 @@ final class History
             'sweeper' => $files[(int)($entry['jingle_id'] ?? 0)] ?? null,
             'offset' => ($entry['result'] ?? 'played') === 'played' && isset($entry['offset'])
                 ? (float)$entry['offset'] : null,
+            'song_delay' => isset($entry['song_delay']) ? (float)$entry['song_delay'] : null,
+            'pre_roll' => (bool)($entry['pre_roll'] ?? false),
+            'route_key' => isset($entry['route_key']) ? (string)$entry['route_key'] : null,
+            'song_started_at' => isset($entry['song_started_at']) ? (float)$entry['song_started_at'] : null,
+            'sweeper_started_at' => isset($entry['sweeper_started_at'])
+                ? (float)$entry['sweeper_started_at'] : null,
             // Older entries only recorded played sweepers.
             'result' => (string)($entry['result'] ?? 'played'),
             'upcoming' => (bool)($entry['upcoming'] ?? false),

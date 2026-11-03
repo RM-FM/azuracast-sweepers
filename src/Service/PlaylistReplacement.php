@@ -145,7 +145,7 @@ final readonly class PlaylistReplacement
             if (
                 $candidate->media_id === $target['media_id']
                 || in_array($candidate->song_id, $reserved, true)
-                || !$usable($candidate->media_id)
+                || !$usable($candidate->media_id, ['playlist_id' => $playlist->id, 'request_id' => null])
             ) {
                 continue;
             }

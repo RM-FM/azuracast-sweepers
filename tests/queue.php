@@ -220,6 +220,9 @@ namespace {
     );
     $expect([$queue->upcoming($mover, '99'), $queue->upcoming($mover, '')], [null, null], 'Unknown counted song.');
     $expect([$rows[32]['playlist_chain'], $rows[31]['playlist_chain']], [['00 - Rotation', 'Full Day Mix'], []], 'Chain.');
+        $expect($queue->context($mover, '34'), ['playlist_id' => null, 'request_id' => 4], 'Native request context.');
+        $expect($queue->context($mover, '32'), ['playlist_id' => 1, 'request_id' => null], 'Playlist context.');
+        $expect($queue->context($mover, '99'), null, 'Missing queue context.');
     $withoutGroup = new Settings(excludedPlaylistIds: [9]);
     $expect($queue->excludedNames($mover, $withoutGroup), ['00 - Rotation'], 'Excluded names of this station only.');
     $expect(

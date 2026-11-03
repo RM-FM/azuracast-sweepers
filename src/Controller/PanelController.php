@@ -126,7 +126,7 @@ final readonly class PanelController
             if ($station->backend_config->use_manual_autodj) {
                 throw new InvalidArgumentException('Sweepers require AzuraCast AutoDJ queue management.');
             }
-            $this->media->validateSweeperPlaylists($station, $settings->playlistIds);
+            $this->media->validateSweeperPlaylists($station, $settings->allSweeperPlaylistIds());
         }
 
         $this->media->validateJinglePlaylists(

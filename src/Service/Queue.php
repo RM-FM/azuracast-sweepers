@@ -132,6 +132,30 @@ final readonly class Queue
             ->getSingleColumnResult());
     }
 
+    public function context(Station $station, string $token): ?array
+    {
+        if (!preg_match('/^\d{1,20}$/D', $token)) {
+            return null;
+        }
+        $rows = $this->em->createQuery(
+            <<<'DQL'
+                SELECT IDENTITY(sq.playlist) AS playlist_id, IDENTITY(sq.request) AS request_id
+                FROM App\Entity\StationQueue sq
+                WHERE sq.station = :station AND sq.id = :id
+            DQL
+        )->setParameter('station', $station)
+            ->setParameter('id', (int)$token)
+            ->getArrayResult();
+        if ($rows === []) {
+            return null;
+        }
+
+        return [
+            'playlist_id' => $rows[0]['playlist_id'] === null ? null : (int)$rows[0]['playlist_id'],
+            'request_id' => $rows[0]['request_id'] === null ? null : (int)$rows[0]['request_id'],
+        ];
+    }
+
     public function excluded(Station $station, string $token, Settings $settings): bool
     {
         if ($settings->excludedPlaylistIds === [] || !preg_match('/^\d{1,20}$/D', $token)) {

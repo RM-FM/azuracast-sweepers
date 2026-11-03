@@ -22,6 +22,7 @@ namespace App\Entity {
 namespace Plugin\AzuracastSweepers\Service {
     use App\Entity\Station;
     use Plugin\AzuracastSweepers\ValueObject\Settings;
+    use Plugin\AzuracastSweepers\ValueObject\SweeperRoute;
 
     final class Media
     {
@@ -101,6 +102,11 @@ namespace Plugin\AzuracastSweepers\Service {
             return $this->rows;
         }
 
+        public function context(Station $station, string $token): ?array
+        {
+            return ['playlist_id' => 1, 'request_id' => null];
+        }
+
         public function exchange(Station $station, int $first, int $second): bool
         {
             $this->exchanges[] = [$first, $second];
@@ -144,6 +150,7 @@ namespace {
     use Plugin\AzuracastSweepers\Service\Schedule;
     use Plugin\AzuracastSweepers\Service\State;
     use Plugin\AzuracastSweepers\ValueObject\Settings;
+    use Plugin\AzuracastSweepers\ValueObject\SweeperRoute;
     use Plugin\AzuracastSweepers\ValueObject\Timing;
 
     require dirname(__DIR__) . '/vendor/autoload.php';
@@ -186,6 +193,48 @@ namespace {
     try {
         $reset(false, false);
         $check($arrange() === $none && $replacement->targets === [] && $queue->exchanges === [], 'Both disabled.');
+        $reset(true, true);
+        $queue->rows[0]['request_id'] = 4;
+        $check(
+            $arrange() === $none && $queue->exchanges === [] && $replacement->targets === []
+                && $state->read($directory)['unmoved']['21']['reason'] === 'move_request',
+            'A listener request stays in its queue slot.'
+        );
+        $reset(true, false);
+        $queue->rows[1]['request_id'] = 4;
+        $check(
+            $arrange() === $none && $queue->exchanges === [],
+            'A listener request cannot be moved ahead of another song.'
+        );
+        $reset(true, true);
+        $state->update($directory, static fn(): array => ['settings' => (new Settings(
+            playlistIds: [9],
+            swapForIntro: true,
+            swapFromPlaylist: true,
+            sweeperRoutes: [
+                new SweeperRoute(SweeperRoute::DEFAULT, [9], preRoll: true),
+                new SweeperRoute(SweeperRoute::LISTENER_REQUEST),
+            ]
+        ))->toArray()]);
+        $check(
+            $arrange() === $none && $queue->exchanges === [] && $replacement->targets === []
+                && $state->read($directory)['unmoved']['21']['reason'] === 'move_pre_roll',
+            'A pre-roll target stays in its queue slot.'
+        );
+        $reset(true, false);
+        $queue->rows[1]['playlist_id'] = 2;
+        $state->update($directory, static fn(): array => ['settings' => (new Settings(
+            playlistIds: [9],
+            swapForIntro: true,
+            sweeperRoutes: [
+                new SweeperRoute(SweeperRoute::DEFAULT, [9]),
+                new SweeperRoute('playlist:2', [], preRoll: true),
+            ]
+        ))->toArray()]);
+        $check(
+            $arrange() === $none && $queue->exchanges === [],
+            'A pre-roll candidate is not moved into another slot.'
+        );
         foreach ([false, true] as $fallback) {
             $reset(true, $fallback);
             $check(
@@ -317,7 +366,7 @@ namespace {
         $queue->rows[0]['request_id'] = 4;
         $check(
             $arrange() === $none && $replacement->targets === []
-                && $state->read($directory)['unmoved']['21']['reason'] === 'move_none',
+                && $state->read($directory)['unmoved']['21']['reason'] === 'move_request',
             'An ineligible replacement retains the original forward-move failure reason.'
         );
         $reset(true, true);
