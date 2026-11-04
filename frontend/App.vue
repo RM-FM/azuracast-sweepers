@@ -50,37 +50,10 @@
                         </div>
                     </fieldset>
                     <div class="row g-4 mt-0">
-                    <fieldset class="form-group col-12" aria-describedby="sweepers-routing-help">
-                        <legend>Sweeper Routing</legend>
-                        <p id="sweepers-routing-help" class="form-text sweepers-section-text">Each song uses one sweeper pool: songs from a playlist with its own rule use that rule, and all other songs use Default. Listener requests have their own tab. Schedules still apply; playlists in the same pool share one rotation.</p>
-                        <section v-if="defaultRoute" class="sweepers-route-block border-top pt-3 pb-4" data-route-key="default">
-                            <h3 class="h6 mb-3">Default</h3>
-                            <SweeperRoute :route="defaultRoute" title="Default" :playlists="playlists" :label="playlistLabel" />
-                        </section>
-                        <section class="sweepers-route-block border-top pt-3">
-                            <h3 class="h6 mb-1">Song Playlist Rules</h3>
-                            <p class="form-text sweepers-section-text">Give songs from one playlist their own sweeper pool, for example a Christmas playlist. Rules are collapsed; open one to edit it.</p>
-                            <div v-if="playlistRoutes.length" class="accordion sweepers-playlist-rules mb-3">
-                                <div v-for="route in playlistRoutes" :key="route.key" class="accordion-item" :data-route-key="route.key">
-                                    <h4 class="accordion-header">
-                                        <button :id="'sweepers-rule-toggle-' + routeId(route.key)" class="accordion-button" :class="{ collapsed: !isRuleOpen(route.key) }" type="button" :aria-expanded="isRuleOpen(route.key)" :aria-controls="'sweepers-rule-' + routeId(route.key)" @click="toggleRule(route.key)">
-                                            <span class="flex-fill">{{ routePlaylistName(route.key) }}</span>
-                                            <span class="sweepers-rule-summary small me-3">{{ routeSummary(route) }}</span>
-                                        </button>
-                                    </h4>
-                                    <div v-show="isRuleOpen(route.key)" :id="'sweepers-rule-' + routeId(route.key)" class="accordion-collapse" role="region" :aria-labelledby="'sweepers-rule-toggle-' + routeId(route.key)">
-                                        <div class="accordion-body">
-                                            <SweeperRoute :route="route" :title="routeTitle(route.key)" :playlists="playlists" :label="playlistLabel" />
-                                            <div class="buttons mt-3">
-                                                <button type="button" class="btn btn-sm btn-danger" :aria-label="'Remove ' + routeTitle(route.key) + ' rule'" @click="removePlaylistRule(route.key)"><Icon name="delete" /><span>Remove Rule</span></button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <PlaylistPicker id="sweepers-playlist-rule" :model-value="ruledPlaylistIds" title="Song playlists" :playlists="ruleCandidates" :tags="false" locked close-on-select button-label="Add Playlist Rule" @update:model-value="addPlaylistRules" />
-                            <div class="form-text">Song playlists that are not a sweeper pool, jingle or excluded playlist. Playlists with a rule are ticked.</div>
-                        </section>
+                    <fieldset class="form-group col-12" aria-describedby="sweepers-pool-help">
+                        <legend>Sweeper Pool</legend>
+                        <p id="sweepers-pool-help" class="form-text sweepers-section-text">Sweepers for all songs. Listener requests and songs from playlists with their own rule can use other sweepers on the Sweeper Rules tab. Schedules still apply; playlists in the same pool share one rotation.</p>
+                        <SweeperRoute v-if="defaultRoute" :route="defaultRoute" title="Default" :playlists="playlists" :label="playlistLabel" />
                     </fieldset>
 
                     <fieldset class="form-group col-12">
@@ -96,12 +69,37 @@
                     </div>
                     </div>
 
-                    <div id="sweepers-panel-requests" v-show="settingsTab === 'requests'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-requests" data-settings-tab="requests">
+                    <div id="sweepers-panel-rules" v-show="settingsTab === 'rules'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-rules" data-settings-tab="rules">
                     <div class="row g-4">
                     <fieldset v-if="requestRoute" class="form-group col-12" data-route-key="listener_request">
                         <legend>Listener Requests</legend>
                         <p class="form-text sweepers-section-text">Sweepers for songs that listeners requested, for example one that announces the request.</p>
                         <SweeperRoute :route="requestRoute" title="Listener Request" :playlists="playlists" :label="playlistLabel" />
+                    </fieldset>
+
+                    <fieldset class="form-group col-12">
+                        <legend>Song Playlist Rules</legend>
+                        <p class="form-text sweepers-section-text">Give songs from one playlist their own sweepers, for example a Christmas playlist. Rules are collapsed; open one to edit it.</p>
+                        <div v-if="playlistRoutes.length" class="accordion sweepers-playlist-rules mb-3">
+                            <div v-for="route in playlistRoutes" :key="route.key" class="accordion-item" :data-route-key="route.key">
+                                <h3 class="accordion-header">
+                                    <button :id="'sweepers-rule-toggle-' + routeId(route.key)" class="accordion-button" :class="{ collapsed: !isRuleOpen(route.key) }" type="button" :aria-expanded="isRuleOpen(route.key)" :aria-controls="'sweepers-rule-' + routeId(route.key)" @click="toggleRule(route.key)">
+                                        <span class="flex-fill">{{ routePlaylistName(route.key) }}</span>
+                                        <span class="sweepers-rule-summary small me-3">{{ routeSummary(route) }}</span>
+                                    </button>
+                                </h3>
+                                <div v-show="isRuleOpen(route.key)" :id="'sweepers-rule-' + routeId(route.key)" class="accordion-collapse" role="region" :aria-labelledby="'sweepers-rule-toggle-' + routeId(route.key)">
+                                    <div class="accordion-body">
+                                        <SweeperRoute :route="route" :title="routeTitle(route.key)" :playlists="playlists" :label="playlistLabel" />
+                                        <div class="buttons mt-3">
+                                            <button type="button" class="btn btn-sm btn-danger" :aria-label="'Remove ' + routeTitle(route.key) + ' rule'" @click="removePlaylistRule(route.key)"><Icon name="delete" /><span>Remove Rule</span></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <PlaylistPicker id="sweepers-playlist-rule" :model-value="ruledPlaylistIds" title="Song playlists" :playlists="ruleCandidates" :tags="false" locked close-on-select button-label="Add Playlist Rule" @update:model-value="addPlaylistRules" />
+                        <div class="form-text">Song playlists that are not a sweeper pool, jingle or excluded playlist. Playlists with a rule are ticked.</div>
                     </fieldset>
                     </div>
                     </div>
@@ -552,7 +550,7 @@ const props = defineProps({
 });
 const views = [["settings", "Settings"], ["intros", "Intro Manager"], ["history", "Playback Timeline"]];
 const current = ref(views.some(([key]) => key === props.view) ? props.view : "settings");
-const settingsTabs = [["general", "General"], ["requests", "Listener Requests"], ["spacing", "Spacing & Jingles"], ["selection", "Selection & Timing"], ["audio", "Audio & Preview"]];
+const settingsTabs = [["general", "General"], ["rules", "Sweeper Rules"], ["spacing", "Spacing & Jingles"], ["selection", "Selection & Timing"], ["audio", "Audio & Preview"]];
 const settingsTab = ref("general");
 
 function settingsTabKey(event) {

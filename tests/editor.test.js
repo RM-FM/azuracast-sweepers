@@ -586,8 +586,9 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
             node.dispatchEvent(new Event("change", { bubbles: true }));
             await settle();
         };
-        assert.ok([...document.querySelectorAll("legend")].some((node) => node.textContent === "Sweeper Routing"));
-        assert.ok([...document.querySelectorAll("legend")].some((node) => node.textContent === "Sweeper Routing"));
+        assert.ok([...document.querySelectorAll("legend")].some((node) => node.textContent === "Sweeper Pool"));
+        assert.equal(document.getElementById("sweepers-playlist-rule-toggle").closest('[role="tabpanel"]').id, "sweepers-panel-rules",
+            "Song playlist rules sit on the Sweeper Rules tab");
         assert.ok(document.querySelector("form.sweepers-settings").classList.contains("form"), "Settings use the native AzuraCast form styles");
         assert.equal(document.querySelectorAll(".sweepers-playlist-picker input[type=checkbox]").length, 0);
         const defaultPoolId = "sweepers-route-pool-default";
@@ -663,7 +664,7 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         }
         await settle();
         assert.equal(document.getElementById("sweepers-cooldown-songs-listener_request").closest('[role="tabpanel"]').id,
-            "sweepers-panel-requests", "Listener Requests have their own settings tab");
+            "sweepers-panel-rules", "Listener Requests are configured on the Sweeper Rules tab");
         const routedSettings = await submit();
         assert.deepEqual(routedSettings.sweeper_routes.map((route) => route.key), ["default", "listener_request", "playlist:30"]);
         assert.deepEqual(routedSettings.sweeper_routes.find((route) => route.key === "playlist:30").playlist_ids, [10]);
@@ -692,7 +693,8 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         await settle();
         assert.equal(ruleToggle.getAttribute("aria-expanded"), "false");
         assert.equal(ruleBody.style.display, "none", "Playlist rules collapse");
-        assert.equal(document.querySelectorAll(".sweepers-route-block > h3")[0].textContent, "Default");
+        assert.ok(document.getElementById("sweepers-route-pool-default-toggle").closest('[role="tabpanel"]').id === "sweepers-panel-general",
+            "The Default pool stays on General");
         assert.equal(document.querySelector('#sweepers-panel-general [data-route-key="listener_request"]'), null,
             "General no longer shows Listener Request settings");
         assert.ok(document.getElementById("sweepers-cooldown-songs-listener_request").parentElement.classList.contains("col-sm-6"),
@@ -787,7 +789,7 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         await settle();
         const nav = document.querySelector('[aria-label="Sweeper settings"]');
         const tabs = [...nav.querySelectorAll('[role="tab"]')];
-        assert.deepEqual(tabs.map((tab) => tab.textContent), ["General", "Listener Requests", "Spacing & Jingles", "Selection & Timing", "Audio & Preview"]);
+        assert.deepEqual(tabs.map((tab) => tab.textContent), ["General", "Sweeper Rules", "Spacing & Jingles", "Selection & Timing", "Audio & Preview"]);
         const panel = (key) => document.getElementById("sweepers-panel-" + key);
         assert.notEqual(panel("general").style.display, "none");
         assert.equal(panel("audio").style.display, "none");
@@ -817,7 +819,7 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         assert.equal(status.querySelector("legend").textContent, "Status");
         assert.equal(status.closest('[role="tabpanel"]'), panel("general"));
         assert.deepEqual([...panel("general").querySelectorAll(":scope > fieldset > legend, :scope > .row > fieldset > legend")].map((node) => node.textContent),
-            ["Status", "Sweeper Routing", "Exclude Playlists from Sweepers"]);
+            ["Status", "Sweeper Pool", "Exclude Playlists from Sweepers"]);
         const sweeperColumn = document.getElementById("sweepers-route-pool-default-toggle").closest("fieldset");
         const excludedColumn = document.getElementById("sweepers-excluded-toggle").closest("fieldset").parentElement.closest("fieldset");
         assert.ok(sweeperColumn.classList.contains("col-12"));
