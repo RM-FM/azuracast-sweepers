@@ -1,5 +1,37 @@
 # Release notes
 
+## 1.3.0 - 2026-11-04
+
+### Features
+
+- **Sweeper Rules:** give listener requests and songs from selected song playlists
+  their own sweeper pools. Each rule has its own placement, can follow or ignore the
+  station's song spacing, can choose whether its sweepers delay station sweepers, and
+  can keep a minimum number of songs or minutes between its sweepers. Listener requests
+  ignore station spacing and allow pre-roll by default.
+- **Pre-roll:** when no sweeper fits a song's intro, a rule can play one before the
+  song. It starts where the crossfade begins, and the song follows at the sweeper's
+  handover; if that crossfade does not happen, the sweeper is skipped rather than
+  played over the vocals.
+- **Linked sweepers and jingles:** link tracks that say the same, for example
+  differently produced versions. While a linked sweeper is planned or has played,
+  AzuraCast's jingle rotation holds back its linked jingles; a linked jingle that
+  plays counts as played for its sweepers; a linked jingle that still comes up is
+  swapped for another from its playlist. Suggest Links proposes groups by title.
+
+### Improvements
+
+- Settings are reorganized: General keeps the station's sweeper pool, the new Sweeper
+  Rules tab holds listener requests and collapsible song playlist rules, and options
+  explain their effect in plain terms.
+
+### Update notes
+
+- **AzuraCast Broadcast (Liquidsoap) restart: Required** to load the pre-roll
+  transition and per-rule song spacing in the sweeper module.
+- Existing settings are kept: the selected sweeper playlists become the Default pool,
+  and listener requests use it until a Listener Request pool is chosen.
+
 ## 1.2.3 - 2026-10-31
 
 ### Fixes
