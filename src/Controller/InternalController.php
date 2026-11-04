@@ -9,12 +9,14 @@ use App\Http\Response;
 use App\Http\ServerRequest;
 use InvalidArgumentException;
 use Plugin\AzuracastSweepers\Service\Arranger;
+use Plugin\AzuracastSweepers\Service\LinkSync;
 use Plugin\AzuracastSweepers\Service\Media;
 use Plugin\AzuracastSweepers\Service\Planner;
 use Plugin\AzuracastSweepers\Service\State;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
 use Plugin\AzuracastSweepers\ValueObject\Timing;
 use Psr\Http\Message\ResponseInterface;
+use Throwable;
 
 final readonly class InternalController
 {
@@ -22,7 +24,8 @@ final readonly class InternalController
         private Media $media,
         private Planner $planner,
         private State $state,
-        private Arranger $arranger
+        private Arranger $arranger,
+        private LinkSync $linkSync
     ) {
     }
 
@@ -49,7 +52,7 @@ final readonly class InternalController
         $settings = Settings::fromArray($data['settings'] ?? []);
         $jobs = [];
         if ($settings->enabled) {
-            foreach ($this->media->jingles($station, $settings->playlistIds) as $jingle) {
+            foreach ($this->media->jingles($station, $settings->allSweeperPlaylistIds()) as $jingle) {
                 $jobs[] = [
                     'media_id' => $jingle->id,
                     'identity' => $this->media->timingIdentity($station, $jingle),
@@ -74,14 +77,20 @@ final readonly class InternalController
         $data = $this->state->read($station->getRadioConfigDir());
         $settings = Settings::fromArray($data['settings'] ?? []);
 
-        return $response->withJson($this->planner->plan(
+        $plan = $this->planner->plan(
             $request->getStation(),
             (int)$body['media_id'],
             (string)($body['token'] ?? ''),
             (float)$body['cue_in'],
             (float)$body['cue_out'],
             $this->measurements($station, $settings, $body['jingles'] ?? [])
-        ));
+        );
+        if ($settings->links->groups !== []) {
+            // A short budget: the module waits for this response. The next heartbeat catches up.
+            $this->reconcileLinks($station, $settings, 0.2);
+        }
+
+        return $response->withJson($plan);
     }
 
     public function arrangeAction(ServerRequest $request, Response $response, array $params): ResponseInterface
@@ -109,17 +118,27 @@ final readonly class InternalController
             throw new InvalidArgumentException('Invalid release_spacing.');
         }
         $station = $request->getStation();
+        $started = hrtime(true);
         $settings = Settings::fromArray($this->state->read($station->getRadioConfigDir())['settings'] ?? []);
+        if ($settings->enabled && $settings->links->groups !== []) {
+            $this->syncLinks(
+                $station,
+                fn(int $deadline) => $this->linkSync->beforeSend($station, $settings, $deadline),
+                (float)$budget / 2
+            );
+        }
         if (!$settings->enabled || (!$settings->swapForIntro && !$settings->swapFromPlaylist)) {
             return $response->withJson(['moved' => '', 'before' => '', 'replaced' => '']);
         }
+        // Link sync and song matching share the budget the module waits for.
+        $remaining = max(0.1, (float)$budget - (hrtime(true) - $started) / 1_000_000_000);
 
         return $response->withJson($this->arranger->arrange(
             $station,
             $gap,
             (string)($body['counted'] ?? ''),
             $this->measurements($station, $settings, $body['jingles'] ?? []),
-            (float)$budget,
+            $remaining,
             $releaseSpacing
         ));
     }
@@ -130,7 +149,7 @@ final readonly class InternalController
     private function measurements(Station $station, Settings $settings, mixed $rows): array
     {
         $allowed = [];
-        foreach ($this->media->jingles($station, $settings->playlistIds) as $jingle) {
+        foreach ($this->media->jingles($station, $settings->allSweeperPlaylistIds()) as $jingle) {
             $allowed[$jingle->id] = $jingle;
         }
         $measurements = [];
@@ -154,18 +173,49 @@ final readonly class InternalController
     public function heartbeatAction(ServerRequest $request, Response $response, array $params): ResponseInterface
     {
         $body = $this->payload($request);
+        $station = $request->getStation();
         $result = $this->planner->heartbeat(
-            $request->getStation(),
+            $station,
             $body['tokens'] ?? [],
             $body['events'] ?? [],
             $body['version'] ?? null
         );
+        $settings = $result['settings'];
+        if ($settings->enabled && $result['played'] !== [] && $settings->links->groups !== []) {
+            $this->syncLinks(
+                $station,
+                fn(int $deadline) => $this->linkSync->sweepersPlayed($station, $settings, $result['played'], $deadline),
+                1.0
+            );
+        }
+        // Also when sweepers or links were switched off: reserved jingles then return to their rotation.
+        $this->reconcileLinks($station, $settings, 1.0);
 
         return $response->withJson([
             'success' => true,
-            'settings' => $result['settings']->runtime(),
+            'settings' => $settings->runtime(),
             'blocked' => $result['blocked'],
         ]);
+    }
+
+    private function reconcileLinks(Station $station, Settings $settings, float $budgetSeconds): void
+    {
+        $this->syncLinks(
+            $station,
+            fn(int $deadline) => $this->linkSync->reconcile($station, $settings, $deadline),
+            $budgetSeconds
+        );
+    }
+
+    // Link sync is best effort: the station's playback must never depend on it.
+    private function syncLinks(Station $station, callable $sync, float $budgetSeconds): void
+    {
+        try {
+            $sync(hrtime(true) + (int)($budgetSeconds * 1_000_000_000));
+        } catch (Throwable $exception) {
+            error_log('AzuraCast Sweepers: linked jingle sync skipped for station ' . $station->id . ': '
+                . $exception->getMessage());
+        }
     }
 
     public function playedAction(ServerRequest $request, Response $response, array $params): ResponseInterface

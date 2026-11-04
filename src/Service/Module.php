@@ -13,7 +13,7 @@ final class Module
     public const string AUTODJ = 'radio = azuracast.enable_autodj(radio)';
     public const string CROSSFADE = 'radio = azuracast.apply_crossfade(radio)';
     public const string WRAPPED_AUTODJ = 'radio = sweepers.enable_autodj(radio)';
-    public const string WRAPPED_CROSSFADE = 'radio = sweepers.mix(azuracast.apply_crossfade(radio))';
+    public const string WRAPPED_CROSSFADE = 'radio = sweepers.mix(sweepers.apply_crossfade(radio))';
     public const string UNLOADED = '# AzuraCast Sweepers not loaded; see the Sweepers page.';
     private const string LOAD = 'sweepers.load(';
     // Heartbeats are recorded at most every 30 s and sent every 5 s.

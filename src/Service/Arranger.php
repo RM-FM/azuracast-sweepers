@@ -46,7 +46,8 @@ final readonly class Arranger
         ) {
             return $none;
         }
-        $active = $this->media->jingles($station, $this->schedule->active($station, $settings->playlistIds));
+        $poolIds = $settings->allSweeperPlaylistIds();
+        $active = $this->media->jingles($station, $this->schedule->active($station, $poolIds));
         if ($active === []) {
             return $none;
         }
@@ -97,8 +98,22 @@ final readonly class Arranger
         );
 
         $known = [];
-        $usable = function (int $mediaId) use ($station, $settings, $timings, &$known): bool {
-            return $known[$mediaId] ??= $this->usable($station, $mediaId, $settings, $timings);
+        $usable = function (int $mediaId, ?array $row = null) use ($station, $settings, $timings, &$known): bool {
+            $route = $row === null
+                ? $settings->routeFor(null, false)
+                : $settings->routeFor($row['playlist_id'], $row['request_id'] !== null);
+            $routeActive = $this->schedule->active($station, $route->playlistIds);
+            if ($route->playlistIds !== [] && $routeActive === []) {
+                return false;
+            }
+            $routeJingles = $this->media->jingles($station, $routeActive);
+            $routeTimings = array_intersect_key(
+                $timings,
+                array_flip(array_map(static fn($jingle): int => $jingle->id, $routeJingles))
+            );
+            $key = $route->key . ':' . $mediaId;
+
+            return $known[$key] ??= $this->usable($station, $mediaId, $settings, $routeTimings);
         };
         $blocked = null;
         $choice = $settings->swapForIntro
@@ -129,7 +144,7 @@ final readonly class Arranger
                     $target,
                     $counted,
                     $settings,
-                    $usable,
+                    static fn(int $id): bool => $usable($id, $target),
                     $replacementReason,
                     $deadline
                 );

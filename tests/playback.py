@@ -22,14 +22,14 @@ parser.add_argument('--scenario', choices=['normal', 'skip', 'live', 'live-switc
                                           'before-jingle', 'computed-autocue', 'provided-autocue', 'station-autocue',
                                           'amplify-off', 'replaygain', 'arrange', 'reverb',
                                           'plan-retry', 'plan-lost-response', 'heartbeat-outage',
-                                          'reverb-pending', 'reverb-skip'], default='normal')
+                                          'reverb-pending', 'reverb-skip', 'pre-roll', 'independent-spacing'], default='normal')
 parser.add_argument('--runtime', type=Path, required=True)
 args = parser.parse_args()
 plugin = Path(__file__).resolve().parents[1]
 rate = 44100
 live_switch = args.scenario.startswith('live-switch')
 takeover_delay = 1.6 if args.scenario == 'live-switch' else .8
-spacing = args.scenario in ('spacing', 'playlist-spacing')
+spacing = args.scenario in ('spacing', 'playlist-spacing', 'independent-spacing')
 autocue = args.scenario in ('computed-autocue', 'provided-autocue', 'station-autocue', 'amplify-off', 'replaygain')
 short_tracks = spacing or autocue or args.scenario in ('hot-enable', 'arrange', 'heartbeat-outage')
 warmup_duration = .5 if autocue else .1
@@ -54,6 +54,9 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
     root = Path(temporary)
     tone(root / 'song.wav', 440, 1.2 if short_tracks else 8)
     tone(root / 'sweeper.wav', 880, .5 if short_tracks else 2)
+    if args.scenario == 'pre-roll':
+        tone(root / 'previous.wav', 220, 8)
+        tone(root / 'pre-roll.wav', 880, 4)
     # A sweeper file with leading and trailing silence, for AutoCue measurement.
     tone(root / 'cued.wav', 660, 2, silence_before=.5, silence_after=1.)
     tone(root / 'warmup.wav', 440, 0, silence_after=warmup_duration)
@@ -80,10 +83,19 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
                 value = {'uri': f'annotate:liq_disable_autocue="true",liq_cue_in="0",liq_cue_out="{warmup_duration}":{root}/warmup.wav'}
             elif self.path == '/nextsong':
                 song_requests += 1
-                token = str(122 + song_requests) if short_tracks else ('123' if song_requests == 1 else '124')
-                jingle = ('jingle_mode="true",' if args.scenario == 'spacing' else 'playlist_id="7",') if spacing and song_requests <= 2 else ''
-                duration = 1.2 if short_tracks else 8
-                value = {'uri': f'annotate:liq_disable_autocue="true",sq_id="{token}",{jingle}media_id="1",liq_cue_in="0",liq_cue_out="{duration}":{root}/song.wav'}
+                if args.scenario == 'pre-roll':
+                    token, media_id, title, path = [('121', '10', 'Previous', root / 'previous.wav'),
+                                                    ('123', '1', 'Song', root / 'song.wav')][min(song_requests, 2) - 1]
+                    token = token if song_requests <= 2 else str(122 + song_requests)
+                    value = {'uri': (
+                        f'annotate:liq_disable_autocue="true",sq_id="{token}",media_id="{media_id}",'
+                        f'liq_cue_in="0",liq_cue_out="8",title="{title}":{path}'
+                    )}
+                else:
+                    token = str(122 + song_requests) if short_tracks else ('123' if song_requests == 1 else '124')
+                    jingle = ('jingle_mode="true",' if args.scenario == 'spacing' else 'playlist_id="7",') if spacing and song_requests <= 2 else ''
+                    duration = 1.2 if short_tracks else 8
+                    value = {'uri': f'annotate:liq_disable_autocue="true",sq_id="{token}",{jingle}media_id="1",liq_cue_in="0",liq_cue_out="{duration}":{root}/song.wav'}
             elif self.path == '/sweepers/catalog':
                 time.sleep(1.5)
                 value = []
@@ -95,11 +107,21 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
                         'annotate:azuracast_autocue="true",autocue_cue_in="0.25",autocue_cue_out="2.75",'
                         f'autocue_fade_in="0.00",autocue_fade_out="0.50"{amplify}:{root}/cued.wav')}]
             elif self.path == '/sweepers/plan':
-                value = dict(token=json.loads(body)['token'], jingle_id=9, revision=live_settings['revision'],
-                             uri=f'annotate:liq_cue_in="0",liq_cue_out="{0.5 if short_tracks else 2}":{root}/sweeper.wav' if short_tracks or json.loads(body)['token'] == '123' else '',
-                             offset=.1 if short_tracks else (3. if args.scenario in ('skip', 'hot-pending', 'hot-change', 'before-jingle', 'reverb-pending', 'reverb-skip') else 1.),
-                             duck_duration=.3 if short_tracks else 1., gain=1., duck_gain=.4467,
-                             **({'reverb': 1., 'length': 2.} if args.scenario.startswith('reverb') else {}))
+                token = json.loads(body)['token']
+                if args.scenario == 'pre-roll':
+                    value = dict(token=token, jingle_id=9, revision=live_settings['revision'],
+                                 uri=f'annotate:liq_cue_in="0",liq_cue_out="4",title="Sweeper":{root}/pre-roll.wav'
+                                 if token == '123' else '',
+                                 offset=0., song_delay=3., pre_roll=True,
+                                 duck_duration=4., gain=1., duck_gain=.4467)
+                else:
+                    value = dict(token=token, jingle_id=9, revision=live_settings['revision'],
+                                 uri=f'annotate:liq_cue_in="0",liq_cue_out="{0.5 if short_tracks else 2}":{root}/sweeper.wav' if short_tracks or token == '123' else '',
+                                 offset=.1 if short_tracks else (3. if args.scenario in ('skip', 'hot-pending', 'hot-change', 'before-jingle', 'reverb-pending', 'reverb-skip') else 1.),
+                                 duck_duration=.3 if short_tracks else 1., gain=1., duck_gain=.4467,
+                                 **({'reverb': 1., 'length': 2.} if args.scenario.startswith('reverb') else {}),
+                                 **({'follow_spacing': False, 'counts_for_spacing': False}
+                                    if args.scenario == 'independent-spacing' and token == '125' else {}))
             elif self.path == '/sweepers/arrange':
                 moved = args.scenario == 'arrange' and sum(path == '/sweepers/arrange' for path, _, _ in calls) == 1
                 value = {'moved': '130', 'before': '125', 'released': ['999']} if moved else {'moved': '', 'before': ''}
@@ -169,6 +191,20 @@ def check_live() =
     end
 end
 radio.on_frame(synchronous=true, check_live)''' if live_switch else ''
+    if args.scenario == 'pre-roll':
+        source_setup = 'settings.azuracast.default_cross := 2.'
+        autodj_source = 'sweepers.enable_autodj(fallback([blank(duration=0.1)]))'
+        mixer_source = 'mksafe(sweepers.mix(sweepers.apply_crossfade(radio)))'
+        shutdown_delay = 13.
+        heartbeat_line = 'thread.run(delay=12.6, {ignore(sweepers.heartbeat())})'
+        track_probe = ''
+    else:
+        source_setup = ''
+        autodj_source = 'sweepers.enable_autodj(fallback([blank(duration=0.1)]))'
+        mixer_source = 'sweepers.mix(radio)'
+        shutdown_delay = 7.
+        heartbeat_line = 'thread.run(delay=6.6, {ignore(sweepers.heartbeat())})'
+        track_probe = ''
     script.write_text(f'''settings.init.allow_root := true
 %include {json.dumps(str(args.runtime.resolve() / 'azuracast.liq'))}
 %include {json.dumps(str(plugin / 'liquidsoap/sweepers.liq'))}
@@ -177,16 +213,18 @@ sweepers.load(version={json.dumps('test')}, {{enabled={'true' if initial_setting
     songs_after_jingle={1 if spacing else 0}, songs_after_sweeper={1 if spacing else 0},
     count_jingle_mode=true, jingle_playlists=[7]}})
 settings.azuracast.api_url := "http://127.0.0.1:{server.server_port}"
-radio = sweepers.enable_autodj(fallback([blank(duration=0.1)]))
+{source_setup}
+radio = {autodj_source}
 music = radio
-radio = sweepers.mix(radio)
+radio = {mixer_source}
+{track_probe}
 {live_source}
 {action}
 {live_fallback}
 radio.on_metadata(synchronous=true, fun (m) -> print("SONG_METADATA #{{m}}"))
 output.file(%wav, {json.dumps(str(root / 'mix.wav'))}, radio)
-thread.run(delay=6.6, {{ignore(sweepers.heartbeat())}})
-thread.run(delay=7., {{shutdown()}})
+{heartbeat_line}
+thread.run(delay={shutdown_delay}, {{shutdown()}})
 ''')
     result = subprocess.run([*shlex.split(args.liquidsoap), str(script)], stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, text=True, timeout=45)
@@ -200,6 +238,33 @@ thread.run(delay=7., {{shutdown()}})
         raw = audio.readframes(rate * 15)
         samples = struct.unpack('<' + 'h' * (len(raw) // 2), raw)[::2]
     (plugin / '.checks' / f'playback-{args.scenario}.wav').write_bytes((root / 'mix.wav').read_bytes())
+    if args.scenario == 'pre-roll':
+        def onset(hz):
+            return next((t / 100 for t in range(1300) if amplitude(samples, hz, t / 100, .02) > 1500), None)
+        previous, sweeper, song = onset(220), onset(880), onset(440)
+        assert None not in (previous, sweeper, song), ('Missing audio', previous, sweeper, song)
+        assert abs(sweeper - (previous + 6.)) < .25, ('Pre-roll must start where the crossfade begins', previous, sweeper)
+        assert 2.8 <= song - sweeper <= 3.05, ('The song must start song_delay after its sweeper', sweeper, song)
+        assert amplitude(samples, 880, song + .5) > 1500, 'The sweeper must continue over the song intro'
+        assert amplitude(samples, 220, sweeper + .5) < amplitude(samples, 220, previous + 1.) * .8, \
+            'The outgoing song must be ducked under the pre-roll'
+        assert amplitude(samples, 440, song + .4) < amplitude(samples, 440, song + 2.) * .8, \
+            'The song intro must stay ducked until the handover'
+        tracks = [line for line in result.stdout.splitlines() if line.startswith('SONG_METADATA')]
+        assert not any('Sweeper' in line for line in tracks), ('Sweeper metadata reached the stream', tracks)
+        tokens = [re.search(r'\("sq_id", "(\d+)"\)', line)[1] for line in tracks if '("sq_id",' in line]
+        assert tokens[:2] == ['121', '123'], ('No track may be inserted between the songs', tokens)
+        reported = [event for path, body, _ in calls if path == '/sweepers/heartbeat'
+                    for event in body.get('events', [])]
+        played = [e for e in reported if e['event'] == 'played' and e['token'] == '123']
+        started = [e for e in reported if e['event'] == 'start' and e['token'] == '123']
+        assert len(played) == 1 and played[0]['jingle_id'] == 9, ('Pre-roll playback not reported once', reported)
+        assert len(started) == 1 and started[0]['detail'] == 'scheduled' and started[0]['jingle_id'] == 9, \
+            ('Song start not reported with its sweeper', reported)
+        assert 2.7 < started[0]['at'] - played[0]['at'] < 3.4, ('Events must follow the audio', played, started)
+        assert not any(e['event'] == 'release' and e['token'] == '123' and e['detail'] for e in reported), reported
+        print('Pre-roll rendered: the song starts after its sweeper at the crossfade.')
+        raise SystemExit(0)
     onset = next(t / 100 for t in range(500) if amplitude(samples, 440, t / 100, .02) > 3000)
     normal = amplitude(samples, 440, onset + .5)
     if args.scenario == 'live-switch-disabled':
@@ -267,6 +332,15 @@ thread.run(delay=7., {{shutdown()}})
         starts_at = sorted(event['at'] for event in batches[-1] if event['event'] == 'start')
         assert len(starts_at) >= 3 and starts_at[-1] - starts_at[0] >= 2., \
             ('Buffered starts must retain distinct playback times', starts_at)
+    elif args.scenario == 'independent-spacing':
+        played = {e['token'] for e in events if e['event'] == 'played'}
+        assert '124' not in played, ('A rule that ignores spacing must still never overlay a jingle', played)
+        assert '125' in played, ('A rule that ignores spacing must play right after a jingle', played)
+        assert '126' in played, ('A sweeper that does not count must not delay the next station sweeper', played)
+        assert '127' not in played, ('Station spacing must still apply after a station sweeper', played)
+        for token, audible in ((124, False), (125, True), (126, True), (127, False)):
+            at = onset + (token - metadata[0]) * 1.2 + .25
+            assert (amplitude(samples, 880, at) > 5000) == audible, ('Unexpected sweeper audio', token)
     elif spacing:
         assert 'Sweeper skipped for queue 125: song spacing' in result.stdout, 'Spacing skip not logged'
         played = {e['token'] for e in events if e['event'] == 'played'}
@@ -394,8 +468,10 @@ thread.run(delay=7., {{shutdown()}})
     elif args.scenario.startswith('hot-'):
         assert 'Live settings applied: changed' in result.stdout, 'Heartbeat did not apply live settings'
     if spacing:
+        independent = args.scenario == 'independent-spacing'
         assert [starts.get(t) for t in ('123', '124', '125', '126', '127')] == \
-            ['jingle', 'jingle', 'after_jingle', 'scheduled', 'after_sweeper'], ('Track start reasons', starts)
+            ['jingle', 'jingle', 'scheduled' if independent else 'after_jingle', 'scheduled', 'after_sweeper'], \
+            ('Track start reasons', starts)
     if args.scenario == 'normal':
         assert starts.get('123') == 'scheduled', ('Track start reasons', starts)
     if args.scenario == 'unavailable':

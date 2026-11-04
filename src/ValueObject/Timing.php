@@ -6,6 +6,8 @@ namespace Plugin\AzuracastSweepers\ValueObject;
 
 final readonly class Timing
 {
+    public const float MAX_PRE_ROLL_SECONDS = 60.0;
+
     public function __construct(
         public float $cueIn,
         public float $cueOut,
@@ -114,5 +116,47 @@ final readonly class Timing
         }
 
         return ['offset' => $offset, 'duck_duration' => $body];
+    }
+
+    public function fitWithPreRoll(
+        ?float $introEnd,
+        float $songCueIn,
+        float $songCueOut,
+        Settings $settings,
+        bool $allowPreRoll
+    ): ?array {
+        if ($introEnd !== null && $introEnd > $songCueIn) {
+            $fit = $this->fit($introEnd, $songCueIn, $songCueOut, $settings);
+            if ($fit !== null) {
+                return [...$fit, 'song_delay' => 0.0, 'pre_roll' => false];
+            }
+        }
+        if (
+            !$allowPreRoll || !is_finite($songCueIn) || !is_finite($songCueOut)
+            || $songCueIn < 0 || $songCueOut <= $songCueIn
+        ) {
+            return null;
+        }
+
+        $body = $this->handover - $this->cueIn;
+        $availableIntro = $introEnd !== null && is_finite($introEnd)
+            && $introEnd > $songCueIn && $introEnd <= $songCueOut
+            ? max(0.0, $introEnd - $songCueIn - $settings->margin)
+            : 0.0;
+        $songDelay = max(0.0, $body - $availableIntro);
+        $remainingSweeper = $this->cueOut - $this->cueIn - $songDelay;
+        if (
+            $songDelay > self::MAX_PRE_ROLL_SECONDS
+            || $remainingSweeper < 0 || $remainingSweeper > $songCueOut - $songCueIn
+        ) {
+            return null;
+        }
+
+        return [
+            'offset' => 0.0,
+            'duck_duration' => $body,
+            'song_delay' => $songDelay,
+            'pre_roll' => $songDelay > 0.0,
+        ];
     }
 }

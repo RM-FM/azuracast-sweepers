@@ -116,6 +116,11 @@
     font-weight: 500;
 }
 
+.sweepers-page .sweepers-rule-summary {
+    font-weight: 400;
+    opacity: .75;
+}
+
 .sweepers-page .sweepers-toolbar-controls {
     flex-wrap: wrap;
     align-items: center;
@@ -172,6 +177,10 @@
 .sweepers-page .sweepers-settings .form-text {
     max-width: 80ch;
     line-height: 1.45;
+}
+
+.sweepers-page .sweepers-settings .form-text.sweepers-section-text {
+    max-width: none;
 }
 
 .sweepers-page:not(.embedded) .sweepers-settings .form-text {

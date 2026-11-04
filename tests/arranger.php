@@ -22,6 +22,7 @@ namespace App\Entity {
 namespace Plugin\AzuracastSweepers\Service {
     use App\Entity\Station;
     use Plugin\AzuracastSweepers\ValueObject\Settings;
+    use Plugin\AzuracastSweepers\ValueObject\SweeperRoute;
 
     final class Media
     {
@@ -91,14 +92,28 @@ namespace Plugin\AzuracastSweepers\Service {
             return false;
         }
 
-        public function blocked(): array
+        public bool $blocksAll = false;
+        public array $context = ['playlist_id' => 1, 'request_id' => null];
+        public array $queued = [];
+
+        public function queuedMedia(): array
         {
-            return [];
+            return $this->queued;
+        }
+
+        public function blocked(Station $station, array $tokens): array
+        {
+            return $this->blocksAll ? array_values(array_map('strval', $tokens)) : [];
         }
 
         public function upcoming(): array
         {
             return $this->rows;
+        }
+
+        public function context(Station $station, string $token): ?array
+        {
+            return $this->context;
         }
 
         public function exchange(Station $station, int $first, int $second): bool
@@ -143,7 +158,9 @@ namespace {
     use Plugin\AzuracastSweepers\Service\Queue;
     use Plugin\AzuracastSweepers\Service\Schedule;
     use Plugin\AzuracastSweepers\Service\State;
+    use Plugin\AzuracastSweepers\ValueObject\Links;
     use Plugin\AzuracastSweepers\ValueObject\Settings;
+    use Plugin\AzuracastSweepers\ValueObject\SweeperRoute;
     use Plugin\AzuracastSweepers\ValueObject\Timing;
 
     require dirname(__DIR__) . '/vendor/autoload.php';
@@ -186,6 +203,48 @@ namespace {
     try {
         $reset(false, false);
         $check($arrange() === $none && $replacement->targets === [] && $queue->exchanges === [], 'Both disabled.');
+        $reset(true, true);
+        $queue->rows[0]['request_id'] = 4;
+        $check(
+            $arrange() === $none && $queue->exchanges === [] && $replacement->targets === []
+                && $state->read($directory)['unmoved']['21']['reason'] === 'move_request',
+            'A listener request stays in its queue slot.'
+        );
+        $reset(true, false);
+        $queue->rows[1]['request_id'] = 4;
+        $check(
+            $arrange() === $none && $queue->exchanges === [],
+            'A listener request cannot be moved ahead of another song.'
+        );
+        $reset(true, true);
+        $state->update($directory, static fn(): array => ['settings' => (new Settings(
+            playlistIds: [9],
+            swapForIntro: true,
+            swapFromPlaylist: true,
+            sweeperRoutes: [
+                new SweeperRoute(SweeperRoute::DEFAULT, [9], preRoll: true),
+                new SweeperRoute(SweeperRoute::LISTENER_REQUEST),
+            ]
+        ))->toArray()]);
+        $check(
+            $arrange() === $none && $queue->exchanges === [] && $replacement->targets === []
+                && $state->read($directory)['unmoved']['21']['reason'] === 'move_pre_roll',
+            'A pre-roll target stays in its queue slot.'
+        );
+        $reset(true, false);
+        $queue->rows[1]['playlist_id'] = 2;
+        $state->update($directory, static fn(): array => ['settings' => (new Settings(
+            playlistIds: [9],
+            swapForIntro: true,
+            sweeperRoutes: [
+                new SweeperRoute(SweeperRoute::DEFAULT, [9]),
+                new SweeperRoute('playlist:2', [], preRoll: true),
+            ]
+        ))->toArray()]);
+        $check(
+            $arrange() === $none && $queue->exchanges === [],
+            'A pre-roll candidate is not moved into another slot.'
+        );
         foreach ([false, true] as $fallback) {
             $reset(true, $fallback);
             $check(
@@ -317,7 +376,7 @@ namespace {
         $queue->rows[0]['request_id'] = 4;
         $check(
             $arrange() === $none && $replacement->targets === []
-                && $state->read($directory)['unmoved']['21']['reason'] === 'move_none',
+                && $state->read($directory)['unmoved']['21']['reason'] === 'move_request',
             'An ineligible replacement retains the original forward-move failure reason.'
         );
         $reset(true, true);
@@ -528,7 +587,59 @@ namespace {
                 'The only fitting sweeper blocked by a reservation is reported apart from a recent repeat.'
             );
         }
-        echo "13 longest-fit planner checks passed.\n";
+        $queue->blocksAll = true;
+        $queue->context = ['playlist_id' => null, 'request_id' => 5];
+        $routed = new Settings(playlistIds: [9], sweeperGap: 0, sweeperRoutes: [
+            new SweeperRoute(SweeperRoute::DEFAULT, [9]),
+            new SweeperRoute(SweeperRoute::LISTENER_REQUEST, [9]),
+        ]);
+        $state->update($directory, static fn(): array => ['settings' => $routed->toArray()]);
+        $payload = $planner->plan($station, 21, '400', 0, 180, $measurements);
+        $heartbeat = $planner->heartbeat($station, ['400'], []);
+        $check(
+            $payload['uri'] !== '' && $payload['follow_spacing'] === false && $payload['counts_for_spacing'] === false
+                && $heartbeat['blocked'] === [],
+            'Listener requests ignore the upcoming-jingle rule by default and tell the module to skip song spacing.'
+        );
+        $queue->context = ['playlist_id' => 1, 'request_id' => null];
+        $state->update($directory, static fn(): array => ['settings' => $routed->toArray()]);
+        $planner->plan($station, 21, '401', 0, 180, $measurements);
+        $check(
+            $state->read($directory)['decisions']['401'] === 'jingle_follows',
+            'Rules that follow song spacing still skip a sweeper before an upcoming jingle.'
+        );
+        $queue->blocksAll = false;
+        $media->intros[21] = 12.5;
+        $linkedSettings = new Settings(playlistIds: [9], sweeperGap: 0, links: new Links([
+            ['name' => 'Hot Hits', 'media_ids' => [1, 77]],
+        ]));
+        $state->update($directory, static fn(): array => ['settings' => $linkedSettings->toArray()]);
+        $queue->queued = [77];
+        $planner->plan($station, 21, '500', 0, 180, $measurements);
+        $check(
+            $state->read($directory)['decisions']['500'] === 'linked_queued',
+            'A sweeper waits while a linked jingle is coming up in the queue.'
+        );
+        $queue->queued = [];
+        $state->update($directory, static fn(): array => [
+            'settings' => (new Settings(playlistIds: [9], sweeperGap: 0, links: new Links([
+                ['name' => 'Hot Hits', 'media_ids' => [1, 77]],
+            ], 30)))->toArray(),
+            'history' => [77 => microtime(true) - 60],
+        ]);
+        $planner->plan($station, 21, '501', 0, 180, $measurements);
+        $check(
+            $state->read($directory)['decisions']['501'] === 'linked_recent',
+            'A linked jingle played within the window keeps its sweepers away.'
+        );
+        $heartbeat = $planner->heartbeat($station, [], [
+            ['event' => 'start', 'token' => '600', 'detail' => 'jingle', 'media_id' => '77', 'at' => microtime(true)],
+        ]);
+        $check(
+            $heartbeat['played'] === [] && $state->read($directory)['history'][77] > microtime(true) - 5,
+            'A linked jingle start updates the shared rotation history and is not reported as a sweeper play.'
+        );
+        echo "18 longest-fit, spacing and link planner checks passed.\n";
     } finally {
         foreach (glob($directory . '/*') as $path) {
             unlink($path);

@@ -81,9 +81,21 @@ globalThis.fetch = async (url, options) => {
             { id: 12, name: "Retired", enabled: false, scheduled: false, source: "remote_url" },
         ], jingle_playlists: [
             { id: 20, name: "Station IDs", is_jingle: true, source: "songs" }, { id: 21, name: "Promos", is_jingle: false, source: "playlists" },
+            { id: 10, name: "Sweepers", is_jingle: false, source: "songs" }, { id: 30, name: "Party Hits", is_jingle: false, source: "songs" },
+            { id: 31, name: "Talk", is_jingle: false, source: "remote_url" },
         ] };
     } else if (url.startsWith("/play/")) {
         data = {};
+    } else if (url.includes("/media?links=1")) {
+        linkRequests.push(url);
+        data = { rows: [
+            { id: 31, title: "Hot Hits (Dry)", artist: "Station", path: "sweepers/hot-hits-dry.mp3", sweeper: true, jingle: false,
+                playlists: [{ id: 10, name: "Sweepers", random: false }] },
+            { id: 41, title: "Hot Hits v2", artist: "Station", path: "jingles/hot-hits-v2.mp3", sweeper: false, jingle: true,
+                playlists: [{ id: 20, name: "Station IDs", random: true }] },
+            { id: 42, title: "Weekend", artist: "Station", path: "jingles/weekend.mp3", sweeper: false, jingle: true,
+                playlists: [{ id: 20, name: "Station IDs", random: true }] },
+        ] };
     } else if (url.includes("/media?playlist=")) {
         previewRequests.push(url);
         data = { rows: [
@@ -136,6 +148,7 @@ globalThis.fetch = async (url, options) => {
 };
 const previewRequests = [];
 const mediaLookups = [];
+const linkRequests = [];
 const historyRequests = [];
 const activePage = () => document.querySelector(".datatable-toolbar-top .page-item.active")?.textContent.trim();
 const goToPage = async (number) => {
@@ -584,25 +597,28 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
             node.dispatchEvent(new Event("change", { bubbles: true }));
             await settle();
         };
-        assert.ok([...document.querySelectorAll("legend")].some((node) => node.textContent === "Sweeper Playlists"));
+        assert.ok([...document.querySelectorAll("legend")].some((node) => node.textContent === "Sweeper Pool"));
+        assert.equal(document.getElementById("sweepers-playlist-rule-toggle").closest('[role="tabpanel"]').id, "sweepers-panel-rules",
+            "Song playlist rules sit on the Sweeper Rules tab");
         assert.ok(document.querySelector("form.sweepers-settings").classList.contains("form"), "Settings use the native AzuraCast form styles");
         assert.equal(document.querySelectorAll(".sweepers-playlist-picker input[type=checkbox]").length, 0);
-        await openPicker("sweepers-playlist");
-        const addButton = document.getElementById("sweepers-playlist-toggle");
+        const defaultPoolId = "sweepers-route-pool-default";
+        await openPicker(defaultPoolId);
+        const addButton = document.getElementById(defaultPoolId + "-toggle");
         assert.equal(addButton.textContent.trim(), "Add Playlist");
         assert.ok(addButton.classList.contains("btn-primary"), "Add button uses AzuraCast's primary style");
         assert.ok(addButton.classList.contains("btn-sm"), "Add button matches the compact playlist toolbar buttons");
         assert.ok(addButton.querySelector("svg path").getAttribute("d"), "Add button includes its plus icon");
-        assert.deepEqual(playlistLabels("sweepers-playlist-"), ["Sweepers", "Christmas (scheduled)", "Retired (disabled)"],
+        assert.deepEqual(playlistLabels(defaultPoolId + "-"), ["Sweepers", "Christmas (scheduled)", "Retired (disabled)"],
             "Several sweeper playlists can be selected");
         assert.ok(addButton.classList.contains("dropdown-toggle"), "Button includes the native dropdown arrow");
-        const choices = document.getElementById("sweepers-playlist-choices");
+        const choices = document.getElementById(defaultPoolId + "-choices");
         assert.ok(choices.classList.contains("dropdown-menu"), "Selection uses the native dropdown styling");
         assert.equal(choices.querySelector('input[type="search"]'), null, "Playlist selection does not need search");
         assert.equal(choices.querySelector("button"), null, "Dropdown has no Save or Clear buttons");
         const writesBeforeSelection = writes.length;
-        await check("sweepers-playlist-10");
-        await check("sweepers-playlist-11");
+        await check(defaultPoolId + "-10");
+        await check(defaultPoolId + "-11");
         const songBadge = document.querySelector(".sweepers-playlist-picker .playlist-source-badge");
         const picker = addButton.closest(".sweepers-playlist-picker");
         assert.equal(picker.firstElementChild, songBadge.parentElement, "Selected tags stay above the button");
@@ -610,27 +626,90 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.ok(songBadge.classList.contains("gap-1"), "Labels use source badge spacing");
         assert.ok(songBadge.querySelector("svg.sm path"), "Song-based labels include the source icon");
         assert.equal(writes.length, writesBeforeSelection, "Selections update the form without autosaving");
-        assert.ok(document.getElementById("sweepers-playlist-10").checked, "Selected playlist remains checked in the open dropdown");
+        assert.ok(document.getElementById(defaultPoolId + "-10").checked, "Selected playlist remains checked in the open dropdown");
         assert.equal(addButton.getAttribute("aria-expanded"), "true", "Checkbox changes keep the dropdown open");
-        await check("sweepers-playlist-11", false);
+        await check(defaultPoolId + "-11", false);
         assert.equal(document.querySelector('[aria-label="Remove Christmas (scheduled)"]'), null, "Unchecking removes its tag immediately");
-        await check("sweepers-playlist-11");
+        await check(defaultPoolId + "-11");
         document.querySelector('[aria-label="Remove Sweepers"]').click();
         await settle();
-        assert.equal(document.getElementById("sweepers-playlist-10").checked, false, "Removing a tag unchecks its playlist");
+        assert.equal(document.getElementById(defaultPoolId + "-10").checked, false, "Removing a tag unchecks its playlist");
         const escape = new Event("keydown", { bubbles: true });
         escape.key = "Escape";
         choices.dispatchEvent(escape);
         await settle();
         assert.equal(addButton.getAttribute("aria-expanded"), "false", "Escape closes the dropdown");
-        assert.equal(document.getElementById("sweepers-playlist-choices"), null);
-        await openPicker("sweepers-playlist");
+        assert.equal(document.getElementById(defaultPoolId + "-choices"), null);
+        await openPicker(defaultPoolId);
         document.querySelector("h2").dispatchEvent(new Event("pointerdown", { bubbles: true }));
         await settle();
         assert.equal(addButton.getAttribute("aria-expanded"), "false", "Clicking outside closes the dropdown");
-        assert.deepEqual((await submit()).playlist_ids, [11], "Removing a label updates the saved selection");
-        await check("sweepers-playlist-10");
-        assert.deepEqual((await submit()).playlist_ids, [11, 10], "All selected sweeper playlists are saved");
+        assert.deepEqual((await submit()).playlist_ids, [11], "Removing a label updates the Default pool");
+        await check(defaultPoolId + "-10");
+        assert.deepEqual((await submit()).playlist_ids, [11, 10], "The Default pool stays in the legacy field");
+        const rulePickerId = "sweepers-playlist-rule";
+        await openPicker(rulePickerId);
+        assert.equal(document.getElementById(rulePickerId + "-toggle").textContent.trim(), "Add Playlist Rule",
+            "Rules use the same dropdown button as sweeper pools");
+        assert.deepEqual(playlistLabels(rulePickerId + "-"), ["Party Hits"],
+            "Rules offer only song playlists that are no sweeper pool, jingle or excluded playlist");
+        await check(rulePickerId + "-30");
+        assert.equal(document.getElementById(rulePickerId + "-choices"), null, "Choosing a playlist adds its rule and closes the list");
+        await openPicker(rulePickerId);
+        const ruledOption = document.getElementById(rulePickerId + "-30");
+        assert.ok(ruledOption.hasAttribute("checked") && ruledOption.hasAttribute("disabled"), "A playlist with a rule stays ticked and is removed only by Remove Rule");
+        await openPicker(rulePickerId);
+        const rulePoolId = "sweepers-route-pool-playlist-30";
+        await check(rulePoolId + "-10");
+        await change("Allow pre-roll", true, true);
+        assert.equal(document.querySelectorAll('input[id^="sweepers-max-preroll-"]').length, 0,
+            "Pre-roll has no configurable duration limit");
+        assert.equal(document.querySelectorAll('.sweepers-route .alert-warning[role="note"]').length, 1,
+            "Pre-roll warns when it disables song matching for a regular route");
+        assert.equal(document.querySelectorAll('.sweepers-route .alert-warning[role="note"]').length, 1,
+            "Listener Request pre-roll does not show the matching warning");
+        for (const [id, value] of [["sweepers-cooldown-songs-listener_request", "3"], ["sweepers-cooldown-minutes-listener_request", "10"]]) {
+            const input = document.getElementById(id);
+            input.value = value;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        await settle();
+        assert.equal(document.getElementById("sweepers-cooldown-songs-listener_request").closest('[role="tabpanel"]').id,
+            "sweepers-panel-rules", "Listener Requests are configured on the Sweeper Rules tab");
+        const routedSettings = await submit();
+        assert.deepEqual(routedSettings.sweeper_routes.map((route) => route.key), ["default", "listener_request", "playlist:30"]);
+        assert.deepEqual(routedSettings.sweeper_routes.find((route) => route.key === "playlist:30").playlist_ids, [10]);
+        assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "default").pre_roll, true);
+        assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "listener_request").pre_roll, true,
+            "Listener requests allow pre-roll by default");
+        const requestRoute = routedSettings.sweeper_routes.find((route) => route.key === "listener_request");
+        const playlistRoute = routedSettings.sweeper_routes.find((route) => route.key === "playlist:30");
+        assert.ok(!requestRoute.follow_spacing && !requestRoute.counts_for_spacing,
+            "Listener requests ignore song spacing and do not delay station sweepers by default");
+        assert.ok(playlistRoute.follow_spacing && playlistRoute.counts_for_spacing, "Playlist rules follow song spacing by default");
+        assert.equal(document.getElementById("sweepers-follow-spacing-default"), null, "Default always follows song spacing");
+        assert.ok(document.getElementById("sweepers-follow-spacing-listener_request").closest("fieldset").classList.contains("col-sm-6"),
+            "Song spacing sits beside Placement");
+        assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "playlist:30").pre_roll, false,
+            "New playlist rules start with Intro only");
+        assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "listener_request").cooldown_songs, 3);
+        assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "listener_request").cooldown_minutes, 10);
+        const ruleItem = document.querySelector('.sweepers-playlist-rules [data-route-key="playlist:30"]');
+        const ruleToggle = ruleItem.querySelector(".accordion-button");
+        const ruleBody = document.getElementById(ruleToggle.getAttribute("aria-controls"));
+        assert.equal(ruleToggle.getAttribute("aria-expanded"), "true", "A newly added playlist rule opens for editing");
+        assert.match(ruleToggle.textContent, /1 sweeper playlist · Intro only/, "The collapsed header summarises the rule");
+        assert.ok(ruleItem.querySelector('[aria-label$="rule"] svg path').getAttribute("d"), "Remove Rule shows its icon");
+        ruleToggle.dispatchEvent(new Event("click", { bubbles: true }));
+        await settle();
+        assert.equal(ruleToggle.getAttribute("aria-expanded"), "false");
+        assert.equal(ruleBody.style.display, "none", "Playlist rules collapse");
+        assert.ok(document.getElementById("sweepers-route-pool-default-toggle").closest('[role="tabpanel"]').id === "sweepers-panel-general",
+            "The Default pool stays on General");
+        assert.equal(document.querySelector('#sweepers-panel-general [data-route-key="listener_request"]'), null,
+            "General no longer shows Listener Request settings");
+        assert.ok(document.getElementById("sweepers-cooldown-songs-listener_request").parentElement.classList.contains("col-sm-6"),
+            "Rule limits share the placement column");
         assert.equal(first.sweeper_gap, 1, "One other sweeper before a repeat by default");
         assert.equal(first.reverb, false, "Reverb is off by default");
         assert.ok(![...document.querySelectorAll("section.card label")].some((node) => node.textContent.includes("Reverb intensity")),
@@ -661,7 +740,7 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         );
         assert.match(document.querySelector("section.card").textContent, /regular rotation chooses another fitting sweeper/);
         await openPicker("sweepers-jingle");
-        assert.deepEqual(playlistLabels("sweepers-jingle-"), ["Station IDs (Jingle Mode)", "Promos"]);
+        assert.deepEqual(playlistLabels("sweepers-jingle-"), ["Station IDs (Jingle Mode)", "Promos", "Sweepers", "Party Hits", "Talk"]);
         await check("sweepers-jingle-20");
         await check("sweepers-jingle-21");
         const groupBadge = document.querySelector('[aria-label="Remove Promos"]').parentElement;
@@ -677,7 +756,7 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         await change("Also move or swap songs from sequential playlists", true, true);
         await change("Swap with another song from same playlist", true, true);
         await openPicker("sweepers-excluded");
-        assert.deepEqual(playlistLabels("sweepers-excluded-"), ["Station IDs", "Promos"]);
+        assert.deepEqual(playlistLabels("sweepers-excluded-"), ["Station IDs", "Promos", "Sweepers", "Party Hits", "Talk"]);
         await check("sweepers-excluded-21");
         await change("Add reverb to the sweeper voice", true, true);
         assert.equal(field("Reverb intensity").value, "25");
@@ -721,12 +800,12 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         await settle();
         const nav = document.querySelector('[aria-label="Sweeper settings"]');
         const tabs = [...nav.querySelectorAll('[role="tab"]')];
-        assert.deepEqual(tabs.map((tab) => tab.textContent), ["General", "Spacing & Jingles", "Selection & Timing", "Audio & Preview"]);
+        assert.deepEqual(tabs.map((tab) => tab.textContent), ["General", "Sweeper Rules", "Spacing & Jingles", "Selection & Timing", "Audio & Preview"]);
         const panel = (key) => document.getElementById("sweepers-panel-" + key);
         assert.notEqual(panel("general").style.display, "none");
         assert.equal(panel("audio").style.display, "none");
         const select = async (index) => { tabs[index].click(); await settle(); };
-        await select(1);
+        await select(2);
         const spacing = document.getElementById("sweepers-after-jingle");
         const spacingColumn = spacing.closest("fieldset");
         const jingleColumn = document.getElementById("sweepers-count-jingle-mode").closest("fieldset");
@@ -739,7 +818,40 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         }
         spacing.value = "7";
         spacing.dispatchEvent(new Event("input", { bubbles: true }));
-        await select(3);
+        assert.equal(linkRequests.length, 1, "Link candidates load when Spacing & Jingles opens");
+        assert.equal([...panel("spacing").querySelectorAll("legend")].at(-1).textContent, "Linked Sweepers & Jingles");
+        const buttonByText = (text) => [...panel("spacing").querySelectorAll("button")].find((node) => node.textContent.trim() === text);
+        buttonByText("Suggest Links").dispatchEvent(new Event("click", { bubbles: true }));
+        await settle();
+        assert.match(panel("spacing").querySelector(".sweepers-link-suggestions").textContent, /Sweeper Hot Hits \(Dry\), Jingle Hot Hits v2/,
+            "Suggestions ignore version labels and punctuation");
+        buttonByText("Link").dispatchEvent(new Event("click", { bubbles: true }));
+        await settle();
+        buttonByText("Add Link Group").dispatchEvent(new Event("click", { bubbles: true }));
+        await settle();
+        const linkSearch = document.getElementById("sweepers-link-search-1");
+        linkSearch.value = "week";
+        linkSearch.dispatchEvent(new Event("input", { bubbles: true }));
+        await settle();
+        assert.deepEqual([...panel("spacing").querySelectorAll(".sweepers-link-results button")].map((node) => node.textContent.trim()),
+            ["Jingle: Weekend"], "Search offers only tracks that are not linked yet");
+        panel("spacing").querySelector(".sweepers-link-results button").dispatchEvent(new Event("click", { bubbles: true }));
+        await settle();
+        assert.match(panel("spacing").querySelector('[data-link-group="0"] .accordion-button').textContent, /1 sweeper · 1 jingle/);
+        assert.match(panel("spacing").querySelector('[data-link-group="0"]').textContent, /Random-order playlist/,
+            "A Random jingle playlist explains that linked jingles are swapped instead of skipped");
+        const linkWindow = document.getElementById("sweepers-link-window");
+        linkWindow.value = "15";
+        linkWindow.dispatchEvent(new Event("input", { bubbles: true }));
+        await settle();
+        const writesBeforeLinks = writes.length;
+        document.querySelector("form.sweepers-settings").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        await settle();
+        assert.equal(writes.length, writesBeforeLinks, "A link group with one track blocks saving");
+        assert.match(document.querySelector(".alert-danger").textContent, /at least two tracks/);
+        document.querySelector('[aria-label="Remove Weekend link group"]').dispatchEvent(new Event("click", { bubbles: true }));
+        await settle();
+        await select(4);
         assert.equal(panel("spacing").style.display, "none");
         assert.notEqual(panel("audio").style.display, "none");
         const duck = document.getElementById("sweepers-duck");
@@ -751,8 +863,8 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         assert.equal(status.querySelector("legend").textContent, "Status");
         assert.equal(status.closest('[role="tabpanel"]'), panel("general"));
         assert.deepEqual([...panel("general").querySelectorAll(":scope > fieldset > legend, :scope > .row > fieldset > legend")].map((node) => node.textContent),
-            ["Status", "Sweeper Playlists", "Exclude Playlists from Sweepers"]);
-        const sweeperColumn = document.getElementById("sweepers-playlist-toggle").closest("fieldset");
+            ["Status", "Sweeper Pool", "Exclude Playlists from Sweepers"]);
+        const sweeperColumn = document.getElementById("sweepers-route-pool-default-toggle").closest("fieldset");
         const excludedColumn = document.getElementById("sweepers-excluded-toggle").closest("fieldset").parentElement.closest("fieldset");
         assert.ok(sweeperColumn.classList.contains("col-12"));
         assert.ok(excludedColumn.classList.contains("col-12"));
@@ -776,11 +888,11 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         duck.reportValidity = () => { reported = true; };
         duck.dispatchEvent(invalid);
         await settle();
-        assert.equal(tabs[3].getAttribute("aria-selected"), "true", "Invalid hidden field opens its tab");
+        assert.equal(tabs[4].getAttribute("aria-selected"), "true", "Invalid hidden field opens its tab");
         assert.ok(reported, "Validation is displayed after revealing the field");
         const key = new Event("keydown", { bubbles: true, cancelable: true });
         key.key = "ArrowRight";
-        tabs[3].dispatchEvent(key);
+        tabs[4].dispatchEvent(key);
         await settle();
         assert.equal(tabs[0].getAttribute("aria-selected"), "true", "Keyboard navigation wraps");
         const form = document.querySelector("form.sweepers-settings");
@@ -788,6 +900,9 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         await settle();
         assert.equal(writes.at(-1).body.songs_after_jingle, 7);
         assert.equal(writes.at(-1).body.duck_db, -9, "One save includes edits from all tabs");
+        assert.deepEqual(writes.at(-1).body.link_groups, [{ name: "Hot Hits (Dry)", media_ids: [31, 41] }],
+            "Link groups are saved with the other settings");
+        assert.equal(writes.at(-1).body.link_window, 15);
     } finally {
         app.unmount();
     }
@@ -910,7 +1025,7 @@ test("playback timeline lists all tracks, highlights songs with a sweeper and ex
         assert.equal(cell(all[3], 1).querySelector(".timeline-moved").getAttribute("title"), "Queen – Bohemian Rhapsody");
         assert.deepEqual(parts(all[3], 3), ["Dropin 03 (no ads)", "RadioMonster.FM"]);
         assert.equal(cell(all[3], 4).textContent.trim(), "12.3 s ✎", "The song's intro end is shown");
-        assert.equal(cell(all[3], 5).textContent.trim(), "9.7 s");
+        assert.equal(cell(all[3], 5).textContent.trim(), "9.7 s after song");
         assert.equal(cell(all[1], 4).textContent.trim(), "Set ✎", "A missing intro end can be set");
         assert.equal(cell(all[2], 4).querySelector("button"), null, "Jingles have no intro to edit");
         assert.equal(cell(all[1], 5).textContent.trim(), "", "No start time without a sweeper");
@@ -925,7 +1040,7 @@ test("playback timeline lists all tracks, highlights songs with a sweeper and ex
         assert.deepEqual(parts(all[7], 3), ["No planning decision recorded"]);
         assert.doesNotMatch(document.querySelector("#app").textContent, /station just started/);
         assert.deepEqual([...document.querySelectorAll("#app thead th")].map((th) => th.textContent.trim()),
-            ["Date/Time (Station)", "Track", "Sweeper Status", "Sweeper or Reason", "Intro", "Started After"]);
+            ["Date/Time (Station)", "Track", "Sweeper Status", "Sweeper or Reason", "Intro", "Sweeper Timing"]);
         const text = document.querySelector("#app").textContent;
         assert.doesNotMatch(text, /All played tracks|newest first|last 300/);
         const query = () => new URL(historyRequests.at(-1), "http://localhost").searchParams;
@@ -1013,14 +1128,14 @@ test("reverb preview plays the selected sweeper and follows the reverb settings 
     const button = () => document.querySelector(".sweepers-preview button");
     try {
         await settle();
-        assert.match(document.querySelector(".sweepers-preview").textContent, /Choose a sweeper playlist in General/);
+        assert.match(document.querySelector(".sweepers-preview").textContent, /Choose a sweeper pool in General/);
         assert.ok(button().disabled, "Nothing to play without a sweeper playlist");
         const playlist = async (id) => {
-            if (!document.getElementById("sweepers-playlist-choices")) {
-                document.getElementById("sweepers-playlist-toggle").click();
+            if (!document.getElementById("sweepers-route-pool-default-choices")) {
+                document.getElementById("sweepers-route-pool-default-toggle").click();
                 await settle();
             }
-            const node = document.getElementById(`sweepers-playlist-${id}`);
+            const node = document.getElementById(`sweepers-route-pool-default-${id}`);
             node.checked = true;
             node.dispatchEvent(new Event("change", { bubbles: true }));
             await settle();

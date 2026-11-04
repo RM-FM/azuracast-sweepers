@@ -98,7 +98,10 @@ $methods = [
     'App\Event\Radio\AnnotateNextSong' => ['fromStationMedia'],
     'App\Entity\Station' => ['getRadioConfigDir', 'validateAdapterApiKey'],
     'App\Entity\StationQueue' => ['fromMedia'],
-    'App\Entity\Repository\StationPlaylistMediaRepository' => ['getQueue', 'findByPlaylistAndMedia'],
+    'App\Entity\Repository\StationPlaylistMediaRepository' => [
+        'getQueue', 'findByPlaylistAndMedia', 'isQueueEmpty', 'resetQueue',
+    ],
+    'App\Entity\StationPlaylistMedia' => ['played'],
     'App\Entity\Repository\StationQueueRepository' => ['getRecentlyPlayedByTimeRange'],
     'App\Entity\Repository\CustomFieldRepository' => ['getCustomFields'],
     'App\Radio\AutoDJ\DuplicatePrevention' => ['preventDuplicates'],
@@ -128,7 +131,8 @@ $properties = [
     'App\Entity\StationPlaylistMedia' => ['id', 'playlist', 'media', 'weight', 'is_queued', 'last_played'],
     'App\Entity\Api\StationPlaylistQueue' => ['spm_id', 'media_id', 'song_id', 'artist', 'title', 'last_played'],
     'App\Entity\StationQueue' => [
-        'id', 'playlist', 'media', 'song_id', 'title', 'artist', 'timestamp_cued', 'timestamp_played',
+        'id', 'playlist', 'media', 'request', 'song_id', 'title', 'artist', 'timestamp_cued', 'timestamp_played',
+        'sent_to_autodj', 'is_played', 'playlist_chain',
     ],
     'App\Entity\StationMediaCustomField' => ['field', 'media', 'value'],
     'App\Entity\CustomField' => ['short_name'],
@@ -181,6 +185,17 @@ foreach ($lines as $line) {
     if (!str_contains($sources, $line)) {
         $failures[] = "Liquidsoap configuration no longer contains: $line";
     }
+}
+
+// sweepers.apply_crossfade repeats this definition with its own transition, which falls back to AzuraCast's.
+$runtime = getenv('AZURACAST_LIQUIDSOAP_RUNTIME') ?: '/var/azuracast/liquidsoap/azuracast.liq';
+$compact = static fn(string $code): string => (string)preg_replace('/\s+/', '', $code);
+$crossfade = 'def azuracast.apply_crossfade(s) = cross(duration=settings.azuracast.default_cross(), '
+    . 'azuracast.live_aware_crossfade_impl, s) end';
+if (!is_file($runtime)) {
+    $failures[] = "Missing AzuraCast Liquidsoap runtime $runtime";
+} elseif (!str_contains($compact((string)file_get_contents($runtime)), $compact($crossfade))) {
+    $failures[] = 'azuracast.apply_crossfade changed; update sweepers.apply_crossfade to match it';
 }
 
 if ($failures !== []) {

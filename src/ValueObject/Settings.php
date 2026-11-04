@@ -8,6 +8,9 @@ use InvalidArgumentException;
 
 final readonly class Settings
 {
+    public array $sweeperRoutes;
+    public Links $links;
+
     public function __construct(
         public bool $enabled = true,
         public array $playlistIds = [],
@@ -31,8 +34,11 @@ final readonly class Settings
         public array $excludedPlaylistIds = [],
         public int $sweeperGap = 1,
         public bool $swapFromPlaylist = false,
-        public int $replacementLimit = 2
+        public int $replacementLimit = 2,
+        array $sweeperRoutes = [],
+        ?Links $links = null
     ) {
+        $this->links = $links ?? new Links();
         foreach ([$maxWait, $margin, $duckDb, $jingleGain, $lengthTolerance, $earlyStart, $reverbIntensity] as $value) {
             if (!is_finite($value)) {
                 throw new InvalidArgumentException('Settings must be finite.');
@@ -57,6 +63,26 @@ final readonly class Settings
                 throw new InvalidArgumentException('Invalid playlist ID.');
             }
         }
+        if ($sweeperRoutes === []) {
+            $sweeperRoutes = [new SweeperRoute(SweeperRoute::DEFAULT, $playlistIds)];
+        }
+        if (!array_is_list($sweeperRoutes)) {
+            throw new InvalidArgumentException('Invalid sweeper routes.');
+        }
+        $routesByKey = [];
+        foreach ($sweeperRoutes as $route) {
+            if (!$route instanceof SweeperRoute || isset($routesByKey[$route->key])) {
+                throw new InvalidArgumentException('Invalid or duplicate sweeper route.');
+            }
+            $routesByKey[$route->key] = $route;
+        }
+        if (
+            !isset($routesByKey[SweeperRoute::DEFAULT])
+            || $routesByKey[SweeperRoute::DEFAULT]->playlistIds !== $playlistIds
+        ) {
+            throw new InvalidArgumentException('The Default route must match the default playlist pool.');
+        }
+        $this->sweeperRoutes = $sweeperRoutes;
     }
 
     public static function fromArray(array $data): self
@@ -78,6 +104,37 @@ final readonly class Settings
         $sweeperIds = $data['playlist_ids'] ?? ($legacyPlaylist === null ? [] : [$legacyPlaylist]);
         if (!is_array($sweeperIds) || !array_is_list($sweeperIds)) {
             throw new InvalidArgumentException('Invalid sweeper playlists.');
+        }
+        $routes = [new SweeperRoute(SweeperRoute::DEFAULT, array_values(array_unique($sweeperIds, SORT_REGULAR)))];
+        if (array_key_exists('sweeper_routes', $data)) {
+            if (!is_array($data['sweeper_routes']) || !array_is_list($data['sweeper_routes'])) {
+                throw new InvalidArgumentException('Invalid sweeper routes.');
+            }
+            $routes = array_map(SweeperRoute::fromArray(...), $data['sweeper_routes']);
+            $default = null;
+            foreach ($routes as $route) {
+                if ($route->key === SweeperRoute::DEFAULT) {
+                    $default = $route;
+                    break;
+                }
+            }
+            if ($default === null) {
+                throw new InvalidArgumentException('The Default sweeper route is required.');
+            }
+            if (array_key_exists('playlist_ids', $data) || $legacyPlaylist !== null) {
+                $default = new SweeperRoute(
+                    SweeperRoute::DEFAULT,
+                    array_values(array_unique($sweeperIds, SORT_REGULAR)),
+                    $default->preRoll
+                );
+                $routes = array_map(
+                    static fn(SweeperRoute $route): SweeperRoute => $route->key === SweeperRoute::DEFAULT
+                        ? $default : $route,
+                    $routes
+                );
+            } else {
+                $sweeperIds = $default->playlistIds;
+            }
         }
         // Earlier versions stored one shared minimum_songs gap.
         $legacy = $data['minimum_songs'] ?? 1;
@@ -152,7 +209,9 @@ final readonly class Settings
             excludedPlaylistIds: $excludedIds,
             sweeperGap: $gaps['sweeper_gap'],
             swapFromPlaylist: $booleans['swap_from_playlist'],
-            replacementLimit: $replacementLimit
+            replacementLimit: $replacementLimit,
+            sweeperRoutes: $routes,
+            links: Links::fromArray($data['link_groups'] ?? [], $data['link_window'] ?? 0)
         );
     }
 
@@ -169,8 +228,47 @@ final readonly class Settings
             'songs_after_jingle' => $this->songsAfterJingle,
             'songs_after_sweeper' => $this->songsAfterSweeper,
             'count_jingle_mode' => $this->countJingleMode,
-            'jingle_playlists' => array_values(array_unique([...$this->playlistIds, ...$this->jinglePlaylistIds])),
+            'jingle_playlists' => array_values(array_unique([
+                ...$this->allSweeperPlaylistIds(), ...$this->jinglePlaylistIds,
+            ])),
         ];
+    }
+
+    public function allSweeperPlaylistIds(): array
+    {
+        return array_values(array_unique(array_merge(
+            ...array_map(static fn(SweeperRoute $route): array => $route->playlistIds, $this->sweeperRoutes)
+        )));
+    }
+
+    public function route(string $key): ?SweeperRoute
+    {
+        foreach ($this->sweeperRoutes as $route) {
+            if ($route->key === $key) {
+                return $route;
+            }
+        }
+
+        return null;
+    }
+
+    public function routeFor(?int $playlistId, bool $listenerRequest): SweeperRoute
+    {
+        $routesByKey = [];
+        foreach ($this->sweeperRoutes as $route) {
+            $routesByKey[$route->key] = $route;
+        }
+        if (
+            $listenerRequest && isset($routesByKey[SweeperRoute::LISTENER_REQUEST])
+            && $routesByKey[SweeperRoute::LISTENER_REQUEST]->playlistIds !== []
+        ) {
+            return $routesByKey[SweeperRoute::LISTENER_REQUEST];
+        }
+        if ($playlistId !== null && isset($routesByKey['playlist:' . $playlistId])) {
+            return $routesByKey['playlist:' . $playlistId];
+        }
+
+        return $routesByKey[SweeperRoute::DEFAULT];
     }
 
     public function toArray(): array
@@ -178,6 +276,10 @@ final readonly class Settings
         return [
             'enabled' => $this->enabled,
             'playlist_ids' => $this->playlistIds,
+            'sweeper_routes' => array_map(
+                static fn(SweeperRoute $route): array => $route->toArray(),
+                $this->sweeperRoutes
+            ),
             'limit_delay' => $this->limitDelay,
             'max_wait' => $this->maxWait,
             'margin' => $this->margin,
@@ -199,6 +301,7 @@ final readonly class Settings
             'swap_sequential' => $this->swapSequential,
             'excluded_playlist_ids' => $this->excludedPlaylistIds,
             'sweeper_gap' => $this->sweeperGap,
+            ...$this->links->toArray(),
         ];
     }
 

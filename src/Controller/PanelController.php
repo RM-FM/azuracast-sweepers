@@ -126,13 +126,16 @@ final readonly class PanelController
             if ($station->backend_config->use_manual_autodj) {
                 throw new InvalidArgumentException('Sweepers require AzuraCast AutoDJ queue management.');
             }
-            $this->media->validateSweeperPlaylists($station, $settings->playlistIds);
+            $this->media->validateSweeperPlaylists($station, $settings->allSweeperPlaylistIds());
         }
 
         $this->media->validateJinglePlaylists(
             $station,
             [...$settings->jinglePlaylistIds, ...$settings->excludedPlaylistIds]
         );
+        foreach ($settings->links->mediaIds() as $mediaId) {
+            $this->media->get($station, $mediaId);
+        }
         $directory = $station->getRadioConfigDir();
         $data = $this->state->update($directory, static function (array $data) use ($settings): array {
             $data['settings'] = $settings->toArray();
@@ -190,6 +193,23 @@ final readonly class PanelController
     {
         $station = $request->getStation();
         $router = $request->getRouter();
+        if ($request->getQueryParam('links') === '1') {
+            $settings = Settings::fromArray($this->state->read($station->getRadioConfigDir())['settings'] ?? []);
+            $rows = $this->media->linkCandidates(
+                $station,
+                $settings->allSweeperPlaylistIds(),
+                $settings->jinglePlaylistIds
+            );
+            foreach ($rows as &$row) {
+                $row['audio_url'] = (string)$router->fromHere('api:stations:files:play', [
+                    'station_id' => $station->id,
+                    'id' => $row['id'],
+                ]);
+            }
+            unset($row);
+
+            return $response->withHeader('Cache-Control', 'no-store')->withJson(['rows' => $rows]);
+        }
         $playlist = $request->getQueryParam('playlist');
         if ($playlist !== null) {
             return $response->withHeader('Cache-Control', 'no-store')

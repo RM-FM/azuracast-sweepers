@@ -6,6 +6,7 @@ namespace Plugin\AzuracastSweepers\Service;
 
 use App\Entity\Station;
 use InvalidArgumentException;
+use Plugin\AzuracastSweepers\ValueObject\Links;
 use Plugin\AzuracastSweepers\ValueObject\Selection;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
 
@@ -35,6 +36,8 @@ final readonly class Planner
             throw new InvalidArgumentException('A queue token is required.');
         }
 
+        $context = $this->queue->context($station, $token);
+        $queuedMedia = $this->queue->queuedMedia($station);
         $song = $this->media->get($station, $mediaId);
         $intro = $this->media->intro($song);
         $directory = $station->getRadioConfigDir();
@@ -47,6 +50,8 @@ final readonly class Planner
             $cueIn,
             $cueOut,
             $measurements,
+            $context,
+            $queuedMedia,
             &$result
         ): array {
             $settings = Settings::fromArray($data['settings'] ?? []);
@@ -68,7 +73,14 @@ final readonly class Planner
 
                 return $decide('disabled');
             }
-            if ($intro === null || $intro <= $cueIn) {
+            if ($context === null) {
+                unset($data['plans'][$token]);
+
+                return $decide('queue_context_missing');
+            }
+            $route = $settings->routeFor($context['playlist_id'], $context['request_id'] !== null);
+            $result['route_key'] = $route->key;
+            if (($intro === null || $intro <= $cueIn) && !$route->preRoll) {
                 unset($data['plans'][$token]);
 
                 return $decide(match (true) {
@@ -82,19 +94,20 @@ final readonly class Planner
 
                 return $decide('excluded');
             }
-            if ($this->queue->blocked($station, [$token], $settings) !== []) {
+            if ($route->followSpacing && $this->queue->blocked($station, [$token], $settings) !== []) {
                 unset($data['plans'][$token]);
 
                 return $decide('jingle_follows');
             }
-            $active = $this->schedule->active($station, $settings->playlistIds);
-            if ($settings->playlistIds !== [] && $active === []) {
+            $active = $this->schedule->active($station, $route->playlistIds);
+            if ($route->playlistIds !== [] && $active === []) {
                 unset($data['plans'][$token]);
 
                 return $decide('off_schedule');
             }
             $fingerprint = hash('sha256', json_encode([
-                Media::identity($song), $intro, $settings->toArray(), $measurements, $active,
+                Media::identity($song), $intro, $context, $route->toArray(), $settings->toArray(),
+                $measurements, $active,
             ], JSON_THROW_ON_ERROR));
             if (isset($data['plans'][$token])) {
                 $saved = $data['plans'][$token];
@@ -112,6 +125,31 @@ final readonly class Planner
                 unset($data['plans'][$token]);
             }
 
+            if ($route->cooldownSongs > 0 || $route->cooldownMinutes > 0) {
+                foreach ($data['plans'] as $pendingToken => $pendingPlan) {
+                    if (
+                        $pendingToken !== $token && !($pendingPlan['played'] ?? false)
+                        && ($pendingPlan['route_key'] ?? null) === $route->key
+                    ) {
+                        unset($data['plans'][$token]);
+
+                        return $decide('route_reserved');
+                    }
+                }
+                $cooldown = $data['route_cooldowns'][$route->key] ?? null;
+                if (
+                    is_array($cooldown) && (float)($cooldown['last_played_at'] ?? 0) > 0
+                    && !$route->cooldownAllows(
+                        (int)($cooldown['songs_since'] ?? 0),
+                        max(0, time() - (int)$cooldown['last_played_at'])
+                    )
+                ) {
+                    unset($data['plans'][$token]);
+
+                    return $decide('route_cooldown');
+                }
+            }
+
             $jingles = $this->media->jingles($station, $active);
             $reserved = Selection::unavailable($data, $settings->sweeperGap, count($jingles));
             $pending = array_map('intval', array_column(array_filter(
@@ -122,6 +160,11 @@ final readonly class Planner
             $fitting = 0;
             $measured = 0;
             $recent = 0;
+            $preRollLimited = 0;
+            $linkedQueued = 0;
+            $linkedRecent = 0;
+            $links = $settings->links;
+            $history = $data['history'] ?? [];
 
             foreach ($jingles as $jingle) {
                 if ($jingle->id === $song->id) {
@@ -129,8 +172,23 @@ final readonly class Planner
                 }
                 $timing = $measurements[$jingle->id] ?? null;
                 $measured += $timing === null ? 0 : 1;
-                $fit = $timing?->fit($intro, $cueIn, $cueOut, $settings);
+                $fit = $timing?->fitWithPreRoll(
+                    $intro,
+                    $cueIn,
+                    $cueOut,
+                    $settings,
+                    $route->preRoll
+                );
                 if ($fit === null) {
+                    $availableIntro = $intro !== null && $intro > $cueIn && $intro <= $cueOut
+                        ? max(0.0, $intro - $cueIn - $settings->margin) : 0.0;
+                    if (
+                        $timing !== null && $route->preRoll
+                        && max(0.0, $timing->handover - $timing->cueIn - $availableIntro)
+                            > Timing::MAX_PRE_ROLL_SECONDS
+                    ) {
+                        $preRollLimited++;
+                    }
                     continue;
                 }
                 $fitting++;
@@ -138,17 +196,31 @@ final readonly class Planner
                     $recent += in_array($jingle->id, $pending, true) ? 0 : 1;
                     continue;
                 }
+                $linked = $links->members($jingle->id);
+                if (array_intersect($linked, $queuedMedia) !== []) {
+                    $linkedQueued++;
+                    continue;
+                }
+                if (array_intersect($linked, $pending) !== []) {
+                    continue;
+                }
+                if ($links->recent($history, $jingle->id, microtime(true))) {
+                    $linkedRecent++;
+                    continue;
+                }
 
                 $candidates[] = [
                     'id' => $jingle->id,
-                    'last_played' => $data['history'][$jingle->id] ?? 0,
+                    'last_played' => $links->lastPlayed($history, $jingle->id),
                     'body' => $fit['duck_duration'],
                     'jingle' => $jingle,
                     'timing' => $timing,
                     'fit' => $fit,
                 ];
             }
-            $candidates = Selection::order($candidates, $intro - $cueIn - $settings->margin, $settings);
+            $availableIntro = $intro !== null && $intro > $cueIn
+                ? max(0.0, $intro - $cueIn - $settings->margin) : 0.0;
+            $candidates = Selection::order($candidates, $availableIntro, $settings);
             if ($candidates !== []) {
                 $candidate = $candidates[0];
                 $jingle = $candidate['jingle'];
@@ -158,6 +230,11 @@ final readonly class Planner
                     . '",liq_cue_out="' . $timing->cueOut . '":media:' . ltrim($jingle->path, '/');
                 $result = [
                     'token' => $token,
+                    'route_key' => $route->key,
+                    'song_delay' => $fit['song_delay'],
+                    'pre_roll' => $fit['pre_roll'],
+                    'follow_spacing' => $route->followSpacing,
+                    'counts_for_spacing' => $route->countsForSpacing,
                     'jingle_id' => $jingle->id,
                     'revision' => $settings->revision(),
                     'uri' => $uri,
@@ -169,6 +246,7 @@ final readonly class Planner
                 ];
                 $data['plans'][$token] = [
                     'song_id' => $song->id,
+                    'route_key' => $route->key,
                     'jingle_id' => $jingle->id,
                     'cue_in' => $cueIn,
                     'cue_out' => $cueOut,
@@ -183,7 +261,9 @@ final readonly class Planner
 
             return $decide(match (true) {
                 $measured === 0 => 'no_sweepers',
-                $fitting === 0 => 'no_fit',
+                $fitting === 0 => $preRollLimited > 0 ? 'pre_roll_limit' : 'no_fit',
+                $recent === 0 && $linkedQueued > 0 => 'linked_queued',
+                $recent === 0 && $linkedRecent > 0 => 'linked_recent',
                 $recent === 0 => 'reserved',
                 default => 'repeat',
             });
@@ -198,17 +278,20 @@ final readonly class Planner
     }
 
     /**
-     * @return array{settings: Settings, blocked: list<string>}
+     * @return array{settings: Settings, blocked: list<string>, played: list<array{media_id: int, at: float}>}
+     *     played lists sweepers first confirmed audible by these events.
      */
     public function heartbeat(Station $station, array $tokens, array $events, mixed $version = null): array
     {
         if (count($tokens) > 16 || count($events) > 128) {
             throw new InvalidArgumentException('Too many reservation events.');
         }
+        $played = [];
         $data = $this->state->update($station->getRadioConfigDir(), static function (array $data) use (
             $tokens,
             $events,
-            $version
+            $version,
+            &$played
         ): array {
             // Proves the module is running; limited to one state write per 30 seconds.
             if (
@@ -219,8 +302,17 @@ final readonly class Planner
                 $data['heartbeat'] = ['at' => time(), 'version' => substr($version, 0, 64)];
             }
             foreach ($events as $event) {
-                if (is_array($event)) {
-                    $data = self::apply($data, $event);
+                if (!is_array($event)) {
+                    continue;
+                }
+                $token = (string)($event['token'] ?? '');
+                $before = ($event['event'] ?? '') === 'played' ? self::playedSweeper($data, $token) : null;
+                $data = self::apply($data, $event);
+                if ($before === null && ($event['event'] ?? '') === 'played') {
+                    $after = self::playedSweeper($data, $token);
+                    if ($after !== null) {
+                        $played[] = $after;
+                    }
                 }
             }
             foreach ($tokens as $token) {
@@ -241,13 +333,38 @@ final readonly class Planner
             array_map('strval', $tokens),
             static fn(string $token): bool => isset($data['plans'][$token])
                 && !($data['plans'][$token]['played'] ?? false)
+                && ($settings->route((string)($data['plans'][$token]['route_key'] ?? ''))?->followSpacing ?? true)
         ));
 
         // Recheck until activation: AzuraCast extends its upcoming queue after planning.
         return [
             'settings' => $settings,
             'blocked' => $settings->enabled ? $this->queue->blocked($station, $pending, $settings) : [],
+            'played' => $played,
         ];
+    }
+
+    /**
+     * @return array{media_id: int, at: float}|null The sweeper this token played, once confirmed.
+     */
+    private static function playedSweeper(array $data, string $token): ?array
+    {
+        if ($token === '') {
+            return null;
+        }
+        foreach ($data['log'] ?? [] as $entry) {
+            if (
+                ($entry['token'] ?? null) === $token && ($entry['result'] ?? null) === 'played'
+                && is_int($entry['jingle_id'] ?? null)
+            ) {
+                return [
+                    'media_id' => $entry['jingle_id'],
+                    'at' => (float)($entry['sweeper_started_at'] ?? $entry['at'] ?? microtime(true)),
+                ];
+            }
+        }
+
+        return null;
     }
 
     public static function apply(array $data, array $event): array
@@ -272,6 +389,31 @@ final readonly class Planner
         }
 
         if ($type === 'start') {
+            $mediaId = (string)($event['media_id'] ?? '');
+            if (
+                preg_match('/^[1-9]\d{0,9}$/D', $mediaId)
+                && Links::fromArray($data['settings']['link_groups'] ?? [], 0)->linked((int)$mediaId)
+            ) {
+                // A linked jingle counts as a play of its whole group in the sweeper rotation.
+                $last = (float)($data['history'][(int)$mediaId] ?? 0);
+                $data['history'][(int)$mediaId] = max($last, (float)$at);
+            }
+            if ($index !== null && isset($log[$index]['song_started_at'])) {
+                return $data;
+            }
+            if ($index !== null) {
+                $data['log'][$index]['song_started_at'] = (float)$at;
+            }
+            if (
+                (string)($event['media_id'] ?? '') !== ''
+                && !in_array($detail, ['jingle', 'other'], true)
+            ) {
+                foreach ($data['route_cooldowns'] ?? [] as $routeKey => $cooldown) {
+                    if (isset($cooldown['carrying_token']) && $cooldown['carrying_token'] !== $token) {
+                        unset($data['route_cooldowns'][$routeKey]['carrying_token']);
+                    }
+                }
+            }
             if ($index !== null) {
                 return $data;
             }
@@ -295,6 +437,9 @@ final readonly class Planner
                 'title' => mb_substr((string)($event['title'] ?? ''), 0, 200),
                 'artist' => mb_substr((string)($event['artist'] ?? ''), 0, 200),
                 'result' => $result,
+                'song_started_at' => (float)$at,
+                ...(is_string($plan['route_key'] ?? $event['route_key'] ?? null)
+                    ? ['route_key' => $plan['route_key'] ?? $event['route_key']] : []),
                 ...($result === 'scheduled'
                     ? self::playback($event, $plan, null)
                     : ['jingle_id' => null]),
@@ -303,6 +448,24 @@ final readonly class Planner
                 ]),
                 ...($unmoved === null ? [] : ['unmoved' => $unmoved]),
             ], ...$log]);
+
+            return $data;
+        }
+        if ($type === 'end' && $token !== '') {
+            if ($index === null || isset($log[$index]['song_ended_at'])) {
+                return $data;
+            }
+            $data['log'][$index]['song_ended_at'] = (float)$at;
+            foreach ($data['route_cooldowns'] ?? [] as $routeKey => $cooldown) {
+                if (($cooldown['carrying_token'] ?? null) === $token) {
+                    unset($data['route_cooldowns'][$routeKey]['carrying_token']);
+                    continue;
+                }
+                $data['route_cooldowns'][$routeKey]['songs_since'] = min(
+                    1000,
+                    (int)($cooldown['songs_since'] ?? 0) + 1
+                );
+            }
 
             return $data;
         }
@@ -329,10 +492,20 @@ final readonly class Planner
             }
             if ($plan !== null) {
                 $data['plans'][$token]['played'] = true;
+                $routeKey = $plan['route_key'] ?? '';
+                if (is_string($routeKey) && $routeKey !== '' && $routeKey !== 'default') {
+                    $cooldown = [
+                        'last_played_at' => (float)$at,
+                        'songs_since' => 0,
+                        'carrying_token' => $token,
+                    ];
+                    $data['route_cooldowns'][$routeKey] = $cooldown;
+                }
             }
             $played = [
                 'result' => 'played',
                 ...$playback,
+                'sweeper_started_at' => (float)$at,
             ];
             if ($index !== null) {
                 $data['log'][$index] = [...$log[$index], ...$played];
@@ -351,7 +524,10 @@ final readonly class Planner
                 ),
                 'title' => mb_substr((string)($event['title'] ?? ''), 0, 200),
                 'artist' => mb_substr((string)($event['artist'] ?? ''), 0, 200),
+                'song_started_at' => null,
                 ...$played,
+                ...(is_string($plan['route_key'] ?? $event['route_key'] ?? null)
+                    ? ['route_key' => $plan['route_key'] ?? $event['route_key']] : []),
                 ...($moved === null ? [] : [
                     ($moved['replacement'] ?? false) ? 'replaced_before' : 'moved_before' => $moved['before'] ?? null,
                 ]),
@@ -383,6 +559,10 @@ final readonly class Planner
         return [
             'jingle_id' => $id > 0 ? $id : ($plan['jingle_id'] ?? $entry['jingle_id'] ?? null),
             'offset' => $offset,
+            'song_delay' => isset($plan['payload']['song_delay'])
+                ? (float)$plan['payload']['song_delay'] : ($entry['song_delay'] ?? null),
+            'pre_roll' => (bool)($plan['payload']['pre_roll'] ?? $entry['pre_roll'] ?? false),
+            'route_key' => $plan['route_key'] ?? $entry['route_key'] ?? null,
         ];
     }
 

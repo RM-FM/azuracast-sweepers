@@ -9,8 +9,11 @@ use Plugin\AzuracastSweepers\Service\Queue;
 use Plugin\AzuracastSweepers\Service\Schedule;
 use Plugin\AzuracastSweepers\Service\State;
 use Plugin\AzuracastSweepers\ValueObject\Arrangement;
+use Plugin\AzuracastSweepers\ValueObject\LinkMarks;
+use Plugin\AzuracastSweepers\ValueObject\Links;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
 use Plugin\AzuracastSweepers\ValueObject\Selection;
+use Plugin\AzuracastSweepers\ValueObject\SweeperRoute;
 use Plugin\AzuracastSweepers\ValueObject\Timing;
 
 spl_autoload_register(static function (string $class): void {
@@ -44,6 +47,23 @@ function rejects(callable $callback): void
 
 $settings = new Settings(enabled: true, playlistIds: [1], margin: 0.8);
 $timing = Timing::fromArray(['cue_in' => 1, 'cue_out' => 10, 'cross_start_next' => 7], 12);
+$preRollTiming = Timing::fromArray(['cue_in' => 0, 'cue_out' => 5, 'cross_start_next' => 5], 5);
+$preRollSettings = new Settings(margin: 0.5);
+$shortIntro = $preRollTiming->fitWithPreRoll(3, 0, 180, $preRollSettings, true);
+check($shortIntro['song_delay'] === 2.5 && $shortIntro['pre_roll'], 'Use remaining intro before delaying the song.');
+$unknownIntro = $preRollTiming->fitWithPreRoll(null, 0, 180, $preRollSettings, true);
+check($unknownIntro['song_delay'] === 5.0, 'Unknown intro starts the song at the sweeper handover.');
+$zeroIntro = $preRollTiming->fitWithPreRoll(0, 0, 180, $preRollSettings, true);
+check($zeroIntro['song_delay'] === 5.0, 'Zero intro starts the song at the sweeper handover.');
+$normalOverlay = $preRollTiming->fitWithPreRoll(10, 0, 180, $preRollSettings, true);
+check($normalOverlay['song_delay'] === 0.0 && !$normalOverlay['pre_roll'], 'A fitting intro keeps normal overlay timing.');
+check($preRollTiming->fitWithPreRoll(null, 0, 180, $preRollSettings, false) === null, 'Pre-roll is opt-in.');
+$sixtySecondSweeper = Timing::fromArray(['cue_in' => 0, 'cue_out' => 60, 'cross_start_next' => 60], 60);
+check($sixtySecondSweeper->fitWithPreRoll(null, 0, 180, $preRollSettings, true)['song_delay'] === 60.0,
+    'The hard pre-roll ceiling allows 60 seconds.');
+$sixtyOneSecondSweeper = Timing::fromArray(['cue_in' => 0, 'cue_out' => 61, 'cross_start_next' => 61], 61);
+check($sixtyOneSecondSweeper->fitWithPreRoll(null, 0, 180, $preRollSettings, true) === null,
+    'The hard pre-roll ceiling rejects delays over 60 seconds.');
 check($timing !== null, 'Valid jingle timing.');
 $fit = $timing->fit(12, 2, 180, $settings);
 check(abs($fit['offset'] - 3.2) < 0.001, 'Subtract song cue-in once.');
@@ -139,6 +159,206 @@ $metadata['liq_amplify'] = 'x dB';
 check(Timing::fromMetadata($metadata, 12) === null, 'Invalid amplification metadata.');
 check(Settings::fromArray($settings->toArray())->toArray() === $settings->toArray(), 'Settings round trip.');
 check(Settings::fromArray($settings->toArray())->revision() === $settings->revision(), 'Stable settings revision.');
+$requestRoute = new SweeperRoute(
+    SweeperRoute::LISTENER_REQUEST,
+    [4, 5],
+    preRoll: true,
+    cooldownSongs: 3,
+    cooldownMinutes: 10
+);
+check(
+    SweeperRoute::fromArray($requestRoute->toArray())->toArray() === $requestRoute->toArray(),
+    'Route settings round trip.'
+);
+check(!$requestRoute->cooldownAllows(2, 120), 'Both cooldown thresholds can remain unmet.');
+check($requestRoute->cooldownAllows(3, 120), 'The song cooldown independently allows reuse.');
+check($requestRoute->cooldownAllows(2, 600), 'The time cooldown independently allows reuse.');
+check((new SweeperRoute('playlist:12'))->cooldownAllows(0, 0), 'Disabled cooldowns allow reuse.');
+check((new SweeperRoute(SweeperRoute::DEFAULT, preRoll: true))->preRoll, 'Default routes may enable pre-roll.');
+check(
+    !$requestRoute->followSpacing && !$requestRoute->countsForSpacing
+        && (new SweeperRoute('playlist:12'))->followSpacing && (new SweeperRoute('playlist:12'))->countsForSpacing,
+    'Listener requests ignore song spacing by default; playlist rules follow it.'
+);
+check(
+    SweeperRoute::fromArray(['key' => 'playlist:12', 'follow_spacing' => false, 'counts_for_spacing' => true])
+        ->toArray()['follow_spacing'] === false,
+    'A playlist rule may ignore song spacing.'
+);
+$routes = [
+    new SweeperRoute(SweeperRoute::DEFAULT, [1]),
+    new SweeperRoute('playlist:12', [4]),
+    new SweeperRoute(SweeperRoute::LISTENER_REQUEST, [5]),
+];
+$routed = Settings::fromArray([
+    'playlist_ids' => [1],
+    'sweeper_routes' => array_map(static fn(SweeperRoute $route): array => $route->toArray(), $routes),
+]);
+check($routed->routeFor(12, false)->key === 'playlist:12', 'An exact playlist route overrides Default.');
+check($routed->routeFor(12, true)->key === SweeperRoute::LISTENER_REQUEST, 'Listener Request takes route precedence.');
+check($routed->routeFor(13, false)->key === SweeperRoute::DEFAULT, 'Unmatched playlists use Default.');
+check($routed->allSweeperPlaylistIds() === [1, 4, 5], 'All route pools contribute to catalogue validation.');
+check(
+    Settings::fromArray(['playlist_ids' => [8]])->sweeperRoutes[0]->toArray()
+        === (new SweeperRoute(SweeperRoute::DEFAULT, [8]))->toArray(),
+    'Legacy playlist settings migrate to Default with pre-roll off.'
+);
+check(
+    Settings::fromArray(['playlist_ids' => [9], 'sweeper_routes' => [
+        (new SweeperRoute(SweeperRoute::DEFAULT, [9]))->toArray(),
+        (new SweeperRoute(SweeperRoute::LISTENER_REQUEST))->toArray(),
+    ]])->routeFor(null, true)->key === SweeperRoute::DEFAULT,
+    'An empty Listener Request pool inherits Default.'
+);
+foreach ([
+    ['key' => 'unknown', 'playlist_ids' => []],
+    ['key' => SweeperRoute::DEFAULT, 'playlist_ids' => [], 'cooldown_songs' => 1],
+    ['key' => SweeperRoute::DEFAULT, 'playlist_ids' => [], 'follow_spacing' => false],
+    ['key' => SweeperRoute::DEFAULT, 'playlist_ids' => [], 'counts_for_spacing' => false],
+    ['key' => 'playlist:12', 'playlist_ids' => [], 'follow_spacing' => 'no'],
+    ['key' => SweeperRoute::LISTENER_REQUEST, 'playlist_ids' => ['4']],
+    ['key' => 'playlist:0', 'playlist_ids' => []],
+] as $invalidRoute) {
+    rejects(static fn() => SweeperRoute::fromArray($invalidRoute));
+}
+rejects(static fn() => new SweeperRoute('playlist:12', [2 => 4]));
+$links = new Links([['name' => 'Hot Hits', 'media_ids' => [1, 2, 3]], ['name' => 'Weekend', 'media_ids' => [4, 5]]], 10);
+check($links->members(2) === [1, 3] && $links->members(9) === [], 'Link groups list the other tracks of a group.');
+check($links->lastPlayed([1 => 100, 3 => 300, 4 => 900], 2) === 300.0, 'A group shares its latest play.');
+check(
+    $links->recent([3 => 1000], 1, 1000 + 599) && !$links->recent([3 => 1000], 1, 1000 + 600)
+        && !$links->recent([1 => 1000], 1, 1001),
+    'The window counts only the other tracks of a group.'
+);
+check(!(new Links([['name' => 'A', 'media_ids' => [1, 2]]]))->recent([2 => 1000], 1, 1001), 'A zero window never blocks.');
+$linked = Settings::fromArray(['link_groups' => [['name' => ' Hot Hits ', 'media_ids' => [1, 2]]], 'link_window' => 5]);
+check(
+    $linked->links->groups === [['name' => 'Hot Hits', 'media_ids' => [1, 2]]]
+        && Settings::fromArray($linked->toArray())->toArray() === $linked->toArray(),
+    'Link groups round trip with trimmed names.'
+);
+foreach ([
+    ['link_groups' => [['name' => 'One', 'media_ids' => [1]]]],
+    ['link_groups' => [['name' => 'A', 'media_ids' => [1, 2]], ['name' => 'B', 'media_ids' => [2, 3]]]],
+    ['link_groups' => [['name' => 'A', 'media_ids' => [1, '2']]]],
+    ['link_groups' => [['name' => 'A', 'media_ids' => [1, 2]]], 'link_window' => 1441],
+    ['link_groups' => ['a' => ['name' => 'A', 'media_ids' => [1, 2]]]],
+] as $invalidLinks) {
+    rejects(static fn() => Settings::fromArray($invalidLinks));
+}
+$linkedStart = Planner::apply(['settings' => $linked->toArray()], [
+    'event' => 'start', 'token' => '700', 'detail' => 'jingle', 'media_id' => '2', 'at' => 1000.0,
+]);
+$unlinkedStart = Planner::apply(['settings' => $linked->toArray()], [
+    'event' => 'start', 'token' => '701', 'detail' => '', 'media_id' => '8', 'at' => 1000.0,
+]);
+check(
+    ($linkedStart['history'][2] ?? null) === 1000.0 && !isset($unlinkedStart['history'][8]),
+    'Only linked tracks record their start in the shared rotation history.'
+);
+$markLinks = new Links([['name' => 'Hot Hits', 'media_ids' => [9, 20, 21]]]);
+$reserved = ['plans' => ['800' => ['jingle_id' => 9, 'played' => false, 'expires_at' => 2000]]];
+check(
+    LinkMarks::plan($reserved, $markLinks, true, 1000)
+        === ['reserve' => [20 => '800', 21 => '800'], 'finalize' => [], 'restore' => [], 'drop' => []],
+    'A reserved sweeper holds back its linked jingles.'
+);
+$marked = $reserved + ['link_marks' => [20 => ['token' => '800', 'at' => 1000], 21 => ['token' => '800', 'at' => 1000]]];
+check(LinkMarks::empty(LinkMarks::plan($marked, $markLinks, true, 1001)), 'Applied marks are not repeated.');
+check(
+    LinkMarks::plan(['link_marks' => $marked['link_marks']], $markLinks, true, 1001)['restore'] === [20, 21],
+    'A dropped reservation returns its jingles to the rotation.'
+);
+check(
+    LinkMarks::plan($marked, $markLinks, false, 1001)['restore'] === [20, 21],
+    'Switching sweepers off returns reserved jingles.'
+);
+check(
+    LinkMarks::plan($marked, new Links(), true, 1001)['restore'] === [20, 21],
+    'Removing a link group returns its reserved jingles.'
+);
+$playedMarks = ['link_marks' => $marked['link_marks'], 'log' => [
+    ['token' => '800', 'result' => 'played', 'jingle_id' => 9, 'sweeper_started_at' => 1010.5],
+]];
+check(
+    LinkMarks::plan($playedMarks, $markLinks, true, 1020)
+        === ['reserve' => [], 'finalize' => [['token' => '800', 'media_ids' => [20, 21], 'at' => 1010]],
+            'restore' => [], 'drop' => []],
+    'A played sweeper makes its marks final with the actual play time instead of restoring them.'
+);
+check(
+    LinkMarks::plan($playedMarks + ['link_finalised' => ['800' => 1010]], $markLinks, true, 1020)['drop'] === [20, 21]
+        && LinkMarks::empty(LinkMarks::plan(['log' => $playedMarks['log'], 'link_finalised' => ['800' => 1010]], $markLinks, true, 1020)),
+    'Finalised sweepers are applied once.'
+);
+check(
+    LinkMarks::plan(['log' => $playedMarks['log']], $markLinks, true, 1010 + LinkMarks::PLAYED_SECONDS + 1)['finalize'] === [],
+    'Old plays no longer change the rotation.'
+);
+$handover = ['plans' => ['801' => ['jingle_id' => 20, 'played' => false, 'expires_at' => 2000]],
+    'link_marks' => [9 => ['token' => '800', 'at' => 1000], 21 => ['token' => '800', 'at' => 1000]]];
+check(
+    LinkMarks::plan($handover, $markLinks, true, 1001)
+        === ['reserve' => [9 => '801', 21 => '801'], 'finalize' => [], 'restore' => [], 'drop' => []],
+    'A new reservation of the same group takes over existing marks instead of restoring them.'
+);
+$playedAt = microtime(true);
+$preRollPlan = [
+    'plans' => ['401' => [
+        'route_key' => SweeperRoute::LISTENER_REQUEST,
+        'song_id' => 1,
+        'jingle_id' => 9,
+        'played' => false,
+        'payload' => ['jingle_id' => 9, 'offset' => 0.0, 'song_delay' => 5.0, 'pre_roll' => true],
+    ]],
+];
+$playedFirst = Planner::apply($preRollPlan, [
+    'event' => 'played', 'token' => '401', 'jingle_id' => 9, 'offset' => 0.0, 'at' => $playedAt,
+]);
+check(
+    $playedFirst['route_cooldowns'][SweeperRoute::LISTENER_REQUEST]['carrying_token'] === '401',
+    'Pre-roll playback waits to count its carrying song.'
+);
+$songStarted = Planner::apply($playedFirst, [
+    'event' => 'start', 'token' => '401', 'media_id' => '1', 'detail' => 'none', 'at' => $playedAt + 0.1,
+]);
+check(
+    $songStarted['route_cooldowns'][SweeperRoute::LISTENER_REQUEST]['songs_since'] === 0
+        && $songStarted['route_cooldowns'][SweeperRoute::LISTENER_REQUEST]['carrying_token'] === '401'
+        && $songStarted['log'][0]['song_started_at'] === $playedAt + 0.1,
+    'Pre-roll song start neither counts as an intervening song nor loses its carrier marker.'
+);
+$carrierEnded = Planner::apply($songStarted, [
+    'event' => 'end', 'token' => '401', 'at' => $playedAt + 0.15,
+]);
+check(
+    $carrierEnded['route_cooldowns'][SweeperRoute::LISTENER_REQUEST]['songs_since'] === 0
+        && !isset($carrierEnded['route_cooldowns'][SweeperRoute::LISTENER_REQUEST]['carrying_token'])
+        && $carrierEnded['log'][0]['song_ended_at'] === $playedAt + 0.15,
+    'The song carrying a sweeper does not advance its route cooldown.'
+);
+$interveningStart = Planner::apply($carrierEnded, [
+    'event' => 'start', 'token' => '402', 'media_id' => '2', 'detail' => 'none', 'at' => $playedAt + 0.2,
+]);
+$intervening = Planner::apply($interveningStart, [
+    'event' => 'end', 'token' => '402', 'at' => $playedAt + 1.2,
+]);
+$duplicateEnd = Planner::apply($intervening, [
+    'event' => 'end', 'token' => '402', 'at' => $playedAt + 1.2,
+]);
+check($interveningStart['route_cooldowns'][SweeperRoute::LISTENER_REQUEST]['songs_since'] === 0,
+    'A started but incomplete song does not advance the route cooldown.');
+check(
+    $intervening['route_cooldowns'][SweeperRoute::LISTENER_REQUEST]['songs_since'] === 1
+        && $duplicateEnd['route_cooldowns'][SweeperRoute::LISTENER_REQUEST]['songs_since'] === 1,
+    'A completed song advances the route cooldown exactly once.'
+);
+$historyRow = \Plugin\AzuracastSweepers\Service\History::rows($songStarted['log'], [])[0];
+check(
+    $historyRow['route_key'] === SweeperRoute::LISTENER_REQUEST && $historyRow['pre_roll']
+        && $historyRow['song_delay'] === 5.0 && $historyRow['sweeper_started_at'] === $playedAt,
+    'Timeline projection preserves route and pre-roll timing.'
+);
 foreach ([
     'enabled' => false, 'playlist_ids' => [1, 2], 'songs_after_jingle' => 3, 'songs_after_sweeper' => 2,
     'songs_before_jingle' => 1, 'count_jingle_mode' => false,
@@ -357,9 +577,8 @@ check(
         new Settings(playlistIds: [9], songsAfterJingle: 1, songsAfterSweeper: 1, jinglePlaylistIds: [8]),
         6,
         $intros(22, 23, 25, 26, 27)
-    ) === [21, 22],
-    'Sequential songs (by default), jingles, additional jingle playlists and excluded playlists never move; '
-        . 'a listener request with an intro may.'
+    ) === null,
+    'Sequential songs by default, jingles, additional jingle playlists, excluded playlists and requests never move.'
 );
 check(
     Arrangement::choose([$song(21), $song(23, extra: $sequential)], $due, $withSequential, 3, $intros(23)) === [21, 23],
@@ -399,8 +618,8 @@ check(
         $gapSettings,
         3,
         $intros(22)
-    ) === [21, 22],
-    'A requested song without intro may change places with a later song.'
+    ) === null,
+    'A requested song without intro stays in its queue position.'
 );
 $moveDefaults = Settings::fromArray([]);
 check(!$moveDefaults->swapSequential && $moveDefaults->excludedPlaylistIds === [], 'New options are off and empty by default.');

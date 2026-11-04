@@ -50,10 +50,10 @@
                         </div>
                     </fieldset>
                     <div class="row g-4 mt-0">
-                    <fieldset class="form-group col-12" aria-describedby="sweepers-playlists-help">
-                        <legend>Sweeper Playlists</legend>
-                                <PlaylistPicker id="sweepers-playlist" v-model="settings.playlist_ids" title="Sweeper playlists" :playlists="playlists" :label="playlistLabel" />
-                                <div id="sweepers-playlists-help" class="form-text">One or more <strong>Advanced</strong> playlists with the sweepers, so they do not also play as normal songs. Playlists with a schedule are used only in their time slots; without a schedule they are always used. All playlists active at the same time share one rotation. Disabled playlists are skipped.</div>
+                    <fieldset class="form-group col-12" aria-describedby="sweepers-pool-help">
+                        <legend>Sweeper Pool</legend>
+                        <p id="sweepers-pool-help" class="form-text sweepers-section-text">Sweepers for all songs. Listener requests and songs from playlists with their own rule can use other sweepers on the Sweeper Rules tab. Schedules still apply; playlists in the same pool share one rotation.</p>
+                        <SweeperRoute v-if="defaultRoute" :route="defaultRoute" title="Default" :playlists="playlists" :label="playlistLabel" />
                     </fieldset>
 
                     <fieldset class="form-group col-12">
@@ -65,6 +65,41 @@
                                 <div class="form-text">Tracks from these playlists never get a sweeper and are never moved, for example news or pre-recorded shows. Selecting a playlist group covers all playlists in it.</div>
                             </fieldset>
                         </div>
+                    </fieldset>
+                    </div>
+                    </div>
+
+                    <div id="sweepers-panel-rules" v-show="settingsTab === 'rules'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-rules" data-settings-tab="rules">
+                    <div class="row g-4">
+                    <fieldset v-if="requestRoute" class="form-group col-12" data-route-key="listener_request">
+                        <legend>Listener Requests</legend>
+                        <p class="form-text sweepers-section-text">Sweepers for songs that listeners requested, for example one that announces the request.</p>
+                        <SweeperRoute :route="requestRoute" title="Listener Request" :playlists="playlists" :label="playlistLabel" />
+                    </fieldset>
+
+                    <fieldset class="form-group col-12">
+                        <legend>Song Playlist Rules</legend>
+                        <p class="form-text sweepers-section-text">Give songs from one playlist their own sweepers, for example a Christmas playlist. Rules are collapsed; open one to edit it.</p>
+                        <div v-if="playlistRoutes.length" class="accordion sweepers-playlist-rules mb-3">
+                            <div v-for="route in playlistRoutes" :key="route.key" class="accordion-item" :data-route-key="route.key">
+                                <h3 class="accordion-header">
+                                    <button :id="'sweepers-rule-toggle-' + routeId(route.key)" class="accordion-button" :class="{ collapsed: !isRuleOpen(route.key) }" type="button" :aria-expanded="isRuleOpen(route.key)" :aria-controls="'sweepers-rule-' + routeId(route.key)" @click="toggleRule(route.key)">
+                                        <span class="flex-fill">{{ routePlaylistName(route.key) }}</span>
+                                        <span class="sweepers-rule-summary small me-3">{{ routeSummary(route) }}</span>
+                                    </button>
+                                </h3>
+                                <div v-show="isRuleOpen(route.key)" :id="'sweepers-rule-' + routeId(route.key)" class="accordion-collapse" role="region" :aria-labelledby="'sweepers-rule-toggle-' + routeId(route.key)">
+                                    <div class="accordion-body">
+                                        <SweeperRoute :route="route" :title="routeTitle(route.key)" :playlists="playlists" :label="playlistLabel" />
+                                        <div class="buttons mt-3">
+                                            <button type="button" class="btn btn-sm btn-danger" :aria-label="'Remove ' + routeTitle(route.key) + ' rule'" @click="removePlaylistRule(route.key)"><Icon name="delete" /><span>Remove Rule</span></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <PlaylistPicker id="sweepers-playlist-rule" :model-value="ruledPlaylistIds" title="Song playlists" :playlists="ruleCandidates" :tags="false" locked close-on-select button-label="Add Playlist Rule" @update:model-value="addPlaylistRules" />
+                        <div class="form-text">Song playlists that are not a sweeper pool, jingle or excluded playlist. Playlists with a rule are ticked.</div>
                     </fieldset>
                     </div>
                     </div>
@@ -110,6 +145,12 @@
                                 <div class="form-text">Other playlists whose tracks count as jingles. The sweeper playlists always count.</div>
                             </fieldset>
                         </div>
+                    </fieldset>
+
+                    <fieldset class="form-group col-12">
+                        <legend>Linked Sweepers &amp; Jingles</legend>
+                        <p class="form-text sweepers-section-text">Link sweepers and jingles that say the same, for example differently produced versions. While a linked sweeper is coming up or has just played, AzuraCast's rotation treats its linked jingles as already used, and a sweeper is not chosen while a linked jingle is coming up.</p>
+                        <LinkGroups v-if="settings.link_groups" v-model:window="settings.link_window" :groups="settings.link_groups" :candidates="linkCandidates" :error="linkCandidatesError" />
                     </fieldset>
                     </div>
                     </div>
@@ -258,7 +299,7 @@
                                 </div>
                                 <div class="form-text">
                                     <template v-if="!previewSupported">This browser cannot play the preview.</template>
-                                    <template v-else-if="!settings.playlist_ids.length">Choose a sweeper playlist in General to preview its sweepers.</template>
+                                    <template v-else-if="!settings.playlist_ids.length">Choose a sweeper pool in General to preview its sweepers.</template>
                                     <template v-else>Plays the sweeper in your browser with the reverb as set above, before saving. Switching the reverb or changing the intensity is heard right away. Volume and ducking are not part of the preview.</template>
                                 </div>
                                 <div v-if="previewError" class="invalid-feedback d-block" role="alert">{{ previewError }}</div>
@@ -439,7 +480,7 @@
                                 <th scope="col">Sweeper Status</th>
                                 <th scope="col">Sweeper or Reason</th>
                                 <th scope="col" class="text-end">Intro</th>
-                                <th scope="col" class="text-end">Started After</th>
+                                <th scope="col" class="text-end">Sweeper Timing</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -457,6 +498,7 @@
                                 <td class="file-name">
                                     <div class="timeline-title">{{ fileTitle(entry.song) }}</div>
                                     <small v-if="fileArtist(entry.song)" class="text-muted timeline-artist">{{ fileArtist(entry.song) }}</small>
+                                    <small v-if="entry.route_key" class="timeline-route">{{ routeTitle(entry.route_key) }}</small>
                                     <small v-if="entry.moved" class="timeline-moved" :title="entry.moved_before ? describe(entry.moved_before) : ''">
                                         ↑ Moved ahead of {{ entry.moved_before ? fileTitle(entry.moved_before) : 'a song without intro' }}
                                     </small>
@@ -481,7 +523,7 @@
                                     <button v-if="entry.song?.id && entry.result !== 'jingle'" type="button" class="btn btn-sm btn-link timeline-intro" :aria-label="'Edit intro: ' + describe(entry.song)" title="Edit intro" @click="editIntro(entry.song.id)">{{ seconds(entry.song.intro) || 'Set' }} ✎</button>
                                     <span v-else class="text-muted">{{ seconds(entry.song?.intro) }}</span>
                                 </td>
-                                <td class="text-nowrap text-end">{{ entry.result === 'played' ? seconds(entry.offset) : '' }}</td>
+                                <td class="text-nowrap text-end">{{ sweeperTiming(entry) }}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -499,8 +541,10 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { VueDatePicker } from "@vuepic/vue-datepicker";
 import DataToolbar from "./DataToolbar.vue";
 import Icon from "./Icon.vue";
+import LinkGroups from "./LinkGroups.vue";
 import Pagination from "./Pagination.vue";
 import PlaylistPicker from "./PlaylistPicker.vue";
+import SweeperRoute from "./SweeperRoute.vue";
 import Waveform from "./Waveform.vue";
 import { formatStationTime, lastDay, presetRanges, startOfDay } from "./dates.js";
 import { createReverbPreview, reverbLevel } from "./reverb.js";
@@ -513,7 +557,7 @@ const props = defineProps({
 });
 const views = [["settings", "Settings"], ["intros", "Intro Manager"], ["history", "Playback Timeline"]];
 const current = ref(views.some(([key]) => key === props.view) ? props.view : "settings");
-const settingsTabs = [["general", "General"], ["spacing", "Spacing & Jingles"], ["selection", "Selection & Timing"], ["audio", "Audio & Preview"]];
+const settingsTabs = [["general", "General"], ["rules", "Sweeper Rules"], ["spacing", "Spacing & Jingles"], ["selection", "Selection & Timing"], ["audio", "Audio & Preview"]];
 const settingsTab = ref("general");
 
 function settingsTabKey(event) {
@@ -533,9 +577,12 @@ function settingsTabKey(event) {
 async function revealInvalidSetting(event) {
     const input = event.target;
     const tab = input.closest("[data-settings-tab]")?.dataset.settingsTab;
-    if (!tab || tab === settingsTab.value) return;
+    const rule = input.closest(".sweepers-playlist-rules [data-route-key]")?.dataset.routeKey;
+    const hiddenRule = rule && !isRuleOpen(rule);
+    if (!tab || (tab === settingsTab.value && !hiddenRule)) return;
     event.preventDefault();
     settingsTab.value = tab;
+    if (hiddenRule) openRules.value = new Set([...openRules.value, rule]);
     await nextTick();
     input.focus();
     input.reportValidity();
@@ -561,8 +608,37 @@ const updateRestartText = computed(() => ({
     unknown: "Check the release notes for whether broadcasting must be restarted.",
 })[release.value?.restart] ?? "");
 const settings = ref({});
+const linkCandidates = ref([]);
+const linkCandidatesError = ref("");
+let linkCandidatesLoaded = false;
+
+async function loadLinkCandidates() {
+    if (linkCandidatesLoaded) return;
+    linkCandidatesLoaded = true;
+    try {
+        linkCandidates.value = (await api("media?links=1")).rows;
+    } catch (exception) {
+        linkCandidatesLoaded = false;
+        linkCandidatesError.value = exception.message;
+    }
+}
 const playlists = ref([]);
 const jinglePlaylists = ref([]);
+const defaultRoute = computed(() => routeByKey("default"));
+const requestRoute = computed(() => routeByKey("listener_request"));
+const playlistRoutes = computed(() => (settings.value.sweeper_routes ?? []).filter((route) => route.key.startsWith("playlist:")));
+const openRules = ref(new Set());
+const ruledPlaylistIds = computed(() => playlistRoutes.value.map((route) => routePlaylistId(route.key)));
+// jingle_playlists lists every station playlist; playlists lists only the Advanced ones that can hold sweepers.
+const ruleCandidates = computed(() => {
+    const unavailable = new Set([
+        ...(settings.value.sweeper_routes ?? []).flatMap((route) => route.playlist_ids),
+        ...(settings.value.jingle_playlist_ids ?? []),
+        ...(settings.value.excluded_playlist_ids ?? []),
+    ]);
+    return jinglePlaylists.value.filter((playlist) => hasPlaylistRule(playlist.id)
+        || (playlist.source === "songs" && !playlist.is_jingle && !unavailable.has(playlist.id)));
+});
 const rows = ref([]);
 const page = ref(1);
 const mediaPerPage = ref(25);
@@ -612,6 +688,11 @@ function formatClock(seconds) {
     return formatStationTime(seconds, stationZone.value, { timeStyle: "medium" });
 }
 
+function sweeperTiming(entry) {
+    if (entry.result !== "played") return "";
+    return entry.pre_roll ? `${seconds(entry.song_delay)} before song` : `${seconds(entry.offset)} after song`;
+}
+
 function describe(file) {
     if (!file) return "Deleted file";
     const name = [file.artist, file.title].filter(Boolean).join(" – ");
@@ -656,6 +737,12 @@ const reasons = {
     intro_zero: "No intro",
     intro_before_cue: "Intro ends in the silence before the song starts",
     no_fit: "Intro too short for every sweeper",
+    pre_roll_limit: "Required pre-roll exceeds the 60-second safety limit",
+    pre_roll_missed: "Song started without the crossfade its pre-roll needs",
+    route_cooldown: "This route is in its cooldown period",
+    route_reserved: "A sweeper is already reserved for this route",
+    linked_queued: "A linked jingle is coming up",
+    linked_recent: "A linked track played recently",
     repeat: "Only fitting sweeper played too recently",
     reserved: "Fitting sweepers are reserved for upcoming songs",
     no_sweepers: "No sweepers ready (empty playlist or not measured yet)",
@@ -689,6 +776,7 @@ function result(entry) {
 }
 
 const unmovedReasons = {
+    move_request: "Kept in place: listener request",
     move_none: "Not moved forward: no queued song has a fitting intro",
     move_jingle: "Not moved forward: a jingle would follow too soon",
     move_sequential: "Not moved forward: sequential playlist order",
@@ -704,7 +792,7 @@ const unmovedReasons = {
 // Spacing rules and track types skip a sweeper by design; any other reason means a due sweeper could not play.
 const intendedSkips = new Set([
     "jingle", "after_jingle", "after_sweeper", "jingle_follows", "excluded", "other", "live", "disabled", "intro_zero",
-    "off_schedule",
+    "off_schedule", "route_cooldown", "route_reserved", "linked_queued", "linked_recent",
 ]);
 
 function status(entry) {
@@ -834,6 +922,93 @@ function playlistLabel(playlist) {
     return notes.length ? `${playlist.name} (${notes.join(", ")})` : playlist.name;
 }
 
+function makeSweeperRoute(key, playlistIds = []) {
+    const request = key === "listener_request";
+    return {
+        key, playlist_ids: playlistIds, pre_roll: request, cooldown_songs: 0, cooldown_minutes: 0,
+        follow_spacing: !request, counts_for_spacing: !request,
+    };
+}
+
+function routeByKey(key) {
+    return settings.value.sweeper_routes?.find((route) => route.key === key);
+}
+
+function ensureSweeperRoutes() {
+    const routes = Array.isArray(settings.value.sweeper_routes) ? settings.value.sweeper_routes : [];
+    let defaultRoute = routes.find((route) => route.key === "default");
+    if (!defaultRoute) {
+        defaultRoute = makeSweeperRoute("default", [...(settings.value.playlist_ids ?? [])]);
+        routes.unshift(defaultRoute);
+    }
+    if (!routes.some((route) => route.key === "listener_request")) {
+        routes.push(makeSweeperRoute("listener_request"));
+    }
+    settings.value.sweeper_routes = routes;
+    settings.value.playlist_ids = [...defaultRoute.playlist_ids];
+}
+
+function syncDefaultPool() {
+    const defaultRoute = routeByKey("default");
+    if (defaultRoute) settings.value.playlist_ids = [...defaultRoute.playlist_ids];
+}
+
+function routeId(key) {
+    return key.replace(/[^a-z0-9_-]/gi, "-");
+}
+
+function routeTitle(key) {
+    if (key === "default") return "Default";
+    if (key === "listener_request") return "Listener Request";
+    return `Song playlist: ${routePlaylistName(key)}`;
+}
+
+function routePlaylistId(key) {
+    return Number(key.slice("playlist:".length));
+}
+
+function routePlaylistName(key) {
+    const playlistId = routePlaylistId(key);
+    return [...jinglePlaylists.value, ...playlists.value].find((item) => item.id === playlistId)?.name ?? `Playlist ${playlistId}`;
+}
+
+function routeSummary(route) {
+    const count = route.playlist_ids.length;
+    const parts = [count ? `${count} sweeper playlist${count === 1 ? "" : "s"}` : "No sweepers"];
+    if (count) parts.push(route.pre_roll ? "Pre-roll allowed" : "Intro only");
+    if (count && route.follow_spacing === false) parts.push("Ignores song spacing");
+    if (route.cooldown_songs > 0) parts.push(`${route.cooldown_songs} song${route.cooldown_songs === 1 ? "" : "s"} apart`);
+    if (route.cooldown_minutes > 0) parts.push(`${route.cooldown_minutes} min apart`);
+    return parts.join(" · ");
+}
+
+function isRuleOpen(key) {
+    return openRules.value.has(key);
+}
+
+function toggleRule(key) {
+    const open = new Set(openRules.value);
+    if (!open.delete(key)) open.add(key);
+    openRules.value = open;
+}
+
+function hasPlaylistRule(playlistId) {
+    return Boolean(routeByKey(`playlist:${playlistId}`));
+}
+
+function addPlaylistRules(playlistIds) {
+    for (const playlistId of playlistIds) {
+        if (!Number.isInteger(playlistId) || playlistId < 1 || hasPlaylistRule(playlistId)) continue;
+        const key = `playlist:${playlistId}`;
+        settings.value.sweeper_routes.push(makeSweeperRoute(key));
+        openRules.value = new Set([...openRules.value, key]);
+    }
+}
+
+function removePlaylistRule(key) {
+    settings.value.sweeper_routes = settings.value.sweeper_routes.filter((route) => route.key !== key);
+}
+
 let previewRequest = 0;
 
 async function loadPreviewSweepers(ids) {
@@ -874,9 +1049,11 @@ async function togglePreview() {
 }
 
 watch(() => settings.value.playlist_ids?.join(","), () => loadPreviewSweepers(settings.value.playlist_ids));
+watch(() => routeByKey("default")?.playlist_ids?.join(","), syncDefaultPool, { flush: "sync" });
 watch(previewLevel, (level) => preview?.setLevel(level));
 watch(previewId, stopPreview);
 watch(current, stopPreview);
+watch(settingsTab, (tab) => { if (tab === "spacing") void loadLinkCandidates(); });
 onUnmounted(() => preview?.close());
 
 let mediaRequest = 0;
@@ -1100,6 +1277,11 @@ async function saveIntro() {
 
 async function saveSettings() {
     await save(async () => {
+        if (settings.value.link_groups?.some((group) => group.media_ids.length < 2)) {
+            settingsTab.value = "spacing";
+            throw new Error("Each link group needs at least two tracks. Add tracks or remove the group.");
+        }
+        syncDefaultPool();
         const result = await api("settings", settings.value);
         moduleStatus.value = result.module ?? moduleStatus.value;
         notice.value = (moduleStatus.value.state === "active"
@@ -1168,6 +1350,9 @@ onMounted(async () => {
         queueLength.value = state.queue_length ?? 2;
         moduleStatus.value = state.module ?? {};
         settings.value = state.settings;
+        settings.value.link_groups ??= [];
+        settings.value.link_window ??= 0;
+        ensureSweeperRoutes();
         playlists.value = state.playlists;
         jinglePlaylists.value = state.jingle_playlists ?? [];
         stateLoaded.value = true;

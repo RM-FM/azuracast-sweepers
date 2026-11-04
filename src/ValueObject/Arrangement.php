@@ -11,7 +11,6 @@ final class Arrangement
      *     is_jingle: bool, playlist_order: ?string, planned: bool, excluded?: bool, replacement_limited?: bool}> $rows
      *     In AzuraCast's play order.
      * @param array{songs_since_jingle: int, songs_since_sweeper: int, previous_song: bool, previous_clear: bool} $gap
-     * @param callable(int): bool $usable
      * @param ?string $blocked Set when the next song needs a swap that is impossible: move_sequential,
      *     move_jingle, move_none or replace_limit.
      * @return array{0: int, 1: int}|null
@@ -37,7 +36,9 @@ final class Arrangement
             $candidate = $rows[$next];
             if (
                 $candidate['sent'] || $candidate['media_id'] === null || $isJingle($candidate)
-                || ($candidate['excluded'] ?? false) || !$usable((int)$candidate['media_id'])
+                || ($candidate['excluded'] ?? false) || $candidate['request_id'] !== null
+                || $settings->routeFor($candidate['playlist_id'], $candidate['request_id'] !== null)->preRoll
+                || !$usable((int)$candidate['media_id'], $candidate)
             ) {
                 continue;
             }
@@ -76,7 +77,17 @@ final class Arrangement
             return null;
         }
         $row = $rows[$index];
-        if ($row['request_id'] !== null || $row['playlist_id'] === null) {
+        if ($row['request_id'] !== null) {
+            $blocked = 'move_request';
+
+            return null;
+        }
+        if ($settings->routeFor($row['playlist_id'], false)->preRoll) {
+            $blocked = 'move_pre_roll';
+
+            return null;
+        }
+        if ($row['playlist_id'] === null) {
             return null;
         }
         if (self::nearJingle($rows, $index, $settings, $queueLength)) {
@@ -170,9 +181,19 @@ final class Arrangement
             if ($row['sent']) {
                 continue;
             }
+            if ($row['request_id'] !== null) {
+                $blocked = 'move_request';
+
+                return null;
+            }
+            if ($settings->routeFor($row['playlist_id'], false)->preRoll) {
+                $blocked = 'move_pre_roll';
+
+                return null;
+            }
             if (
                 !$allowed || $row['planned'] || ($row['excluded'] ?? false)
-                || $usable((int)$row['media_id'])
+                || $usable((int)$row['media_id'], $row)
             ) {
                 return null;
             }
@@ -194,13 +215,9 @@ final class Arrangement
 
     private static function movable(array $row, bool $song, Settings $settings): bool
     {
-        if (!$song || ($row['excluded'] ?? false)) {
+        if (!$song || ($row['excluded'] ?? false) || $row['request_id'] !== null) {
             return false;
         }
-        if ($row['request_id'] !== null) {
-            return true;
-        }
-
         return $row['playlist_id'] !== null
             && ($settings->swapSequential || $row['playlist_order'] !== 'sequential');
     }

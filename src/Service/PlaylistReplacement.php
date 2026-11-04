@@ -37,6 +37,7 @@ final readonly class PlaylistReplacement
 
     /**
      * @param callable(int): bool $usable
+     * @param bool $jingle Replace a jingle from a jingle playlist; it may be any unsent queue entry.
      */
     public function replace(
         Station $station,
@@ -45,7 +46,8 @@ final readonly class PlaylistReplacement
         Settings $settings,
         callable $usable,
         ?string &$reason = null,
-        ?int $deadline = null
+        ?int $deadline = null,
+        bool $jingle = false
     ): ?int {
         $deadline ??= hrtime(true) + 500_000_000;
         // Share the lock held by AzuraCast's NowPlaying station worker, which builds the native queue.
@@ -61,7 +63,7 @@ final readonly class PlaylistReplacement
             usleep(25_000);
         }
         try {
-            return $this->select($station, $target, $counted, $settings, $usable, $reason, $deadline);
+            return $this->select($station, $target, $counted, $settings, $usable, $reason, $deadline, $jingle);
         } finally {
             $lock->release();
         }
@@ -74,7 +76,8 @@ final readonly class PlaylistReplacement
         Settings $settings,
         callable $usable,
         ?string &$reason,
-        int $deadline
+        int $deadline,
+        bool $jingle
     ): ?int {
         if (hrtime(true) >= $deadline) {
             $reason = 'replace_timeout';
@@ -85,8 +88,11 @@ final readonly class PlaylistReplacement
         $playlist = $this->em->find(StationPlaylist::class, $target['playlist_id']);
         if (
             $playlist === null || $playlist->station->id !== $station->id
-            || !$playlist->is_enabled || $playlist->is_jingle || $playlist->source !== PlaylistSources::Songs
-            || (!$settings->swapSequential && $playlist->order === PlaylistOrders::Sequential)
+            || !$playlist->is_enabled || $playlist->source !== PlaylistSources::Songs
+            || ($jingle
+                ? !$playlist->is_jingle && !in_array($playlist->id, $settings->jinglePlaylistIds, true)
+                : $playlist->is_jingle
+                    || (!$settings->swapSequential && $playlist->order === PlaylistOrders::Sequential))
         ) {
             return null;
         }
@@ -145,7 +151,7 @@ final readonly class PlaylistReplacement
             if (
                 $candidate->media_id === $target['media_id']
                 || in_array($candidate->song_id, $reserved, true)
-                || !$usable($candidate->media_id)
+                || !$usable($candidate->media_id, ['playlist_id' => $playlist->id, 'request_id' => null])
             ) {
                 continue;
             }
@@ -208,16 +214,21 @@ final readonly class PlaylistReplacement
 
                 return null;
             }
-            $next = $this->em->createQuery(
-                <<<'DQL'
-                    SELECT sq.id FROM App\Entity\StationQueue sq
-                    WHERE sq.station = :station AND sq.sent_to_autodj = 0 AND sq.is_played = 0
-                    ORDER BY sq.timestamp_cued ASC, sq.id ASC
-                DQL
-            )->setParameter('station', $station)
-                ->setMaxResults(1)
-                ->setLockMode(LockMode::PESSIMISTIC_WRITE)
-                ->getSingleColumnResult();
+            if ($jingle) {
+                // A linked jingle may sit anywhere in the unsent queue; the update below still checks it is unsent.
+                $next = [$target['id']];
+            } else {
+                $next = $this->em->createQuery(
+                    <<<'DQL'
+                        SELECT sq.id FROM App\Entity\StationQueue sq
+                        WHERE sq.station = :station AND sq.sent_to_autodj = 0 AND sq.is_played = 0
+                        ORDER BY sq.timestamp_cued ASC, sq.id ASC
+                    DQL
+                )->setParameter('station', $station)
+                    ->setMaxResults(1)
+                    ->setLockMode(LockMode::PESSIMISTIC_WRITE)
+                    ->getSingleColumnResult();
+            }
             if ($next !== [$target['id']] || hrtime(true) >= $deadline) {
                 $connection->rollBack();
                 $reason = hrtime(true) >= $deadline ? 'replace_timeout' : 'replace_changed';

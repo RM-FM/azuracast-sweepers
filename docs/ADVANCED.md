@@ -267,6 +267,20 @@ Defaults for a new installation:
   sweeper playlists never get a sweeper.
 - **Excluded playlists:** tracks never get a sweeper and are never moved or replaced.
   Selecting a playlist group covers all its playlists.
+- **Linked sweepers and jingles:** link tracks that say the same, for example
+  differently produced versions. The plugin mirrors sweepers into AzuraCast's jingle
+  rotation the way AzuraCast treats its own queue: while a linked sweeper is reserved,
+  its linked jingles count as already queued in their Shuffle or Sequential jingle
+  playlists, so AzuraCast does not pick them; this is undone if the reservation is
+  dropped. When the sweeper is heard, the mark becomes final with the actual play
+  time. When a linked jingle plays, its sweepers count as played in the sweeper
+  rotation, and a sweeper is not chosen while a linked jingle is coming up. A linked
+  jingle that still reaches the queue, for example from a Random-order playlist or a
+  new round, is swapped for another jingle from its playlist before it is sent; when
+  no other jingle is free, both play. **Keep linked tracks apart** adds a minimum time
+  between them; `0` keeps only the coordination above. **Suggest Links** proposes
+  groups whose titles match once case, punctuation and version labels such as
+  "(Dry)" or "v2" are ignored.
 - **Other sweepers before a repeat:** if no other sweeper fits, the song gets none.
   With a single sweeper, repeats are always allowed.
 - **Prefer the longest fitting sweepers:** at 20% tolerance, bodies filling 80–100%
@@ -321,6 +335,18 @@ Normally the sweeper ends at the intro end minus the handover margin.
 **Limit start delay** starts it at the configured early start instead if the normal
 start would exceed the maximum delay. **Reverb** is computed live; files are unchanged.
 
+**Allow pre-roll** lets a rule use sweepers that do not fit the intro. The sweeper
+starts where the crossfade to the song begins, over the ducked outgoing song, and the
+song starts up to 60 seconds later so that the handover still lands at the intro end
+minus the margin. If the song starts without that crossfade, for example after a skip
+or when a live DJ connects, its sweeper is dropped rather than played over the vocals.
+
+**Song spacing** on Listener Request and playlist rules decides whether the
+Spacing & Jingles rules apply to that rule's sweepers, and whether one of them
+delays the next station sweeper. Listener requests ignore both by default; their
+pace then comes only from the rule's songs and minutes between sweepers. Sweepers
+still never play over jingles or live DJs.
+
 Settings take effect within five seconds. A sweeper already prepared for an upcoming
 song keeps its planned timing; only switching sweepers off drops it. A sweeper
 already on air finishes normally.
@@ -332,7 +358,9 @@ exchanges queued songs or replaces the next unsent song using the native playlis
 rotation; it does not run a separate scheduler.
 
 The plugin plans a sweeper when Liquidsoap fetches the next song and mixes it in
-after the crossfade, before station audio processing. Live DJs are never overlaid.
+after the crossfade, before station audio processing. Pre-roll transitions delay the
+incoming song; every other transition uses AzuraCast's own crossfade unchanged.
+Live DJs are never overlaid.
 Timing uses effective cue and crossfade metadata resolved by Liquidsoap, including
 manual cue points and cached annotations. Song cue-in is taken into account.
 The sweeper's handover, not its file end, must fit the intro; its tail may continue
