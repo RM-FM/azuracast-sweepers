@@ -16,7 +16,7 @@
                     <input :id="'sweepers-placement-preroll-' + id" v-model="route.pre_roll" class="form-check-input" type="radio" :name="'sweepers-placement-' + id" :value="true">
                     <label class="form-check-label" :for="'sweepers-placement-preroll-' + id">Allow pre-roll</label>
                 </div>
-                <div class="form-text">Intro only plays sweepers over the song intro. Allow pre-roll also starts a sweeper that is longer than the intro during the crossfade and delays the song until the sweeper's handover, by at most 60 seconds.</div>
+                <div class="form-text">Intro only plays sweepers over the song intro. Allow pre-roll also plays a sweeper before the song when it is too long for the intro.</div>
                 <div v-if="route.pre_roll && route.key !== 'listener_request'" class="alert alert-warning mt-2 mb-0" role="note">Song matching is bypassed for this rule. Songs keep their place; when a sweeper cannot fit over the intro, it starts before the song instead.</div>
             </fieldset>
             <div v-if="route.key !== 'default'" class="row g-3 mt-0">
