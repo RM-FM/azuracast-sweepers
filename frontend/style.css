@@ -116,6 +116,11 @@
     font-weight: 500;
 }
 
+.sweepers-page .sweepers-rule-summary {
+    font-weight: 400;
+    opacity: .75;
+}
+
 .sweepers-page .sweepers-toolbar-controls {
     flex-wrap: wrap;
     align-items: center;

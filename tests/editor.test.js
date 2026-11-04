@@ -651,14 +651,27 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         await settle();
         assert.equal(document.querySelectorAll('.sweepers-route .alert-warning[role="note"]').length, 1,
             "Listener Request pre-roll does not show the matching warning");
-        await change("Minimum intervening songs", "3");
-        await change("Minimum elapsed minutes", "10");
+        await change("Songs between sweepers", "3");
+        await change("Minutes between sweepers", "10");
         const routedSettings = await submit();
         assert.deepEqual(routedSettings.sweeper_routes.map((route) => route.key), ["default", "listener_request", "playlist:11"]);
         assert.deepEqual(routedSettings.sweeper_routes.find((route) => route.key === "playlist:11").playlist_ids, [10]);
         assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "default").pre_roll, true);
         assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "listener_request").cooldown_songs, 3);
         assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "listener_request").cooldown_minutes, 10);
+        const ruleItem = document.querySelector('.sweepers-playlist-rules [data-route-key="playlist:11"]');
+        const ruleToggle = ruleItem.querySelector(".accordion-button");
+        const ruleBody = document.getElementById(ruleToggle.getAttribute("aria-controls"));
+        assert.equal(ruleToggle.getAttribute("aria-expanded"), "true", "A newly added playlist rule opens for editing");
+        assert.match(ruleToggle.textContent, /1 sweeper playlist · Intro only/, "The collapsed header summarises the rule");
+        assert.ok(ruleItem.querySelector('[aria-label$="rule"] svg path').getAttribute("d"), "Remove Rule shows its icon");
+        ruleToggle.dispatchEvent(new Event("click", { bubbles: true }));
+        await settle();
+        assert.equal(ruleToggle.getAttribute("aria-expanded"), "false");
+        assert.equal(ruleBody.style.display, "none", "Playlist rules collapse");
+        assert.equal(document.querySelectorAll(".sweepers-route-block > h3")[0].textContent, "Default");
+        assert.ok(document.getElementById("sweepers-cooldown-songs-listener_request").parentElement.classList.contains("col-sm-6"),
+            "Rule limits share the placement column");
         assert.equal(first.sweeper_gap, 1, "One other sweeper before a repeat by default");
         assert.equal(first.reverb, false, "Reverb is off by default");
         assert.ok(![...document.querySelectorAll("section.card label")].some((node) => node.textContent.includes("Reverb intensity")),

@@ -52,52 +52,45 @@
                     <div class="row g-4 mt-0">
                     <fieldset class="form-group col-12" aria-describedby="sweepers-routing-help">
                         <legend>Sweeper Routing</legend>
-                        <p id="sweepers-routing-help" class="form-text">Choose the sweeper pool for each kind of song. Schedules still apply; playlists in the same pool share one rotation.</p>
-                        <div v-for="route in settings.sweeper_routes" :key="route.key" class="sweepers-route border-top py-3">
-                            <div class="d-flex align-items-center gap-2 mb-2">
-                                <h3 class="h6 mb-0 flex-fill">{{ routeTitle(route.key) }}</h3>
-                                <button v-if="route.key.startsWith('playlist:')" type="button" class="btn btn-sm btn-outline-danger" :aria-label="'Remove ' + routeTitle(route.key) + ' rule'" @click="removePlaylistRule(route.key)"><Icon name="close" /><span>Remove</span></button>
-                            </div>
-                            <PlaylistPicker :id="'sweepers-route-pool-' + routeId(route.key)" v-model="route.playlist_ids" :title="routeTitle(route.key) + ' sweeper pool'" :playlists="playlists" :label="playlistLabel" />
-                            <div class="form-text">Select one or more <strong>Advanced</strong> playlists containing sweepers. Disabled playlists are skipped.</div>
-                            <div class="row g-3 mt-1">
-                                <fieldset class="form-group col-12">
-                                    <legend class="form-label">Placement</legend>
-                                    <div class="form-check form-check-inline">
-                                        <input :id="'sweepers-placement-intro-' + routeId(route.key)" v-model="route.pre_roll" class="form-check-input" type="radio" :name="'sweepers-placement-' + routeId(route.key)" :value="false">
-                                        <label class="form-check-label" :for="'sweepers-placement-intro-' + routeId(route.key)">Intro only</label>
+                        <p id="sweepers-routing-help" class="form-text">Each song uses one sweeper pool: listener requests use Listener Request, songs from a playlist with its own rule use that rule, and all other songs use Default. Schedules still apply; playlists in the same pool share one rotation.</p>
+                        <section v-for="route in baseRoutes" :key="route.key" class="sweepers-route-block border-top pt-3 pb-4" :data-route-key="route.key">
+                            <h3 class="h6 mb-3">{{ routeTitle(route.key) }}</h3>
+                            <SweeperRoute :route="route" :title="routeTitle(route.key)" :playlists="playlists" :label="playlistLabel" />
+                        </section>
+                        <section class="sweepers-route-block border-top pt-3">
+                            <h3 class="h6 mb-1">Song Playlist Rules</h3>
+                            <p class="form-text">Give songs from one playlist their own sweeper pool, for example a Christmas playlist. Rules are collapsed; open one to edit it.</p>
+                            <div v-if="playlistRoutes.length" class="accordion sweepers-playlist-rules mb-3">
+                                <div v-for="route in playlistRoutes" :key="route.key" class="accordion-item" :data-route-key="route.key">
+                                    <h4 class="accordion-header">
+                                        <button :id="'sweepers-rule-toggle-' + routeId(route.key)" class="accordion-button" :class="{ collapsed: !isRuleOpen(route.key) }" type="button" :aria-expanded="isRuleOpen(route.key)" :aria-controls="'sweepers-rule-' + routeId(route.key)" @click="toggleRule(route.key)">
+                                            <span class="flex-fill">{{ routePlaylistName(route.key) }}</span>
+                                            <span class="sweepers-rule-summary small me-3">{{ routeSummary(route) }}</span>
+                                        </button>
+                                    </h4>
+                                    <div v-show="isRuleOpen(route.key)" :id="'sweepers-rule-' + routeId(route.key)" class="accordion-collapse" role="region" :aria-labelledby="'sweepers-rule-toggle-' + routeId(route.key)">
+                                        <div class="accordion-body">
+                                            <SweeperRoute :route="route" :title="routeTitle(route.key)" :playlists="playlists" :label="playlistLabel" />
+                                            <div class="buttons mt-3">
+                                                <button type="button" class="btn btn-sm btn-danger" :aria-label="'Remove ' + routeTitle(route.key) + ' rule'" @click="removePlaylistRule(route.key)"><Icon name="delete" /><span>Remove Rule</span></button>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="form-check form-check-inline">
-                                        <input :id="'sweepers-placement-preroll-' + routeId(route.key)" v-model="route.pre_roll" class="form-check-input" type="radio" :name="'sweepers-placement-' + routeId(route.key)" :value="true">
-                                        <label class="form-check-label" :for="'sweepers-placement-preroll-' + routeId(route.key)">Allow pre-roll</label>
-                                    </div>
-                                    <div v-if="route.pre_roll && route.key !== 'listener_request'" class="alert alert-warning mt-2 mb-0" role="note">Song matching is bypassed for this rule. Songs keep their place; when a sweeper cannot fit over the intro, it starts before the song instead.</div>
-                                </fieldset>
-                                <template v-if="route.key !== 'default'">
-                                    <div class="form-group col-12 col-md-6">
-                                        <label class="form-label" :for="'sweepers-cooldown-songs-' + routeId(route.key)">Minimum intervening songs</label>
-                                        <input :id="'sweepers-cooldown-songs-' + routeId(route.key)" v-model.number="route.cooldown_songs" class="form-control" type="number" min="0" max="1000" step="1" required>
-                                    </div>
-                                    <div class="form-group col-12 col-md-6">
-                                        <label class="form-label" :for="'sweepers-cooldown-minutes-' + routeId(route.key)">Minimum elapsed minutes</label>
-                                        <input :id="'sweepers-cooldown-minutes-' + routeId(route.key)" v-model.number="route.cooldown_minutes" class="form-control" type="number" min="0" max="10080" step="1" required>
-                                        <div class="form-text">When both are set, either threshold allows this rule to play again. Zero disables a threshold.</div>
-                                    </div>
-                                </template>
+                                </div>
                             </div>
-                        </div>
-                        <div class="row g-2 align-items-end mt-2">
-                            <div class="form-group col-12 col-md-6">
-                                <label class="form-label" for="sweepers-add-playlist-rule">Song playlist rule</label>
-                                <select id="sweepers-add-playlist-rule" v-model="newPlaylistRuleId" class="form-select">
-                                    <option value="">Choose a song playlist</option>
-                                    <option v-for="playlist in songPlaylistOptions" :key="playlist.id" :value="playlist.id" :disabled="hasPlaylistRule(playlist.id)">{{ playlist.name }}</option>
-                                </select>
+                            <div class="row g-2 align-items-end">
+                                <div class="form-group col-12 col-md-6 mb-0">
+                                    <label class="form-label" for="sweepers-add-playlist-rule">Song playlist</label>
+                                    <select id="sweepers-add-playlist-rule" v-model="newPlaylistRuleId" class="form-select">
+                                        <option value="">Choose a song playlist</option>
+                                        <option v-for="playlist in songPlaylistOptions" :key="playlist.id" :value="playlist.id" :disabled="hasPlaylistRule(playlist.id)">{{ playlist.name }}</option>
+                                    </select>
+                                </div>
+                                <div class="form-group col-12 col-md-auto mb-0">
+                                    <button type="button" class="btn btn-primary" :disabled="!newPlaylistRuleId" @click="addPlaylistRule"><Icon name="add" /><span>Add Playlist Rule</span></button>
+                                </div>
                             </div>
-                            <div class="form-group col-12 col-md-auto">
-                                <button type="button" class="btn btn-primary" :disabled="!newPlaylistRuleId" @click="addPlaylistRule"><Icon name="add" /><span>Add Playlist Rule</span></button>
-                            </div>
-                        </div>
+                        </section>
                     </fieldset>
 
                     <fieldset class="form-group col-12">
@@ -546,6 +539,7 @@ import DataToolbar from "./DataToolbar.vue";
 import Icon from "./Icon.vue";
 import Pagination from "./Pagination.vue";
 import PlaylistPicker from "./PlaylistPicker.vue";
+import SweeperRoute from "./SweeperRoute.vue";
 import Waveform from "./Waveform.vue";
 import { formatStationTime, lastDay, presetRanges, startOfDay } from "./dates.js";
 import { createReverbPreview, reverbLevel } from "./reverb.js";
@@ -578,9 +572,12 @@ function settingsTabKey(event) {
 async function revealInvalidSetting(event) {
     const input = event.target;
     const tab = input.closest("[data-settings-tab]")?.dataset.settingsTab;
-    if (!tab || tab === settingsTab.value) return;
+    const rule = input.closest(".sweepers-playlist-rules [data-route-key]")?.dataset.routeKey;
+    const hiddenRule = rule && !isRuleOpen(rule);
+    if (!tab || (tab === settingsTab.value && !hiddenRule)) return;
     event.preventDefault();
     settingsTab.value = tab;
+    if (hiddenRule) openRules.value = new Set([...openRules.value, rule]);
     await nextTick();
     input.focus();
     input.reportValidity();
@@ -610,6 +607,9 @@ const playlists = ref([]);
 const jinglePlaylists = ref([]);
 const newPlaylistRuleId = ref("");
 const songPlaylistOptions = computed(() => playlists.value.filter((playlist) => playlist.source === "songs"));
+const baseRoutes = computed(() => (settings.value.sweeper_routes ?? []).filter((route) => !route.key.startsWith("playlist:")));
+const playlistRoutes = computed(() => (settings.value.sweeper_routes ?? []).filter((route) => route.key.startsWith("playlist:")));
+const openRules = ref(new Set());
 const rows = ref([]);
 const page = ref(1);
 const mediaPerPage = ref(25);
@@ -925,9 +925,31 @@ function routeId(key) {
 function routeTitle(key) {
     if (key === "default") return "Default";
     if (key === "listener_request") return "Listener Request";
+    return `Song playlist: ${routePlaylistName(key)}`;
+}
+
+function routePlaylistName(key) {
     const playlistId = Number(key.slice("playlist:".length));
-    const playlist = playlists.value.find((item) => item.id === playlistId);
-    return `Song playlist: ${playlist?.name ?? playlistId}`;
+    return playlists.value.find((item) => item.id === playlistId)?.name ?? `Playlist ${playlistId}`;
+}
+
+function routeSummary(route) {
+    const count = route.playlist_ids.length;
+    const parts = [count ? `${count} sweeper playlist${count === 1 ? "" : "s"}` : "No sweepers"];
+    if (count) parts.push(route.pre_roll ? "Pre-roll allowed" : "Intro only");
+    if (route.cooldown_songs > 0) parts.push(`${route.cooldown_songs} song${route.cooldown_songs === 1 ? "" : "s"} apart`);
+    if (route.cooldown_minutes > 0) parts.push(`${route.cooldown_minutes} min apart`);
+    return parts.join(" · ");
+}
+
+function isRuleOpen(key) {
+    return openRules.value.has(key);
+}
+
+function toggleRule(key) {
+    const open = new Set(openRules.value);
+    if (!open.delete(key)) open.add(key);
+    openRules.value = open;
 }
 
 function hasPlaylistRule(playlistId) {
@@ -937,7 +959,9 @@ function hasPlaylistRule(playlistId) {
 function addPlaylistRule() {
     const playlistId = Number(newPlaylistRuleId.value);
     if (!Number.isInteger(playlistId) || playlistId < 1 || hasPlaylistRule(playlistId)) return;
-    settings.value.sweeper_routes.push(makeSweeperRoute(`playlist:${playlistId}`));
+    const key = `playlist:${playlistId}`;
+    settings.value.sweeper_routes.push(makeSweeperRoute(key));
+    openRules.value = new Set([...openRules.value, key]);
     newPlaylistRuleId.value = "";
 }
 
