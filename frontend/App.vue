@@ -52,14 +52,14 @@
                     <div class="row g-4 mt-0">
                     <fieldset class="form-group col-12" aria-describedby="sweepers-routing-help">
                         <legend>Sweeper Routing</legend>
-                        <p id="sweepers-routing-help" class="form-text">Each song uses one sweeper pool: listener requests use Listener Request, songs from a playlist with its own rule use that rule, and all other songs use Default. Schedules still apply; playlists in the same pool share one rotation.</p>
+                        <p id="sweepers-routing-help" class="form-text sweepers-section-text">Each song uses one sweeper pool: listener requests use Listener Request, songs from a playlist with its own rule use that rule, and all other songs use Default. Schedules still apply; playlists in the same pool share one rotation.</p>
                         <section v-for="route in baseRoutes" :key="route.key" class="sweepers-route-block border-top pt-3 pb-4" :data-route-key="route.key">
                             <h3 class="h6 mb-3">{{ routeTitle(route.key) }}</h3>
                             <SweeperRoute :route="route" :title="routeTitle(route.key)" :playlists="playlists" :label="playlistLabel" />
                         </section>
                         <section class="sweepers-route-block border-top pt-3">
                             <h3 class="h6 mb-1">Song Playlist Rules</h3>
-                            <p class="form-text">Give songs from one playlist their own sweeper pool, for example a Christmas playlist. Rules are collapsed; open one to edit it.</p>
+                            <p class="form-text sweepers-section-text">Give songs from one playlist their own sweeper pool, for example a Christmas playlist. Rules are collapsed; open one to edit it.</p>
                             <div v-if="playlistRoutes.length" class="accordion sweepers-playlist-rules mb-3">
                                 <div v-for="route in playlistRoutes" :key="route.key" class="accordion-item" :data-route-key="route.key">
                                     <h4 class="accordion-header">
