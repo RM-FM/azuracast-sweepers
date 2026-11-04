@@ -276,7 +276,10 @@ final readonly class Settings
         return [
             'enabled' => $this->enabled,
             'playlist_ids' => $this->playlistIds,
-            'sweeper_routes' => array_map(static fn(SweeperRoute $route): array => $route->toArray(), $this->sweeperRoutes),
+            'sweeper_routes' => array_map(
+                static fn(SweeperRoute $route): array => $route->toArray(),
+                $this->sweeperRoutes
+            ),
             'limit_delay' => $this->limitDelay,
             'max_wait' => $this->maxWait,
             'margin' => $this->margin,

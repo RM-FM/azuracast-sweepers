@@ -106,7 +106,8 @@ final readonly class Planner
                 return $decide('off_schedule');
             }
             $fingerprint = hash('sha256', json_encode([
-                Media::identity($song), $intro, $context, $route->toArray(), $settings->toArray(), $measurements, $active,
+                Media::identity($song), $intro, $context, $route->toArray(), $settings->toArray(),
+                $measurements, $active,
             ], JSON_THROW_ON_ERROR));
             if (isset($data['plans'][$token])) {
                 $saved = $data['plans'][$token];
