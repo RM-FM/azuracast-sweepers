@@ -173,6 +173,16 @@ check($requestRoute->cooldownAllows(3, 120), 'The song cooldown independently al
 check($requestRoute->cooldownAllows(2, 600), 'The time cooldown independently allows reuse.');
 check((new SweeperRoute('playlist:12'))->cooldownAllows(0, 0), 'Disabled cooldowns allow reuse.');
 check((new SweeperRoute(SweeperRoute::DEFAULT, preRoll: true))->preRoll, 'Default routes may enable pre-roll.');
+check(
+    !$requestRoute->followSpacing && !$requestRoute->countsForSpacing
+        && (new SweeperRoute('playlist:12'))->followSpacing && (new SweeperRoute('playlist:12'))->countsForSpacing,
+    'Listener requests ignore song spacing by default; playlist rules follow it.'
+);
+check(
+    SweeperRoute::fromArray(['key' => 'playlist:12', 'follow_spacing' => false, 'counts_for_spacing' => true])
+        ->toArray()['follow_spacing'] === false,
+    'A playlist rule may ignore song spacing.'
+);
 $routes = [
     new SweeperRoute(SweeperRoute::DEFAULT, [1]),
     new SweeperRoute('playlist:12', [4]),
@@ -201,6 +211,9 @@ check(
 foreach ([
     ['key' => 'unknown', 'playlist_ids' => []],
     ['key' => SweeperRoute::DEFAULT, 'playlist_ids' => [], 'cooldown_songs' => 1],
+    ['key' => SweeperRoute::DEFAULT, 'playlist_ids' => [], 'follow_spacing' => false],
+    ['key' => SweeperRoute::DEFAULT, 'playlist_ids' => [], 'counts_for_spacing' => false],
+    ['key' => 'playlist:12', 'playlist_ids' => [], 'follow_spacing' => 'no'],
     ['key' => SweeperRoute::LISTENER_REQUEST, 'playlist_ids' => ['4']],
     ['key' => 'playlist:0', 'playlist_ids' => []],
 ] as $invalidRoute) {

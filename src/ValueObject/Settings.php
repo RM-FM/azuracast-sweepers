@@ -237,6 +237,17 @@ final readonly class Settings
         )));
     }
 
+    public function route(string $key): ?SweeperRoute
+    {
+        foreach ($this->sweeperRoutes as $route) {
+            if ($route->key === $key) {
+                return $route;
+            }
+        }
+
+        return null;
+    }
+
     public function routeFor(?int $playlistId, bool $listenerRequest): SweeperRoute
     {
         $routesByKey = [];

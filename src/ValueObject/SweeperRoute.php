@@ -11,12 +11,19 @@ final readonly class SweeperRoute
     public const string DEFAULT = 'default';
     public const string LISTENER_REQUEST = 'listener_request';
 
+    // Whether the station-wide song spacing applies to this rule's sweepers.
+    public bool $followSpacing;
+    // Whether this rule's sweepers count as station sweepers for that spacing.
+    public bool $countsForSpacing;
+
     public function __construct(
         public string $key,
         public array $playlistIds = [],
         public bool $preRoll = false,
         public int $cooldownSongs = 0,
-        public int $cooldownMinutes = 0
+        public int $cooldownMinutes = 0,
+        ?bool $followSpacing = null,
+        ?bool $countsForSpacing = null
     ) {
         if (!array_is_list($playlistIds)) {
             throw new InvalidArgumentException('Invalid route playlist IDs.');
@@ -26,11 +33,15 @@ final readonly class SweeperRoute
                 throw new InvalidArgumentException('Invalid route playlist ID.');
             }
         }
+        $this->followSpacing = $followSpacing ?? $key !== self::LISTENER_REQUEST;
+        $this->countsForSpacing = $countsForSpacing ?? $key !== self::LISTENER_REQUEST;
         if (
             !self::validKey($key)
             || $cooldownSongs < 0 || $cooldownSongs > 1000
             || $cooldownMinutes < 0 || $cooldownMinutes > 10080
-            || ($key === self::DEFAULT && ($cooldownSongs !== 0 || $cooldownMinutes !== 0))
+            || ($key === self::DEFAULT && (
+                $cooldownSongs !== 0 || $cooldownMinutes !== 0 || !$this->followSpacing || !$this->countsForSpacing
+            ))
         ) {
             throw new InvalidArgumentException('Invalid sweeper route.');
         }
@@ -43,11 +54,14 @@ final readonly class SweeperRoute
         $preRoll = $data['pre_roll'] ?? false;
         $cooldownSongs = $data['cooldown_songs'] ?? 0;
         $cooldownMinutes = $data['cooldown_minutes'] ?? 0;
+        $followSpacing = $data['follow_spacing'] ?? null;
+        $countsForSpacing = $data['counts_for_spacing'] ?? null;
 
         if (
             !is_string($key) || !is_array($playlistIds) || !array_is_list($playlistIds)
             || !is_bool($preRoll)
             || !is_int($cooldownSongs) || !is_int($cooldownMinutes)
+            || !is_bool($followSpacing ?? false) || !is_bool($countsForSpacing ?? false)
         ) {
             throw new InvalidArgumentException('Invalid sweeper route.');
         }
@@ -57,7 +71,9 @@ final readonly class SweeperRoute
             $playlistIds,
             $preRoll,
             $cooldownSongs,
-            $cooldownMinutes
+            $cooldownMinutes,
+            $followSpacing,
+            $countsForSpacing
         );
     }
 
@@ -82,6 +98,8 @@ final readonly class SweeperRoute
             'pre_roll' => $this->preRoll,
             'cooldown_songs' => $this->cooldownSongs,
             'cooldown_minutes' => $this->cooldownMinutes,
+            'follow_spacing' => $this->followSpacing,
+            'counts_for_spacing' => $this->countsForSpacing,
         ];
     }
 

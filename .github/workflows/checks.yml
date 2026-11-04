@@ -198,7 +198,7 @@ jobs:
       - name: Render playback and cancellation with AzuraCast's AutoDJ factory
         if: needs.check-plan.outputs.run-playback == 'true'
         run: |
-          for scenario in normal skip live live-switch live-switch-idle live-switch-disabled unavailable spacing playlist-spacing hot-enable hot-disable hot-pending hot-change hot-error before-jingle computed-autocue provided-autocue station-autocue amplify-off replaygain arrange reverb plan-retry plan-lost-response heartbeat-outage reverb-pending reverb-skip pre-roll; do
+          for scenario in normal skip live live-switch live-switch-idle live-switch-disabled unavailable spacing playlist-spacing hot-enable hot-disable hot-pending hot-change hot-error before-jingle computed-autocue provided-autocue station-autocue amplify-off replaygain arrange reverb plan-retry plan-lost-response heartbeat-outage reverb-pending reverb-skip pre-roll independent-spacing; do
             python3 tests/playback.py --scenario "$scenario" \
               --runtime /tmp/azuracast-runtime \
               --liquidsoap "docker run --rm --network host --user $(id -u):$(id -g) \

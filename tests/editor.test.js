@@ -656,14 +656,28 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
             "Pre-roll warns when it disables song matching for a regular route");
         assert.equal(document.querySelectorAll('.sweepers-route .alert-warning[role="note"]').length, 1,
             "Listener Request pre-roll does not show the matching warning");
-        await change("Songs between sweepers", "3");
-        await change("Minutes between sweepers", "10");
+        for (const [id, value] of [["sweepers-cooldown-songs-listener_request", "3"], ["sweepers-cooldown-minutes-listener_request", "10"]]) {
+            const input = document.getElementById(id);
+            input.value = value;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        await settle();
+        assert.equal(document.getElementById("sweepers-cooldown-songs-listener_request").closest('[role="tabpanel"]').id,
+            "sweepers-panel-requests", "Listener Requests have their own settings tab");
         const routedSettings = await submit();
         assert.deepEqual(routedSettings.sweeper_routes.map((route) => route.key), ["default", "listener_request", "playlist:30"]);
         assert.deepEqual(routedSettings.sweeper_routes.find((route) => route.key === "playlist:30").playlist_ids, [10]);
         assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "default").pre_roll, true);
         assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "listener_request").pre_roll, true,
             "Listener requests allow pre-roll by default");
+        const requestRoute = routedSettings.sweeper_routes.find((route) => route.key === "listener_request");
+        const playlistRoute = routedSettings.sweeper_routes.find((route) => route.key === "playlist:30");
+        assert.ok(!requestRoute.follow_spacing && !requestRoute.counts_for_spacing,
+            "Listener requests ignore song spacing and do not delay station sweepers by default");
+        assert.ok(playlistRoute.follow_spacing && playlistRoute.counts_for_spacing, "Playlist rules follow song spacing by default");
+        assert.equal(document.getElementById("sweepers-follow-spacing-default"), null, "Default always follows song spacing");
+        assert.ok(document.getElementById("sweepers-follow-spacing-listener_request").closest("fieldset").classList.contains("col-sm-6"),
+            "Song spacing sits beside Placement");
         assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "playlist:30").pre_roll, false,
             "New playlist rules start with Intro only");
         assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "listener_request").cooldown_songs, 3);
@@ -679,6 +693,8 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(ruleToggle.getAttribute("aria-expanded"), "false");
         assert.equal(ruleBody.style.display, "none", "Playlist rules collapse");
         assert.equal(document.querySelectorAll(".sweepers-route-block > h3")[0].textContent, "Default");
+        assert.equal(document.querySelector('#sweepers-panel-general [data-route-key="listener_request"]'), null,
+            "General no longer shows Listener Request settings");
         assert.ok(document.getElementById("sweepers-cooldown-songs-listener_request").parentElement.classList.contains("col-sm-6"),
             "Rule limits share the placement column");
         assert.equal(first.sweeper_gap, 1, "One other sweeper before a repeat by default");
@@ -771,12 +787,12 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         await settle();
         const nav = document.querySelector('[aria-label="Sweeper settings"]');
         const tabs = [...nav.querySelectorAll('[role="tab"]')];
-        assert.deepEqual(tabs.map((tab) => tab.textContent), ["General", "Spacing & Jingles", "Selection & Timing", "Audio & Preview"]);
+        assert.deepEqual(tabs.map((tab) => tab.textContent), ["General", "Listener Requests", "Spacing & Jingles", "Selection & Timing", "Audio & Preview"]);
         const panel = (key) => document.getElementById("sweepers-panel-" + key);
         assert.notEqual(panel("general").style.display, "none");
         assert.equal(panel("audio").style.display, "none");
         const select = async (index) => { tabs[index].click(); await settle(); };
-        await select(1);
+        await select(2);
         const spacing = document.getElementById("sweepers-after-jingle");
         const spacingColumn = spacing.closest("fieldset");
         const jingleColumn = document.getElementById("sweepers-count-jingle-mode").closest("fieldset");
@@ -789,7 +805,7 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         }
         spacing.value = "7";
         spacing.dispatchEvent(new Event("input", { bubbles: true }));
-        await select(3);
+        await select(4);
         assert.equal(panel("spacing").style.display, "none");
         assert.notEqual(panel("audio").style.display, "none");
         const duck = document.getElementById("sweepers-duck");
@@ -826,11 +842,11 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         duck.reportValidity = () => { reported = true; };
         duck.dispatchEvent(invalid);
         await settle();
-        assert.equal(tabs[3].getAttribute("aria-selected"), "true", "Invalid hidden field opens its tab");
+        assert.equal(tabs[4].getAttribute("aria-selected"), "true", "Invalid hidden field opens its tab");
         assert.ok(reported, "Validation is displayed after revealing the field");
         const key = new Event("keydown", { bubbles: true, cancelable: true });
         key.key = "ArrowRight";
-        tabs[3].dispatchEvent(key);
+        tabs[4].dispatchEvent(key);
         await settle();
         assert.equal(tabs[0].getAttribute("aria-selected"), "true", "Keyboard navigation wraps");
         const form = document.querySelector("form.sweepers-settings");

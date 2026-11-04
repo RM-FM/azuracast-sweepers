@@ -52,10 +52,10 @@
                     <div class="row g-4 mt-0">
                     <fieldset class="form-group col-12" aria-describedby="sweepers-routing-help">
                         <legend>Sweeper Routing</legend>
-                        <p id="sweepers-routing-help" class="form-text sweepers-section-text">Each song uses one sweeper pool: listener requests use Listener Request, songs from a playlist with its own rule use that rule, and all other songs use Default. Schedules still apply; playlists in the same pool share one rotation.</p>
-                        <section v-for="route in baseRoutes" :key="route.key" class="sweepers-route-block border-top pt-3 pb-4" :data-route-key="route.key">
-                            <h3 class="h6 mb-3">{{ routeTitle(route.key) }}</h3>
-                            <SweeperRoute :route="route" :title="routeTitle(route.key)" :playlists="playlists" :label="playlistLabel" />
+                        <p id="sweepers-routing-help" class="form-text sweepers-section-text">Each song uses one sweeper pool: songs from a playlist with its own rule use that rule, and all other songs use Default. Listener requests have their own tab. Schedules still apply; playlists in the same pool share one rotation.</p>
+                        <section v-if="defaultRoute" class="sweepers-route-block border-top pt-3 pb-4" data-route-key="default">
+                            <h3 class="h6 mb-3">Default</h3>
+                            <SweeperRoute :route="defaultRoute" title="Default" :playlists="playlists" :label="playlistLabel" />
                         </section>
                         <section class="sweepers-route-block border-top pt-3">
                             <h3 class="h6 mb-1">Song Playlist Rules</h3>
@@ -92,6 +92,16 @@
                                 <div class="form-text">Tracks from these playlists never get a sweeper and are never moved, for example news or pre-recorded shows. Selecting a playlist group covers all playlists in it.</div>
                             </fieldset>
                         </div>
+                    </fieldset>
+                    </div>
+                    </div>
+
+                    <div id="sweepers-panel-requests" v-show="settingsTab === 'requests'" class="sweepers-settings-panel" role="tabpanel" aria-labelledby="sweepers-tab-requests" data-settings-tab="requests">
+                    <div class="row g-4">
+                    <fieldset v-if="requestRoute" class="form-group col-12" data-route-key="listener_request">
+                        <legend>Listener Requests</legend>
+                        <p class="form-text sweepers-section-text">Sweepers for songs that listeners requested, for example one that announces the request.</p>
+                        <SweeperRoute :route="requestRoute" title="Listener Request" :playlists="playlists" :label="playlistLabel" />
                     </fieldset>
                     </div>
                     </div>
@@ -542,7 +552,7 @@ const props = defineProps({
 });
 const views = [["settings", "Settings"], ["intros", "Intro Manager"], ["history", "Playback Timeline"]];
 const current = ref(views.some(([key]) => key === props.view) ? props.view : "settings");
-const settingsTabs = [["general", "General"], ["spacing", "Spacing & Jingles"], ["selection", "Selection & Timing"], ["audio", "Audio & Preview"]];
+const settingsTabs = [["general", "General"], ["requests", "Listener Requests"], ["spacing", "Spacing & Jingles"], ["selection", "Selection & Timing"], ["audio", "Audio & Preview"]];
 const settingsTab = ref("general");
 
 function settingsTabKey(event) {
@@ -595,7 +605,8 @@ const updateRestartText = computed(() => ({
 const settings = ref({});
 const playlists = ref([]);
 const jinglePlaylists = ref([]);
-const baseRoutes = computed(() => (settings.value.sweeper_routes ?? []).filter((route) => !route.key.startsWith("playlist:")));
+const defaultRoute = computed(() => routeByKey("default"));
+const requestRoute = computed(() => routeByKey("listener_request"));
 const playlistRoutes = computed(() => (settings.value.sweeper_routes ?? []).filter((route) => route.key.startsWith("playlist:")));
 const openRules = ref(new Set());
 const ruledPlaylistIds = computed(() => playlistRoutes.value.map((route) => routePlaylistId(route.key)));
@@ -891,7 +902,11 @@ function playlistLabel(playlist) {
 }
 
 function makeSweeperRoute(key, playlistIds = []) {
-    return { key, playlist_ids: playlistIds, pre_roll: key === "listener_request", cooldown_songs: 0, cooldown_minutes: 0 };
+    const request = key === "listener_request";
+    return {
+        key, playlist_ids: playlistIds, pre_roll: request, cooldown_songs: 0, cooldown_minutes: 0,
+        follow_spacing: !request, counts_for_spacing: !request,
+    };
 }
 
 function routeByKey(key) {
@@ -940,6 +955,7 @@ function routeSummary(route) {
     const count = route.playlist_ids.length;
     const parts = [count ? `${count} sweeper playlist${count === 1 ? "" : "s"}` : "No sweepers"];
     if (count) parts.push(route.pre_roll ? "Pre-roll allowed" : "Intro only");
+    if (count && route.follow_spacing === false) parts.push("Ignores song spacing");
     if (route.cooldown_songs > 0) parts.push(`${route.cooldown_songs} song${route.cooldown_songs === 1 ? "" : "s"} apart`);
     if (route.cooldown_minutes > 0) parts.push(`${route.cooldown_minutes} min apart`);
     return parts.join(" · ");

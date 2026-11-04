@@ -91,7 +91,7 @@ final readonly class Planner
 
                 return $decide('excluded');
             }
-            if ($this->queue->blocked($station, [$token], $settings) !== []) {
+            if ($route->followSpacing && $this->queue->blocked($station, [$token], $settings) !== []) {
                 unset($data['plans'][$token]);
 
                 return $decide('jingle_follows');
@@ -213,6 +213,8 @@ final readonly class Planner
                     'route_key' => $route->key,
                     'song_delay' => $fit['song_delay'],
                     'pre_roll' => $fit['pre_roll'],
+                    'follow_spacing' => $route->followSpacing,
+                    'counts_for_spacing' => $route->countsForSpacing,
                     'jingle_id' => $jingle->id,
                     'revision' => $settings->revision(),
                     'uri' => $uri,
@@ -297,6 +299,7 @@ final readonly class Planner
             array_map('strval', $tokens),
             static fn(string $token): bool => isset($data['plans'][$token])
                 && !($data['plans'][$token]['played'] ?? false)
+                && ($settings->route((string)($data['plans'][$token]['route_key'] ?? ''))?->followSpacing ?? true)
         ));
 
         // Recheck until activation: AzuraCast extends its upcoming queue after planning.

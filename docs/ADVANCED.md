@@ -327,6 +327,12 @@ song starts up to 60 seconds later so that the handover still lands at the intro
 minus the margin. If the song starts without that crossfade, for example after a skip
 or when a live DJ connects, its sweeper is dropped rather than played over the vocals.
 
+**Song spacing** on Listener Request and playlist rules decides whether the
+Spacing & Jingles rules apply to that rule's sweepers, and whether one of them
+delays the next station sweeper. Listener requests ignore both by default; their
+pace then comes only from the rule's songs and minutes between sweepers. Sweepers
+still never play over jingles or live DJs.
+
 Settings take effect within five seconds. A sweeper already prepared for an upcoming
 song keeps its planned timing; only switching sweepers off drops it. A sweeper
 already on air finishes normally.

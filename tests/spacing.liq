@@ -110,12 +110,32 @@ expect(preview.reason == "", "A transition sees the same spacing decision as the
 expect(counters == (sweepers.songs_since_jingle(), sweepers.songs_since_sweeper(), sweepers.previous_clear()),
     "Previewing spacing at a transition does not count the song")
 
+def independent_plan(token, counts) =
+    (token, {
+        source=source.fail(), ready=true, offset=1., jingle_id=9, duration=1., duck_gain=0.5, song_delay=0.,
+        follow_spacing=false, counts_spacing=counts
+    })
+end
+def song(queue_id) = [("sq_id", "#{queue_id}"), ("media_id", "1"), ("playlist_id", "1")] end
+test_configure(after_jingle=1, after_sweeper=1)
+expect(not test_track(60, jingle=true), "Independent rules: jingle")
+sweepers.plans := [independent_plan("61", false)]
+expect(sweepers.applies(sweepers.track_reason(song(61)), "61") == "", "An independent rule ignores song spacing")
+expect(sweepers.applies("jingle", "61") == "jingle", "An independent rule never overlays a jingle")
+sweepers.notify("played", "61")
+expect(test_track(62), "A sweeper that does not count leaves station spacing unchanged")
+sweepers.plans := [independent_plan("63", true)]
+ignore(sweepers.track_reason(song(63)))
+sweepers.notify("played", "63")
+expect(not test_track(64), "A counting independent sweeper delays the next station sweeper")
+sweepers.plans := []
+
 sweepers.blocked := ["51"]
 expect(not sweepers.current("51"), "A queued jingle cancels that song's plan")
 expect(sweepers.current("52"), "Other plans remain valid")
 blocked_overlay = source.fail()
 sweepers.plans := [("51", {
-    source=blocked_overlay, ready=true, offset=1., jingle_id=9, duration=1., duck_gain=0.5, song_delay=0.
+    source=blocked_overlay, ready=true, offset=1., jingle_id=9, duration=1., duck_gain=0.5, song_delay=0., follow_spacing=true, counts_spacing=true
 })]
 sweepers.pending := {source=blocked_overlay, due=1., duck_end=2., token="51"}
 ignore(sweepers.next_overlay())
@@ -125,7 +145,7 @@ sweepers.blocked := []
 
 overlay = source.fail()
 sweepers.plans := [("31", {
-    source=overlay, ready=true, offset=1., jingle_id=9, duration=1., duck_gain=0.5, song_delay=0.
+    source=overlay, ready=true, offset=1., jingle_id=9, duration=1., duck_gain=0.5, song_delay=0., follow_spacing=true, counts_spacing=true
 })]
 sweepers.pending := {source=overlay, due=1., duck_end=2., token="31"}
 test_configure(enabled=false)

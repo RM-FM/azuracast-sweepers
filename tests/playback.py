@@ -22,14 +22,14 @@ parser.add_argument('--scenario', choices=['normal', 'skip', 'live', 'live-switc
                                           'before-jingle', 'computed-autocue', 'provided-autocue', 'station-autocue',
                                           'amplify-off', 'replaygain', 'arrange', 'reverb',
                                           'plan-retry', 'plan-lost-response', 'heartbeat-outage',
-                                          'reverb-pending', 'reverb-skip', 'pre-roll'], default='normal')
+                                          'reverb-pending', 'reverb-skip', 'pre-roll', 'independent-spacing'], default='normal')
 parser.add_argument('--runtime', type=Path, required=True)
 args = parser.parse_args()
 plugin = Path(__file__).resolve().parents[1]
 rate = 44100
 live_switch = args.scenario.startswith('live-switch')
 takeover_delay = 1.6 if args.scenario == 'live-switch' else .8
-spacing = args.scenario in ('spacing', 'playlist-spacing')
+spacing = args.scenario in ('spacing', 'playlist-spacing', 'independent-spacing')
 autocue = args.scenario in ('computed-autocue', 'provided-autocue', 'station-autocue', 'amplify-off', 'replaygain')
 short_tracks = spacing or autocue or args.scenario in ('hot-enable', 'arrange', 'heartbeat-outage')
 warmup_duration = .5 if autocue else .1
@@ -119,7 +119,9 @@ with tempfile.TemporaryDirectory(prefix='sweepers-playback-') as temporary:
                                  uri=f'annotate:liq_cue_in="0",liq_cue_out="{0.5 if short_tracks else 2}":{root}/sweeper.wav' if short_tracks or token == '123' else '',
                                  offset=.1 if short_tracks else (3. if args.scenario in ('skip', 'hot-pending', 'hot-change', 'before-jingle', 'reverb-pending', 'reverb-skip') else 1.),
                                  duck_duration=.3 if short_tracks else 1., gain=1., duck_gain=.4467,
-                                 **({'reverb': 1., 'length': 2.} if args.scenario.startswith('reverb') else {}))
+                                 **({'reverb': 1., 'length': 2.} if args.scenario.startswith('reverb') else {}),
+                                 **({'follow_spacing': False, 'counts_for_spacing': False}
+                                    if args.scenario == 'independent-spacing' and token == '125' else {}))
             elif self.path == '/sweepers/arrange':
                 moved = args.scenario == 'arrange' and sum(path == '/sweepers/arrange' for path, _, _ in calls) == 1
                 value = {'moved': '130', 'before': '125', 'released': ['999']} if moved else {'moved': '', 'before': ''}
@@ -330,6 +332,15 @@ thread.run(delay={shutdown_delay}, {{shutdown()}})
         starts_at = sorted(event['at'] for event in batches[-1] if event['event'] == 'start')
         assert len(starts_at) >= 3 and starts_at[-1] - starts_at[0] >= 2., \
             ('Buffered starts must retain distinct playback times', starts_at)
+    elif args.scenario == 'independent-spacing':
+        played = {e['token'] for e in events if e['event'] == 'played'}
+        assert '124' not in played, ('A rule that ignores spacing must still never overlay a jingle', played)
+        assert '125' in played, ('A rule that ignores spacing must play right after a jingle', played)
+        assert '126' in played, ('A sweeper that does not count must not delay the next station sweeper', played)
+        assert '127' not in played, ('Station spacing must still apply after a station sweeper', played)
+        for token, audible in ((124, False), (125, True), (126, True), (127, False)):
+            at = onset + (token - metadata[0]) * 1.2 + .25
+            assert (amplitude(samples, 880, at) > 5000) == audible, ('Unexpected sweeper audio', token)
     elif spacing:
         assert 'Sweeper skipped for queue 125: song spacing' in result.stdout, 'Spacing skip not logged'
         played = {e['token'] for e in events if e['event'] == 'played'}
@@ -457,8 +468,10 @@ thread.run(delay={shutdown_delay}, {{shutdown()}})
     elif args.scenario.startswith('hot-'):
         assert 'Live settings applied: changed' in result.stdout, 'Heartbeat did not apply live settings'
     if spacing:
+        independent = args.scenario == 'independent-spacing'
         assert [starts.get(t) for t in ('123', '124', '125', '126', '127')] == \
-            ['jingle', 'jingle', 'after_jingle', 'scheduled', 'after_sweeper'], ('Track start reasons', starts)
+            ['jingle', 'jingle', 'scheduled' if independent else 'after_jingle', 'scheduled', 'after_sweeper'], \
+            ('Track start reasons', starts)
     if args.scenario == 'normal':
         assert starts.get('123') == 'scheduled', ('Track start reasons', starts)
     if args.scenario == 'unavailable':

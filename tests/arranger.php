@@ -92,9 +92,12 @@ namespace Plugin\AzuracastSweepers\Service {
             return false;
         }
 
-        public function blocked(): array
+        public bool $blocksAll = false;
+        public array $context = ['playlist_id' => 1, 'request_id' => null];
+
+        public function blocked(Station $station, array $tokens): array
         {
-            return [];
+            return $this->blocksAll ? array_values(array_map('strval', $tokens)) : [];
         }
 
         public function upcoming(): array
@@ -104,7 +107,7 @@ namespace Plugin\AzuracastSweepers\Service {
 
         public function context(Station $station, string $token): ?array
         {
-            return ['playlist_id' => 1, 'request_id' => null];
+            return $this->context;
         }
 
         public function exchange(Station $station, int $first, int $second): bool
@@ -577,7 +580,29 @@ namespace {
                 'The only fitting sweeper blocked by a reservation is reported apart from a recent repeat.'
             );
         }
-        echo "13 longest-fit planner checks passed.\n";
+        $queue->blocksAll = true;
+        $queue->context = ['playlist_id' => null, 'request_id' => 5];
+        $routed = new Settings(playlistIds: [9], sweeperGap: 0, sweeperRoutes: [
+            new SweeperRoute(SweeperRoute::DEFAULT, [9]),
+            new SweeperRoute(SweeperRoute::LISTENER_REQUEST, [9]),
+        ]);
+        $state->update($directory, static fn(): array => ['settings' => $routed->toArray()]);
+        $payload = $planner->plan($station, 21, '400', 0, 180, $measurements);
+        $heartbeat = $planner->heartbeat($station, ['400'], []);
+        $check(
+            $payload['uri'] !== '' && $payload['follow_spacing'] === false && $payload['counts_for_spacing'] === false
+                && $heartbeat['blocked'] === [],
+            'Listener requests ignore the upcoming-jingle rule by default and tell the module to skip song spacing.'
+        );
+        $queue->context = ['playlist_id' => 1, 'request_id' => null];
+        $state->update($directory, static fn(): array => ['settings' => $routed->toArray()]);
+        $planner->plan($station, 21, '401', 0, 180, $measurements);
+        $check(
+            $state->read($directory)['decisions']['401'] === 'jingle_follows',
+            'Rules that follow song spacing still skip a sweeper before an upcoming jingle.'
+        );
+        $queue->blocksAll = false;
+        echo "15 longest-fit and spacing planner checks passed.\n";
     } finally {
         foreach (glob($directory . '/*') as $path) {
             unlink($path);
