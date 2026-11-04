@@ -709,6 +709,7 @@ const reasons = {
     intro_before_cue: "Intro ends in the silence before the song starts",
     no_fit: "Intro too short for every sweeper",
     pre_roll_limit: "Required pre-roll exceeds the 60-second safety limit",
+    pre_roll_missed: "Song started without the crossfade its pre-roll needs",
     route_cooldown: "This route is in its cooldown period",
     route_reserved: "A sweeper is already reserved for this route",
     repeat: "Only fitting sweeper played too recently",

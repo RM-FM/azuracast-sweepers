@@ -104,12 +104,18 @@ expect(not test_track(47), "A jingle is not a song for the sweeper gap")
 expect(not test_track(48), "Sweeper gap still counts only songs")
 expect(test_track(49), "Two clear songs after the sweeper")
 
+counters = (sweepers.songs_since_jingle(), sweepers.songs_since_sweeper(), sweepers.previous_clear())
+preview = sweepers.spacing([("sq_id", "50"), ("media_id", "1"), ("playlist_id", "1")])
+expect(preview.reason == "", "A transition sees the same spacing decision as the song start")
+expect(counters == (sweepers.songs_since_jingle(), sweepers.songs_since_sweeper(), sweepers.previous_clear()),
+    "Previewing spacing at a transition does not count the song")
+
 sweepers.blocked := ["51"]
 expect(not sweepers.current("51"), "A queued jingle cancels that song's plan")
 expect(sweepers.current("52"), "Other plans remain valid")
 blocked_overlay = source.fail()
 sweepers.plans := [("51", {
-    source=blocked_overlay, ready=true, offset=1., jingle_id=9, duration=1., duck_gain=0.5
+    source=blocked_overlay, ready=true, offset=1., jingle_id=9, duration=1., duck_gain=0.5, song_delay=0.
 })]
 sweepers.pending := {source=blocked_overlay, due=1., duck_end=2., token="51"}
 ignore(sweepers.next_overlay())
@@ -119,7 +125,7 @@ sweepers.blocked := []
 
 overlay = source.fail()
 sweepers.plans := [("31", {
-    source=overlay, ready=true, offset=1., jingle_id=9, duration=1., duck_gain=0.5
+    source=overlay, ready=true, offset=1., jingle_id=9, duration=1., duck_gain=0.5, song_delay=0.
 })]
 sweepers.pending := {source=overlay, due=1., duck_end=2., token="31"}
 test_configure(enabled=false)

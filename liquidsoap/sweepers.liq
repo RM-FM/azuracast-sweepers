@@ -11,8 +11,8 @@ let sweepers.active = ref("")
 let sweepers.current_music_token = ref("")
 let sweepers.current_music_song = ref(false)
 let sweepers.current_music_metadata = ref([])
-let sweepers.pre_roll_active = ref("")
-let sweepers.pre_roll_sweeper = ref(0)
+let sweepers.pre_rolled = ref("")
+let sweepers.pre_rolled_jingle = ref(0)
 let sweepers.events = ref([])
 let sweepers.measurements = ref([])
 let sweepers.catalog = ref([])
@@ -125,33 +125,36 @@ def sweepers.is_jingle(m) =
         list.mem(int_of_string(default=0, m["playlist_id"]), s.jingle_playlists)
 end
 
-# Also advances the spacing counters; "" means the track may carry a sweeper.
-def sweepers.track_reason(m) =
-    token = m["sq_id"]
-    sweepers.counted := token
+# The spacing counters once the track starts; reason "" means it may carry a sweeper.
+def sweepers.spacing(m) =
     is_jingle = sweepers.is_jingle(m)
-    is_song = token != "" and m["media_id"] != "" and not is_jingle
-    if is_jingle then
-        sweepers.songs_since_jingle := 0
-    elsif not is_song then
-        sweepers.songs_since_jingle := 0
-        sweepers.songs_since_sweeper := 0
-    else
-        if sweepers.previous_song() then
-            sweepers.songs_since_jingle := min(1000, sweepers.songs_since_jingle() + 1)
-        end
-        if sweepers.previous_clear() then
-            sweepers.songs_since_sweeper := min(1000, sweepers.songs_since_sweeper() + 1)
-        end
-    end
-    sweepers.previous_song := is_song
-    sweepers.previous_clear := is_song
+    is_song = m["sq_id"] != "" and m["media_id"] != "" and not is_jingle
+    since_jingle =
+        if not is_song then 0
+        elsif sweepers.previous_song() then min(1000, sweepers.songs_since_jingle() + 1)
+        else sweepers.songs_since_jingle() end
+    since_sweeper =
+        if not is_song and not is_jingle then 0
+        elsif is_song and sweepers.previous_clear() then min(1000, sweepers.songs_since_sweeper() + 1)
+        else sweepers.songs_since_sweeper() end
     s = sweepers.settings()
-    if is_jingle then "jingle"
-    elsif not is_song then "other"
-    elsif sweepers.songs_since_jingle() < s.songs_after_jingle then "after_jingle"
-    elsif sweepers.songs_since_sweeper() < s.songs_after_sweeper then "after_sweeper"
-    else "" end
+    reason =
+        if is_jingle then "jingle"
+        elsif not is_song then "other"
+        elsif since_jingle < s.songs_after_jingle then "after_jingle"
+        elsif since_sweeper < s.songs_after_sweeper then "after_sweeper"
+        else "" end
+    {reason=reason, song=is_song, since_jingle=since_jingle, since_sweeper=since_sweeper}
+end
+
+def sweepers.track_reason(m) =
+    sweepers.counted := m["sq_id"]
+    state = sweepers.spacing(m)
+    sweepers.songs_since_jingle := state.since_jingle
+    sweepers.songs_since_sweeper := state.since_sweeper
+    sweepers.previous_song := state.song
+    sweepers.previous_clear := state.song
+    state.reason
 end
 
 def sweepers.track_allowed(m) =
@@ -169,8 +172,7 @@ def sweepers.next_overlay() =
     if azuracast.live_enabled() and sweepers.active() != "" then
         sweepers.notify("release", sweepers.active())
         sweepers.active := ""
-        sweepers.pre_roll_active := ""
-        sweepers.pre_roll_sweeper := 0
+        sweepers.pre_rolled := ""
         sweepers.pending := null
         sweepers.duck_end := -1.
         (source.fail() : source)
@@ -416,7 +418,7 @@ def sweepers.next_song() =
                     end
                     if null.defined(response()) then
                         let json.parse (p : {
-                            token: string, jingle_id?: int, uri: string, offset: float, pre_roll?: bool,
+                            token: string, jingle_id?: int, uri: string, offset: float, song_delay?: float,
                             duck_duration: float, gain: float, duck_gain: float, reverb?: float, length?: float
                         }) = null.get(response())
                         ready = ref(false)
@@ -452,12 +454,16 @@ def sweepers.next_song() =
                                 overlay
                             end
                         if ready() and sweepers.current(p.token) then
-                            log(label="sweepers", "Sweeper prepared for queue #{token}: starts #{p.offset} s after cue-in")
+                            song_delay = max(0., null.get(default=0., p?.song_delay))
+                            if song_delay > 0. then
+                                log(label="sweepers", "Sweeper prepared for queue #{token}: starts #{song_delay} s before the song")
+                            else
+                                log(label="sweepers", "Sweeper prepared for queue #{token}: starts #{p.offset} s after cue-in")
+                            end
                             list.iter(fun (entry) -> sweepers.notify("release", fst(entry)), list.slice(offset=15, sweepers.plans()))
                             plan = {
                                 source=overlay, ready=true, offset=p.offset, jingle_id=null.get(default=0, p?.jingle_id),
-                                duration=p.duck_duration, duck_gain=p.duck_gain,
-                                pre_roll=null.get(default=false, p?.pre_roll)
+                                duration=p.duck_duration, duck_gain=p.duck_gain, song_delay=song_delay
                             }
                             sweepers.atomic(fun () -> sweepers.plans := [(token, plan), ...list.assoc.remove(token, sweepers.plans())])
                         elsif ready() then
@@ -478,46 +484,18 @@ def sweepers.next_song() =
     end
 end
 
-def sweepers.pre_roll_dynamic(dynamic) =
-    source.dynamic(
-        id="sweepers_pre_roll", self_sync=false, track_sensitive=true, init=dynamic,
-        fun () -> begin
-            if sweepers.pre_roll_active() != "" then
-                null
-            else
-                candidates = list.filter(fun (entry) -> snd(entry).ready and snd(entry).pre_roll,
-                    list.rev(sweepers.plans()))
-                if candidates == [] then
-                    null
-                else
-                    entry = list.hd(candidates)
-                    token = fst(entry)
-                    p = snd(entry)
-                    if sweepers.current(token) then begin
-                        sweepers.pre_roll_active := token
-                        sweepers.pre_roll_sweeper := p.jingle_id
-                        sweepers.active := token
-                        sequence([p.source, dynamic])
-                    end else null end
-                end
-            end
-        end
-    )
-end
-
 def sweepers.enable_autodj(s) =
     if not sweepers.started() then
         sweepers.started := true
         thread.run.recurrent(fast=false, sweepers.refresh_catalog)
         thread.run.recurrent(fast=false, sweepers.heartbeat)
     end
-    request_dynamic = request.dynamic(
+    dynamic = request.dynamic(
         id="next_song",
         timeout=settings.azuracast.request_timeout(),
         retry_delay=10.,
         sweepers.next_song
     )
-    dynamic = sweepers.pre_roll_dynamic(request_dynamic)
 
 # AzuraCast's Liquidsoap 2.5 runtime has wait_for_next_song, and its fallback takes no track_sensitive.
 %ifdef azuracast.wait_for_next_song
@@ -534,7 +512,7 @@ def sweepers.enable_autodj(s) =
 
     s = fallback(id="autodj_fallback", [dynamic_startup, s])
 
-    ref_dynamic = ref(request_dynamic)
+    ref_dynamic = ref(dynamic)
     thread.run.recurrent(delay=0.25, { azuracast.wait_for_next_song(ref_dynamic()) })
 %else
     dynamic_startup = fallback(
@@ -551,7 +529,7 @@ def sweepers.enable_autodj(s) =
 
     s = fallback(id="autodj_fallback", track_sensitive = true, [dynamic_startup, s])
 
-    request_dynamic.on_track(synchronous=true, fun (_) -> azuracast.autodj_is_loading := false)
+    dynamic.on_track(synchronous=true, fun (_) -> azuracast.autodj_is_loading := false)
     thread.run(delay=120., { azuracast.autodj_is_loading := false })
 %endif
 
@@ -560,17 +538,48 @@ end
 
 %include "sidechain.liq"
 
+# Starts a pre-roll sweeper where the crossfade begins and delays the song by its planned song_delay.
+def sweepers.transition(old, new) =
+    token = new.metadata["sq_id"]
+    planned = token != "" and list.assoc.mem(token, sweepers.plans())
+    song_delay = if planned then list.assoc(token, sweepers.plans()).song_delay else 0. end
+    if song_delay <= 0. or azuracast.to_live() or azuracast.live_enabled() or not sweepers.current(token) or
+        null.defined(sweepers.pending()) or sweepers.jingles.is_ready() or
+        sweepers.spacing(new.metadata).reason != "" then
+        (azuracast.live_aware_crossfade_impl(old, new) : source)
+    else
+        p = list.assoc(token, sweepers.plans())
+        now = sweepers.now()
+        started = now()
+        sweepers.notify("release", sweepers.active())
+        sweepers.active := ""
+        sweepers.reset := false
+        sweepers.duck_gain := p.duck_gain
+        sweepers.pending := {source=p.source, due=started, duck_end=started + p.duration, token=token}
+        sweepers.pre_rolled := token
+        sweepers.pre_rolled_jingle := p.jingle_id
+        log(label="sweepers", "Pre-roll sweeper started for queue #{token}; the song follows after #{song_delay} s")
+        fade_duration = settings.azuracast.default_fade()
+        (add(normalize=false, [
+            sequence([
+                blank(duration=song_delay),
+                fade.in(initial_metadata=new.metadata, duration=fade_duration, new.source)
+            ]),
+            fade.out(initial_metadata=old.metadata, duration=fade_duration, old.source)
+        ]) : source)
+    end
+end
+
+# azuracast.apply_crossfade with the pre-roll transition; tests/compat.php guards the equivalence.
+def sweepers.apply_crossfade(s) =
+    cross(duration=settings.azuracast.default_cross(), sweepers.transition, s)
+end
+
 def sweepers.mix(music) =
     def now() = float_of_int(clock(music.clock).ticks()) * frame.duration() end
     sweepers.now := now
     music.on_metadata(synchronous=true, fun (m) -> begin
         token = m["sq_id"]
-        isPreRollSweeper = sweepers.pre_roll_active() != "" and token == ""
-            and int_of_string(default=0, m["media_id"]) == sweepers.pre_roll_sweeper()
-        if token != "" and token == sweepers.pre_roll_active() then begin
-            sweepers.pre_roll_active := ""
-            sweepers.pre_roll_sweeper := 0
-        end
         if token != sweepers.current_music_token() then
             if sweepers.current_music_song() then
                 sweepers.event("end", sweepers.current_music_token(), "", sweepers.current_music_metadata())
@@ -584,7 +593,14 @@ def sweepers.mix(music) =
                 sweepers.seen := list.prefix(64, [token, ...sweepers.seen()])
             end
             reason = sweepers.track_reason(m)
-            if not isPreRollSweeper then
+            pre_rolled = token != "" and token == sweepers.pre_rolled() and token == sweepers.active()
+            sweepers.pre_rolled := ""
+            if pre_rolled then
+                # The sweeper started at the transition, so this song carries it like an overlaid one.
+                sweepers.songs_since_sweeper := 0
+                sweepers.previous_clear := false
+                sweepers.event(jingle_id=sweepers.pre_rolled_jingle(), "start", token, "scheduled", m)
+            else
                 if null.defined(sweepers.pending()) then
                     sweepers.notify(detail="skipped", "release", null.get(sweepers.pending()).token)
                 end
@@ -593,41 +609,43 @@ def sweepers.mix(music) =
                 sweepers.pending := null
                 sweepers.reset := true
                 sweepers.duck_end := -1.
-            end
-            planned = list.assoc.mem(token, sweepers.plans())
-            # "none": the plugin already decided when planning.
-            outcome =
-                if reason != "" then reason
-                elsif not sweepers.settings().enabled then "disabled"
-                elsif not planned then (if azuracast.live_enabled() then "live" else "none" end)
-                else
-                    p = list.assoc(token, sweepers.plans())
-                    if not p.ready then "unavailable"
-                    elsif sweepers.current(token) then "scheduled"
-                    else sweepers.stale_reason(token) end
-                end
-            if planned then
-                p = list.assoc(token, sweepers.plans())
-                sweepers.event(
-                    jingle_id=if outcome == "scheduled" then p.jingle_id else 0 end,
-                    offset=p.offset, "start", token, outcome, m
-                )
-                sweepers.duck_gain := p.duck_gain
-                if outcome == "scheduled" then
-                    sweepers.pending := {
-                        source=p.source,
-                        due=now() + p.offset,
-                        duck_end=now() + p.offset + p.duration,
-                        token=token
-                    }
-                else
-                    if p.ready and reason != "" then
-                        log(label="sweepers", "Sweeper skipped for queue #{token}: song spacing")
+                planned = list.assoc.mem(token, sweepers.plans())
+                # "none": the plugin already decided when planning.
+                outcome =
+                    if reason != "" then reason
+                    elsif not sweepers.settings().enabled then "disabled"
+                    elsif not planned then (if azuracast.live_enabled() then "live" else "none" end)
+                    else
+                        p = list.assoc(token, sweepers.plans())
+                        if not p.ready then "unavailable"
+                        elsif not sweepers.current(token) then sweepers.stale_reason(token)
+                        # Overlaying a pre-roll at the song start would talk over the vocals.
+                        elsif p.song_delay > 0. then "pre_roll_missed"
+                        else "scheduled" end
                     end
-                    sweepers.notify(detail=outcome, "release", token)
+                if planned then
+                    p = list.assoc(token, sweepers.plans())
+                    sweepers.event(
+                        jingle_id=if outcome == "scheduled" then p.jingle_id else 0 end,
+                        offset=p.offset, "start", token, outcome, m
+                    )
+                    sweepers.duck_gain := p.duck_gain
+                    if outcome == "scheduled" then
+                        sweepers.pending := {
+                            source=p.source,
+                            due=now() + p.offset,
+                            duck_end=now() + p.offset + p.duration,
+                            token=token
+                        }
+                    else
+                        if p.ready and reason != "" then
+                            log(label="sweepers", "Sweeper skipped for queue #{token}: song spacing")
+                        end
+                        sweepers.notify(detail=outcome, "release", token)
+                    end
+                else
+                    sweepers.event("start", token, outcome, m)
                 end
-            else
-                sweepers.event("start", token, outcome, m)
             end
         end
     end)

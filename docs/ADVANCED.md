@@ -321,6 +321,12 @@ Normally the sweeper ends at the intro end minus the handover margin.
 **Limit start delay** starts it at the configured early start instead if the normal
 start would exceed the maximum delay. **Reverb** is computed live; files are unchanged.
 
+**Allow pre-roll** lets a rule use sweepers that do not fit the intro. The sweeper
+starts where the crossfade to the song begins, over the ducked outgoing song, and the
+song starts up to 60 seconds later so that the handover still lands at the intro end
+minus the margin. If the song starts without that crossfade, for example after a skip
+or when a live DJ connects, its sweeper is dropped rather than played over the vocals.
+
 Settings take effect within five seconds. A sweeper already prepared for an upcoming
 song keeps its planned timing; only switching sweepers off drops it. A sweeper
 already on air finishes normally.
@@ -332,7 +338,9 @@ exchanges queued songs or replaces the next unsent song using the native playlis
 rotation; it does not run a separate scheduler.
 
 The plugin plans a sweeper when Liquidsoap fetches the next song and mixes it in
-after the crossfade, before station audio processing. Live DJs are never overlaid.
+after the crossfade, before station audio processing. Pre-roll transitions delay the
+incoming song; every other transition uses AzuraCast's own crossfade unchanged.
+Live DJs are never overlaid.
 Timing uses effective cue and crossfade metadata resolved by Liquidsoap, including
 manual cue points and cached annotations. Song cue-in is taken into account.
 The sweeper's handover, not its file end, must fit the intro; its tail may continue

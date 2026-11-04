@@ -183,6 +183,17 @@ foreach ($lines as $line) {
     }
 }
 
+// sweepers.apply_crossfade repeats this definition with its own transition, which falls back to AzuraCast's.
+$runtime = getenv('AZURACAST_LIQUIDSOAP_RUNTIME') ?: '/var/azuracast/liquidsoap/azuracast.liq';
+$compact = static fn(string $code): string => (string)preg_replace('/\s+/', '', $code);
+$crossfade = 'def azuracast.apply_crossfade(s) = cross(duration=settings.azuracast.default_cross(), '
+    . 'azuracast.live_aware_crossfade_impl, s) end';
+if (!is_file($runtime)) {
+    $failures[] = "Missing AzuraCast Liquidsoap runtime $runtime";
+} elseif (!str_contains($compact((string)file_get_contents($runtime)), $compact($crossfade))) {
+    $failures[] = 'azuracast.apply_crossfade changed; update sweepers.apply_crossfade to match it';
+}
+
 if ($failures !== []) {
     echo implode("\n", array_map(fn(string $failure): string => "FAIL $failure", $failures)), "\n";
     exit(1);
