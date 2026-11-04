@@ -421,6 +421,15 @@ docker compose restart web
 **Restarting `web` interrupts broadcasting on all stations in that container.**
 Rename the file back and restart `web` to enable it again.
 
+### "Possible source leak" in the Liquidsoap log
+
+Liquidsoap logs `There are currently N sources, possible source leak!` whenever the
+number of active sources passes a multiple of 50. Reverb builds a short-lived chain of
+filters (`comb`, `iir_filter`) for each sweeper; together with a pre-roll and the
+crossfade this can pass 50 for a moment. The chain is released when the sweeper ends,
+so a single warning is harmless. A real leak shows the warning again at ever higher
+counts (100, 150, …) with growing memory use.
+
 ## Removal
 
 Disable sweepers, remove the plugin's entries from the Compose override and run
