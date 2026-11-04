@@ -1,6 +1,6 @@
 <template>
     <div ref="picker" class="sweepers-playlist-picker" @keydown.esc.stop.prevent="close">
-        <div v-if="selected.length" class="sweepers-playlist-selected d-flex flex-wrap align-items-center gap-2 mb-2">
+        <div v-if="tags && selected.length" class="sweepers-playlist-selected d-flex flex-wrap align-items-center gap-2 mb-2">
             <span v-for="playlist in selected" :key="playlist.id" class="playlist-source-badge badge text-bg-secondary d-inline-flex align-items-center gap-1">
                 <Icon v-if="sourceIcon(playlist)" :name="sourceIcon(playlist)" class="sm" />
                 <span class="text-truncate">{{ label(playlist) }}</span>
@@ -16,11 +16,11 @@
                 :aria-expanded="open"
                 :aria-controls="id + '-choices'"
                 @click="open = !open"
-            ><Icon name="add" /><span>Add Playlist</span></button>
+            ><Icon name="add" /><span>{{ buttonLabel }}</span></button>
             <div v-if="open" :id="id + '-choices'" class="sweepers-playlist-choices dropdown-menu show p-3">
                 <div class="sweepers-playlist-options" role="group" :aria-label="title">
                     <div v-for="playlist in playlists" :key="playlist.id" class="form-check mb-2">
-                        <input :id="id + '-' + playlist.id" class="form-check-input" type="checkbox" :checked="modelValue.includes(playlist.id)" @change="setSelected(playlist.id, $event.target.checked)">
+                        <input :id="id + '-' + playlist.id" class="form-check-input" type="checkbox" :checked="modelValue.includes(playlist.id)" :disabled="locked && modelValue.includes(playlist.id)" @change="setSelected(playlist.id, $event.target.checked)">
                         <label class="form-check-label" :for="id + '-' + playlist.id">{{ label(playlist) }}</label>
                     </div>
                     <p v-if="!playlists.length" class="text-muted small mb-0">No playlists available.</p>
@@ -43,6 +43,11 @@ const props = defineProps({
     modelValue: { type: Array, required: true },
     playlists: { type: Array, required: true },
     label: { type: Function, default: (playlist) => playlist.name },
+    buttonLabel: { type: String, default: "Add Playlist" },
+    tags: { type: Boolean, default: true },
+    // Selected entries cannot be unticked, for selections whose removal needs its own confirmation.
+    locked: { type: Boolean, default: false },
+    closeOnSelect: { type: Boolean, default: false },
 });
 const emit = defineEmits(["update:modelValue"]);
 const open = ref(false);
@@ -59,7 +64,8 @@ watch(open, async (value) => {
 function setSelected(id, checked) {
     if (checked && !props.modelValue.includes(id)) {
         emit("update:modelValue", [...props.modelValue, id]);
-    } else if (!checked) {
+        if (props.closeOnSelect) close();
+    } else if (!checked && !props.locked) {
         remove(id);
     }
 }

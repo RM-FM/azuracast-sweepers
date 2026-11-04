@@ -78,18 +78,8 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="row g-2 align-items-end">
-                                <div class="form-group col-12 col-md-6 mb-0">
-                                    <label class="form-label" for="sweepers-add-playlist-rule">Song playlist</label>
-                                    <select id="sweepers-add-playlist-rule" v-model="newPlaylistRuleId" class="form-select">
-                                        <option value="">Choose a song playlist</option>
-                                        <option v-for="playlist in songPlaylistOptions" :key="playlist.id" :value="playlist.id" :disabled="hasPlaylistRule(playlist.id)">{{ playlist.name }}</option>
-                                    </select>
-                                </div>
-                                <div class="form-group col-12 col-md-auto mb-0">
-                                    <button type="button" class="btn btn-primary" :disabled="!newPlaylistRuleId" @click="addPlaylistRule"><Icon name="add" /><span>Add Playlist Rule</span></button>
-                                </div>
-                            </div>
+                            <PlaylistPicker id="sweepers-playlist-rule" :model-value="ruledPlaylistIds" title="Song playlists" :playlists="ruleCandidates" :tags="false" locked close-on-select button-label="Add Playlist Rule" @update:model-value="addPlaylistRules" />
+                            <div class="form-text">Song playlists that are not a sweeper pool, jingle or excluded playlist. Playlists with a rule are ticked.</div>
                         </section>
                     </fieldset>
 
@@ -605,11 +595,20 @@ const updateRestartText = computed(() => ({
 const settings = ref({});
 const playlists = ref([]);
 const jinglePlaylists = ref([]);
-const newPlaylistRuleId = ref("");
-const songPlaylistOptions = computed(() => playlists.value.filter((playlist) => playlist.source === "songs"));
 const baseRoutes = computed(() => (settings.value.sweeper_routes ?? []).filter((route) => !route.key.startsWith("playlist:")));
 const playlistRoutes = computed(() => (settings.value.sweeper_routes ?? []).filter((route) => route.key.startsWith("playlist:")));
 const openRules = ref(new Set());
+const ruledPlaylistIds = computed(() => playlistRoutes.value.map((route) => routePlaylistId(route.key)));
+// jingle_playlists lists every station playlist; playlists lists only the Advanced ones that can hold sweepers.
+const ruleCandidates = computed(() => {
+    const unavailable = new Set([
+        ...(settings.value.sweeper_routes ?? []).flatMap((route) => route.playlist_ids),
+        ...(settings.value.jingle_playlist_ids ?? []),
+        ...(settings.value.excluded_playlist_ids ?? []),
+    ]);
+    return jinglePlaylists.value.filter((playlist) => hasPlaylistRule(playlist.id)
+        || (playlist.source === "songs" && !playlist.is_jingle && !unavailable.has(playlist.id)));
+});
 const rows = ref([]);
 const page = ref(1);
 const mediaPerPage = ref(25);
@@ -892,7 +891,7 @@ function playlistLabel(playlist) {
 }
 
 function makeSweeperRoute(key, playlistIds = []) {
-    return { key, playlist_ids: playlistIds, pre_roll: false, cooldown_songs: 0, cooldown_minutes: 0 };
+    return { key, playlist_ids: playlistIds, pre_roll: key === "listener_request", cooldown_songs: 0, cooldown_minutes: 0 };
 }
 
 function routeByKey(key) {
@@ -928,9 +927,13 @@ function routeTitle(key) {
     return `Song playlist: ${routePlaylistName(key)}`;
 }
 
+function routePlaylistId(key) {
+    return Number(key.slice("playlist:".length));
+}
+
 function routePlaylistName(key) {
-    const playlistId = Number(key.slice("playlist:".length));
-    return playlists.value.find((item) => item.id === playlistId)?.name ?? `Playlist ${playlistId}`;
+    const playlistId = routePlaylistId(key);
+    return [...jinglePlaylists.value, ...playlists.value].find((item) => item.id === playlistId)?.name ?? `Playlist ${playlistId}`;
 }
 
 function routeSummary(route) {
@@ -956,13 +959,13 @@ function hasPlaylistRule(playlistId) {
     return Boolean(routeByKey(`playlist:${playlistId}`));
 }
 
-function addPlaylistRule() {
-    const playlistId = Number(newPlaylistRuleId.value);
-    if (!Number.isInteger(playlistId) || playlistId < 1 || hasPlaylistRule(playlistId)) return;
-    const key = `playlist:${playlistId}`;
-    settings.value.sweeper_routes.push(makeSweeperRoute(key));
-    openRules.value = new Set([...openRules.value, key]);
-    newPlaylistRuleId.value = "";
+function addPlaylistRules(playlistIds) {
+    for (const playlistId of playlistIds) {
+        if (!Number.isInteger(playlistId) || playlistId < 1 || hasPlaylistRule(playlistId)) continue;
+        const key = `playlist:${playlistId}`;
+        settings.value.sweeper_routes.push(makeSweeperRoute(key));
+        openRules.value = new Set([...openRules.value, key]);
+    }
 }
 
 function removePlaylistRule(key) {

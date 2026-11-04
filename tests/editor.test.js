@@ -81,6 +81,8 @@ globalThis.fetch = async (url, options) => {
             { id: 12, name: "Retired", enabled: false, scheduled: false, source: "remote_url" },
         ], jingle_playlists: [
             { id: 20, name: "Station IDs", is_jingle: true, source: "songs" }, { id: 21, name: "Promos", is_jingle: false, source: "playlists" },
+            { id: 10, name: "Sweepers", is_jingle: false, source: "songs" }, { id: 30, name: "Party Hits", is_jingle: false, source: "songs" },
+            { id: 31, name: "Talk", is_jingle: false, source: "remote_url" },
         ] };
     } else if (url.startsWith("/play/")) {
         data = {};
@@ -633,33 +635,40 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.deepEqual((await submit()).playlist_ids, [11], "Removing a label updates the Default pool");
         await check(defaultPoolId + "-10");
         assert.deepEqual((await submit()).playlist_ids, [11, 10], "The Default pool stays in the legacy field");
-        const addRuleSelect = document.getElementById("sweepers-add-playlist-rule");
-        addRuleSelect.querySelector('option[value="11"]').selected = true;
-        addRuleSelect.dispatchEvent(new Event("change", { bubbles: true }));
-        await settle();
-        await click("Add Playlist Rule");
-        const christmasPoolId = "sweepers-route-pool-playlist-11";
-        await check(christmasPoolId + "-10");
+        const rulePickerId = "sweepers-playlist-rule";
+        await openPicker(rulePickerId);
+        assert.equal(document.getElementById(rulePickerId + "-toggle").textContent.trim(), "Add Playlist Rule",
+            "Rules use the same dropdown button as sweeper pools");
+        assert.deepEqual(playlistLabels(rulePickerId + "-"), ["Party Hits"],
+            "Rules offer only song playlists that are no sweeper pool, jingle or excluded playlist");
+        await check(rulePickerId + "-30");
+        assert.equal(document.getElementById(rulePickerId + "-choices"), null, "Choosing a playlist adds its rule and closes the list");
+        await openPicker(rulePickerId);
+        const ruledOption = document.getElementById(rulePickerId + "-30");
+        assert.ok(ruledOption.hasAttribute("checked") && ruledOption.hasAttribute("disabled"), "A playlist with a rule stays ticked and is removed only by Remove Rule");
+        await openPicker(rulePickerId);
+        const rulePoolId = "sweepers-route-pool-playlist-30";
+        await check(rulePoolId + "-10");
         await change("Allow pre-roll", true, true);
         assert.equal(document.querySelectorAll('input[id^="sweepers-max-preroll-"]').length, 0,
             "Pre-roll has no configurable duration limit");
         assert.equal(document.querySelectorAll('.sweepers-route .alert-warning[role="note"]').length, 1,
             "Pre-roll warns when it disables song matching for a regular route");
-        const requestPreRoll = document.getElementById("sweepers-placement-preroll-listener_request");
-        requestPreRoll.checked = true;
-        requestPreRoll.dispatchEvent(new Event("change", { bubbles: true }));
-        await settle();
         assert.equal(document.querySelectorAll('.sweepers-route .alert-warning[role="note"]').length, 1,
             "Listener Request pre-roll does not show the matching warning");
         await change("Songs between sweepers", "3");
         await change("Minutes between sweepers", "10");
         const routedSettings = await submit();
-        assert.deepEqual(routedSettings.sweeper_routes.map((route) => route.key), ["default", "listener_request", "playlist:11"]);
-        assert.deepEqual(routedSettings.sweeper_routes.find((route) => route.key === "playlist:11").playlist_ids, [10]);
+        assert.deepEqual(routedSettings.sweeper_routes.map((route) => route.key), ["default", "listener_request", "playlist:30"]);
+        assert.deepEqual(routedSettings.sweeper_routes.find((route) => route.key === "playlist:30").playlist_ids, [10]);
         assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "default").pre_roll, true);
+        assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "listener_request").pre_roll, true,
+            "Listener requests allow pre-roll by default");
+        assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "playlist:30").pre_roll, false,
+            "New playlist rules start with Intro only");
         assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "listener_request").cooldown_songs, 3);
         assert.equal(routedSettings.sweeper_routes.find((route) => route.key === "listener_request").cooldown_minutes, 10);
-        const ruleItem = document.querySelector('.sweepers-playlist-rules [data-route-key="playlist:11"]');
+        const ruleItem = document.querySelector('.sweepers-playlist-rules [data-route-key="playlist:30"]');
         const ruleToggle = ruleItem.querySelector(".accordion-button");
         const ruleBody = document.getElementById(ruleToggle.getAttribute("aria-controls"));
         assert.equal(ruleToggle.getAttribute("aria-expanded"), "true", "A newly added playlist rule opens for editing");
@@ -702,7 +711,7 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         );
         assert.match(document.querySelector("section.card").textContent, /regular rotation chooses another fitting sweeper/);
         await openPicker("sweepers-jingle");
-        assert.deepEqual(playlistLabels("sweepers-jingle-"), ["Station IDs (Jingle Mode)", "Promos"]);
+        assert.deepEqual(playlistLabels("sweepers-jingle-"), ["Station IDs (Jingle Mode)", "Promos", "Sweepers", "Party Hits", "Talk"]);
         await check("sweepers-jingle-20");
         await check("sweepers-jingle-21");
         const groupBadge = document.querySelector('[aria-label="Remove Promos"]').parentElement;
@@ -718,7 +727,7 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         await change("Also move or swap songs from sequential playlists", true, true);
         await change("Swap with another song from same playlist", true, true);
         await openPicker("sweepers-excluded");
-        assert.deepEqual(playlistLabels("sweepers-excluded-"), ["Station IDs", "Promos"]);
+        assert.deepEqual(playlistLabels("sweepers-excluded-"), ["Station IDs", "Promos", "Sweepers", "Party Hits", "Talk"]);
         await check("sweepers-excluded-21");
         await change("Add reverb to the sweeper voice", true, true);
         assert.equal(field("Reverb intensity").value, "25");
