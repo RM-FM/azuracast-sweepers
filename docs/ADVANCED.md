@@ -268,16 +268,19 @@ Defaults for a new installation:
 - **Excluded playlists:** tracks never get a sweeper and are never moved or replaced.
   Selecting a playlist group covers all its playlists.
 - **Linked sweepers and jingles:** link tracks that say the same, for example
-  differently produced versions. When a linked sweeper is heard, its linked jingles
-  count as played in their Shuffle or Sequential jingle playlists, and a linked jingle
-  already waiting in the queue is swapped for another jingle from its playlist. When a
-  linked jingle plays, its sweepers count as played in the sweeper rotation. A sweeper
-  is not chosen while a linked jingle is coming up, and a linked jingle about to be
-  sent is swapped while one of its sweepers is planned. Random-order jingle playlists
-  cannot skip a jingle, so there the swap is the only protection. When no other jingle
-  is free, both play. **Keep linked tracks apart** adds a minimum time between them;
-  `0` keeps only the coordination above. **Suggest Links** proposes groups whose titles
-  match once case, punctuation and version labels such as "(Dry)" or "v2" are ignored.
+  differently produced versions. The plugin mirrors sweepers into AzuraCast's jingle
+  rotation the way AzuraCast treats its own queue: while a linked sweeper is reserved,
+  its linked jingles count as already queued in their Shuffle or Sequential jingle
+  playlists, so AzuraCast does not pick them; this is undone if the reservation is
+  dropped. When the sweeper is heard, the mark becomes final with the actual play
+  time. When a linked jingle plays, its sweepers count as played in the sweeper
+  rotation, and a sweeper is not chosen while a linked jingle is coming up. A linked
+  jingle that still reaches the queue, for example from a Random-order playlist or a
+  new round, is swapped for another jingle from its playlist before it is sent; when
+  no other jingle is free, both play. **Keep linked tracks apart** adds a minimum time
+  between them; `0` keeps only the coordination above. **Suggest Links** proposes
+  groups whose titles match once case, punctuation and version labels such as
+  "(Dry)" or "v2" are ignored.
 - **Other sweepers before a repeat:** if no other sweeper fits, the song gets none.
   With a single sweeper, repeats are always allowed.
 - **Prefer the longest fitting sweepers:** at 20% tolerance, bodies filling 80–100%

@@ -11,7 +11,9 @@ use App\Entity\Station;
 use App\Entity\StationPlaylistMedia;
 use App\Lock\LockFactory;
 use Doctrine\ORM\EntityManagerInterface;
+use Plugin\AzuracastSweepers\ValueObject\LinkMarks;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
+use Symfony\Component\Lock\LockInterface;
 
 // Keeps AzuraCast's jingle rotation in step with linked sweepers.
 final readonly class LinkSync
@@ -26,14 +28,96 @@ final readonly class LinkSync
     }
 
     /**
-     * Linked jingles of an audible sweeper count as played in their jingle playlists, and any of them
-     * already waiting unsent in the queue is swapped, because AzuraCast chose it without knowing.
+     * Mirrors sweepers into the jingle rotation the way AzuraCast treats its own queue: a reserved sweeper
+     * marks its linked jingles as queued, which is undone when the reservation is dropped, and a played
+     * sweeper makes that final with the actual play time.
+     */
+    public function reconcile(Station $station, Settings $settings, int $deadline): void
+    {
+        $directory = $station->getRadioConfigDir();
+        $settled = LinkMarks::empty(
+            LinkMarks::plan($this->state->read($directory), $settings->links, $settings->enabled, time())
+        );
+        if ($settled) {
+            return;
+        }
+        $lock = $this->lock($station, $deadline);
+        if ($lock === null) {
+            // The next heartbeat tries again.
+            return;
+        }
+        try {
+            $data = $this->state->read($directory);
+            $now = time();
+            $plan = LinkMarks::plan($data, $settings->links, $settings->enabled, $now);
+            $marks = $data['link_marks'] ?? [];
+            $finalised = array_filter(
+                $data['link_finalised'] ?? [],
+                static fn(mixed $at): bool => (int)$at >= $now - LinkMarks::PLAYED_SECONDS
+            );
+            foreach ($plan['restore'] as $mediaId) {
+                $this->restore($marks[$mediaId] ?? []);
+                unset($marks[$mediaId]);
+            }
+            foreach ($plan['drop'] as $mediaId) {
+                unset($marks[$mediaId]);
+            }
+            foreach ($plan['finalize'] as $played) {
+                $this->applyPlayed($station, $settings, $played['media_ids'], $played['at']);
+                foreach ($played['media_ids'] as $mediaId) {
+                    unset($marks[$mediaId]);
+                }
+                $finalised[$played['token']] = $played['at'];
+            }
+            foreach ($plan['reserve'] as $mediaId => $token) {
+                if (isset($marks[$mediaId])) {
+                    $marks[$mediaId]['token'] = $token;
+                    continue;
+                }
+                $slots = [];
+                foreach ($this->jingleSlots($station, $settings, [$mediaId]) as $slot) {
+                    $slots[$slot->id] = ['queued' => $slot->is_queued, 'last' => $slot->last_played];
+                    // What AzuraCast writes when it queues a track; a used-up round starts over natively.
+                    $slot->played($now);
+                    $this->em->persist($slot);
+                }
+                $marks[$mediaId] = ['token' => $token, 'at' => $now, 'slots' => $slots];
+            }
+            $this->em->flush();
+            $this->state->update($directory, static function (array $data) use ($marks, $finalised): array {
+                $data['link_marks'] = $marks;
+                $data['link_finalised'] = $finalised;
+
+                return $data;
+            });
+        } finally {
+            $lock->release();
+        }
+    }
+
+    // Puts a dropped reservation back, unless AzuraCast changed the entry since (for example a new round).
+    private function restore(array $mark): void
+    {
+        foreach ($mark['slots'] ?? [] as $slotId => $previous) {
+            $slot = $this->em->find(StationPlaylistMedia::class, (int)$slotId);
+            if ($slot === null || $slot->is_queued || $slot->last_played !== (int)($mark['at'] ?? 0)) {
+                continue;
+            }
+            $slot->is_queued = (bool)$previous['queued'];
+            $slot->last_played = (int)$previous['last'];
+            $this->em->persist($slot);
+        }
+    }
+
+    /**
+     * Swaps linked jingles of an audible sweeper that already wait unsent in the queue, because AzuraCast
+     * chose them before the sweeper was reserved. The rotation itself follows through reconcile().
      *
      * @param list<array{media_id: int, at: float}> $played
      */
     public function sweepersPlayed(Station $station, Settings $settings, array $played, int $deadline): void
     {
-        foreach ($played as ['media_id' => $sweeper, 'at' => $at]) {
+        foreach ($played as ['media_id' => $sweeper]) {
             $linked = $settings->links->members($sweeper);
             if ($linked === []) {
                 continue;
@@ -41,8 +125,6 @@ final readonly class LinkSync
             foreach ($this->unsent($station, $linked) as $row) {
                 $this->swap($station, $settings, $row, $linked, $deadline);
             }
-            // After the swaps, which return a displaced jingle to its round.
-            $this->markPlayed($station, $settings, $linked, (int)$at, $deadline);
         }
     }
 
@@ -57,11 +139,14 @@ final readonly class LinkSync
             return;
         }
         $data = $this->state->read($station->getRadioConfigDir());
-        $reason = $this->busy($settings, $data, $next['media_id']);
-        if ($reason !== null && $this->swap($station, $settings, $next, [], $deadline, $data) && $reason === 'recent') {
-            // Its group already played, so the displaced jingle sits out the rest of this round too.
-            $this->markPlayed($station, $settings, [$next['media_id']], time(), $deadline);
+        $mediaId = $next['media_id'];
+        $reason = $this->busy($settings, $data, $mediaId);
+        if ($reason === null || !$this->swap($station, $settings, $next, [], $deadline, $data)) {
+            return;
         }
+        // The swap returns the displaced jingle to its round; it stays held back for its group.
+        $mark = $data['link_marks'][$mediaId] ?? null;
+        $this->markPlayed($station, $settings, [$mediaId], (int)($mark['at'] ?? time()), $deadline);
     }
 
     // Reserved: a linked sweeper is planned. Recent: a linked track played within the configured window.
@@ -122,50 +207,76 @@ final readonly class LinkSync
      */
     private function markPlayed(Station $station, Settings $settings, array $mediaIds, int $at, int $deadline): void
     {
-        // Share the lock held by AzuraCast's NowPlaying station worker, which builds the native queue.
+        $lock = $this->lock($station, $deadline);
+        if ($lock === null) {
+            return;
+        }
+        try {
+            $this->applyPlayed($station, $settings, $mediaIds, $at);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    // Shares the lock held by AzuraCast's NowPlaying station worker, which builds the native queue.
+    private function lock(Station $station, int $deadline): ?LockInterface
+    {
         $lock = $this->locks->createLock('nowplaying_' . $station->short_name, 60);
         while (!$lock->acquire()) {
             if (hrtime(true) >= $deadline) {
-                return;
+                return null;
             }
             usleep(25_000);
         }
-        try {
-            /** @var list<StationPlaylistMedia> $slots */
-            $slots = $this->em->createQuery(
-                <<<'DQL'
-                    SELECT spm, sp FROM App\Entity\StationPlaylistMedia spm JOIN spm.playlist sp
-                    WHERE sp.station = :station AND IDENTITY(spm.media) IN (:media) AND sp.source = :songs
-                    AND (sp.is_jingle = true OR sp.id IN (:jingles))
-                DQL
-            )->setParameter('station', $station)
-                ->setParameter('media', $mediaIds)
-                ->setParameter('songs', PlaylistSources::Songs->value)
-                ->setParameter('jingles', $settings->jinglePlaylistIds === [] ? [0] : $settings->jinglePlaylistIds)
-                ->getResult();
-            $playlists = [];
+
+        return $lock;
+    }
+
+    /**
+     * @param list<int> $mediaIds
+     * @return list<StationPlaylistMedia> The tracks' entries in jingle playlists.
+     */
+    private function jingleSlots(Station $station, Settings $settings, array $mediaIds): array
+    {
+        return $this->em->createQuery(
+            <<<'DQL'
+                SELECT spm, sp FROM App\Entity\StationPlaylistMedia spm JOIN spm.playlist sp
+                WHERE sp.station = :station AND IDENTITY(spm.media) IN (:media) AND sp.source = :songs
+                AND (sp.is_jingle = true OR sp.id IN (:jingles))
+            DQL
+        )->setParameter('station', $station)
+            ->setParameter('media', $mediaIds)
+            ->setParameter('songs', PlaylistSources::Songs->value)
+            ->setParameter('jingles', $settings->jinglePlaylistIds === [] ? [0] : $settings->jinglePlaylistIds)
+            ->getResult();
+    }
+
+    /**
+     * @param list<int> $mediaIds
+     */
+    private function applyPlayed(Station $station, Settings $settings, array $mediaIds, int $at): void
+    {
+        $slots = $this->jingleSlots($station, $settings, $mediaIds);
+        $playlists = [];
+        foreach ($slots as $slot) {
+            $slot->played($at);
+            $this->em->persist($slot);
+            $playlists[$slot->playlist->id] = $slot->playlist;
+        }
+        $this->em->flush();
+        foreach ($playlists as $playlist) {
+            // Like AzuraCast, a used-up round starts over; the linked jingles still sit this one out.
+            if ($playlist->order === PlaylistOrders::Random || !$this->playlistMedia->isQueueEmpty($playlist)) {
+                continue;
+            }
+            $this->playlistMedia->resetQueue($playlist);
             foreach ($slots as $slot) {
-                $slot->played($at);
-                $this->em->persist($slot);
-                $playlists[$slot->playlist->id] = $slot->playlist;
+                if ($slot->playlist === $playlist) {
+                    $slot->played($at);
+                    $this->em->persist($slot);
+                }
             }
             $this->em->flush();
-            foreach ($playlists as $playlist) {
-                // Like AzuraCast, a used-up round starts over; the linked jingles still sit this one out.
-                if ($playlist->order === PlaylistOrders::Random || !$this->playlistMedia->isQueueEmpty($playlist)) {
-                    continue;
-                }
-                $this->playlistMedia->resetQueue($playlist);
-                foreach ($slots as $slot) {
-                    if ($slot->playlist === $playlist) {
-                        $slot->played($at);
-                        $this->em->persist($slot);
-                    }
-                }
-                $this->em->flush();
-            }
-        } finally {
-            $lock->release();
         }
     }
 

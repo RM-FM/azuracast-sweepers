@@ -149,7 +149,7 @@
 
                     <fieldset class="form-group col-12">
                         <legend>Linked Sweepers &amp; Jingles</legend>
-                        <p class="form-text sweepers-section-text">Link sweepers and jingles that say the same, for example differently produced versions. When one of them plays, the others count as played in their own rotation, and they never play while another is coming up.</p>
+                        <p class="form-text sweepers-section-text">Link sweepers and jingles that say the same, for example differently produced versions. While a linked sweeper is coming up or has just played, AzuraCast's rotation treats its linked jingles as already used, and a sweeper is not chosen while a linked jingle is coming up.</p>
                         <LinkGroups v-if="settings.link_groups" v-model:window="settings.link_window" :groups="settings.link_groups" :candidates="linkCandidates" :error="linkCandidatesError" />
                     </fieldset>
                     </div>

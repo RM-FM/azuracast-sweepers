@@ -77,14 +77,20 @@ final readonly class InternalController
         $data = $this->state->read($station->getRadioConfigDir());
         $settings = Settings::fromArray($data['settings'] ?? []);
 
-        return $response->withJson($this->planner->plan(
+        $plan = $this->planner->plan(
             $request->getStation(),
             (int)$body['media_id'],
             (string)($body['token'] ?? ''),
             (float)$body['cue_in'],
             (float)$body['cue_out'],
             $this->measurements($station, $settings, $body['jingles'] ?? [])
-        ));
+        );
+        if ($settings->links->groups !== []) {
+            // A short budget: the module waits for this response. The next heartbeat catches up.
+            $this->reconcileLinks($station, $settings, 0.2);
+        }
+
+        return $response->withJson($plan);
     }
 
     public function arrangeAction(ServerRequest $request, Response $response, array $params): ResponseInterface
@@ -182,12 +188,23 @@ final readonly class InternalController
                 1.0
             );
         }
+        // Also when sweepers or links were switched off: reserved jingles then return to their rotation.
+        $this->reconcileLinks($station, $settings, 1.0);
 
         return $response->withJson([
             'success' => true,
             'settings' => $settings->runtime(),
             'blocked' => $result['blocked'],
         ]);
+    }
+
+    private function reconcileLinks(Station $station, Settings $settings, float $budgetSeconds): void
+    {
+        $this->syncLinks(
+            $station,
+            fn(int $deadline) => $this->linkSync->reconcile($station, $settings, $deadline),
+            $budgetSeconds
+        );
     }
 
     // Link sync is best effort: the station's playback must never depend on it.
