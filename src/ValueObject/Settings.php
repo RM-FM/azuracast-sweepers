@@ -9,6 +9,7 @@ use InvalidArgumentException;
 final readonly class Settings
 {
     public array $sweeperRoutes;
+    public Links $links;
 
     public function __construct(
         public bool $enabled = true,
@@ -34,8 +35,10 @@ final readonly class Settings
         public int $sweeperGap = 1,
         public bool $swapFromPlaylist = false,
         public int $replacementLimit = 2,
-        array $sweeperRoutes = []
+        array $sweeperRoutes = [],
+        ?Links $links = null
     ) {
+        $this->links = $links ?? new Links();
         foreach ([$maxWait, $margin, $duckDb, $jingleGain, $lengthTolerance, $earlyStart, $reverbIntensity] as $value) {
             if (!is_finite($value)) {
                 throw new InvalidArgumentException('Settings must be finite.');
@@ -207,7 +210,8 @@ final readonly class Settings
             sweeperGap: $gaps['sweeper_gap'],
             swapFromPlaylist: $booleans['swap_from_playlist'],
             replacementLimit: $replacementLimit,
-            sweeperRoutes: $routes
+            sweeperRoutes: $routes,
+            links: Links::fromArray($data['link_groups'] ?? [], $data['link_window'] ?? 0)
         );
     }
 
@@ -294,6 +298,7 @@ final readonly class Settings
             'swap_sequential' => $this->swapSequential,
             'excluded_playlist_ids' => $this->excludedPlaylistIds,
             'sweeper_gap' => $this->sweeperGap,
+            ...$this->links->toArray(),
         ];
     }
 

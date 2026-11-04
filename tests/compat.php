@@ -98,7 +98,10 @@ $methods = [
     'App\Event\Radio\AnnotateNextSong' => ['fromStationMedia'],
     'App\Entity\Station' => ['getRadioConfigDir', 'validateAdapterApiKey'],
     'App\Entity\StationQueue' => ['fromMedia'],
-    'App\Entity\Repository\StationPlaylistMediaRepository' => ['getQueue', 'findByPlaylistAndMedia'],
+    'App\Entity\Repository\StationPlaylistMediaRepository' => [
+        'getQueue', 'findByPlaylistAndMedia', 'isQueueEmpty', 'resetQueue',
+    ],
+    'App\Entity\StationPlaylistMedia' => ['played'],
     'App\Entity\Repository\StationQueueRepository' => ['getRecentlyPlayedByTimeRange'],
     'App\Entity\Repository\CustomFieldRepository' => ['getCustomFields'],
     'App\Radio\AutoDJ\DuplicatePrevention' => ['preventDuplicates'],
@@ -129,6 +132,7 @@ $properties = [
     'App\Entity\Api\StationPlaylistQueue' => ['spm_id', 'media_id', 'song_id', 'artist', 'title', 'last_played'],
     'App\Entity\StationQueue' => [
         'id', 'playlist', 'media', 'request', 'song_id', 'title', 'artist', 'timestamp_cued', 'timestamp_played',
+        'sent_to_autodj', 'is_played', 'playlist_chain',
     ],
     'App\Entity\StationMediaCustomField' => ['field', 'media', 'value'],
     'App\Entity\CustomField' => ['short_name'],

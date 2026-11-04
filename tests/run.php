@@ -9,6 +9,7 @@ use Plugin\AzuracastSweepers\Service\Queue;
 use Plugin\AzuracastSweepers\Service\Schedule;
 use Plugin\AzuracastSweepers\Service\State;
 use Plugin\AzuracastSweepers\ValueObject\Arrangement;
+use Plugin\AzuracastSweepers\ValueObject\Links;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
 use Plugin\AzuracastSweepers\ValueObject\Selection;
 use Plugin\AzuracastSweepers\ValueObject\SweeperRoute;
@@ -220,6 +221,40 @@ foreach ([
     rejects(static fn() => SweeperRoute::fromArray($invalidRoute));
 }
 rejects(static fn() => new SweeperRoute('playlist:12', [2 => 4]));
+$links = new Links([['name' => 'Hot Hits', 'media_ids' => [1, 2, 3]], ['name' => 'Weekend', 'media_ids' => [4, 5]]], 10);
+check($links->members(2) === [1, 3] && $links->members(9) === [], 'Link groups list the other tracks of a group.');
+check($links->lastPlayed([1 => 100, 3 => 300, 4 => 900], 2) === 300.0, 'A group shares its latest play.');
+check(
+    $links->recent([3 => 1000], 1, 1000 + 599) && !$links->recent([3 => 1000], 1, 1000 + 600)
+        && !$links->recent([1 => 1000], 1, 1001),
+    'The window counts only the other tracks of a group.'
+);
+check(!(new Links([['name' => 'A', 'media_ids' => [1, 2]]]))->recent([2 => 1000], 1, 1001), 'A zero window never blocks.');
+$linked = Settings::fromArray(['link_groups' => [['name' => ' Hot Hits ', 'media_ids' => [1, 2]]], 'link_window' => 5]);
+check(
+    $linked->links->groups === [['name' => 'Hot Hits', 'media_ids' => [1, 2]]]
+        && Settings::fromArray($linked->toArray())->toArray() === $linked->toArray(),
+    'Link groups round trip with trimmed names.'
+);
+foreach ([
+    ['link_groups' => [['name' => 'One', 'media_ids' => [1]]]],
+    ['link_groups' => [['name' => 'A', 'media_ids' => [1, 2]], ['name' => 'B', 'media_ids' => [2, 3]]]],
+    ['link_groups' => [['name' => 'A', 'media_ids' => [1, '2']]]],
+    ['link_groups' => [['name' => 'A', 'media_ids' => [1, 2]]], 'link_window' => 1441],
+    ['link_groups' => ['a' => ['name' => 'A', 'media_ids' => [1, 2]]]],
+] as $invalidLinks) {
+    rejects(static fn() => Settings::fromArray($invalidLinks));
+}
+$linkedStart = Planner::apply(['settings' => $linked->toArray()], [
+    'event' => 'start', 'token' => '700', 'detail' => 'jingle', 'media_id' => '2', 'at' => 1000.0,
+]);
+$unlinkedStart = Planner::apply(['settings' => $linked->toArray()], [
+    'event' => 'start', 'token' => '701', 'detail' => '', 'media_id' => '8', 'at' => 1000.0,
+]);
+check(
+    ($linkedStart['history'][2] ?? null) === 1000.0 && !isset($unlinkedStart['history'][8]),
+    'Only linked tracks record their start in the shared rotation history.'
+);
 $playedAt = microtime(true);
 $preRollPlan = [
     'plans' => ['401' => [

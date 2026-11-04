@@ -146,6 +146,12 @@
                             </fieldset>
                         </div>
                     </fieldset>
+
+                    <fieldset class="form-group col-12">
+                        <legend>Linked Sweepers &amp; Jingles</legend>
+                        <p class="form-text sweepers-section-text">Link sweepers and jingles that say the same, for example differently produced versions. When one of them plays, the others count as played in their own rotation, and they never play while another is coming up.</p>
+                        <LinkGroups v-if="settings.link_groups" v-model:window="settings.link_window" :groups="settings.link_groups" :candidates="linkCandidates" :error="linkCandidatesError" />
+                    </fieldset>
                     </div>
                     </div>
 
@@ -535,6 +541,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { VueDatePicker } from "@vuepic/vue-datepicker";
 import DataToolbar from "./DataToolbar.vue";
 import Icon from "./Icon.vue";
+import LinkGroups from "./LinkGroups.vue";
 import Pagination from "./Pagination.vue";
 import PlaylistPicker from "./PlaylistPicker.vue";
 import SweeperRoute from "./SweeperRoute.vue";
@@ -601,6 +608,20 @@ const updateRestartText = computed(() => ({
     unknown: "Check the release notes for whether broadcasting must be restarted.",
 })[release.value?.restart] ?? "");
 const settings = ref({});
+const linkCandidates = ref([]);
+const linkCandidatesError = ref("");
+let linkCandidatesLoaded = false;
+
+async function loadLinkCandidates() {
+    if (linkCandidatesLoaded) return;
+    linkCandidatesLoaded = true;
+    try {
+        linkCandidates.value = (await api("media?links=1")).rows;
+    } catch (exception) {
+        linkCandidatesLoaded = false;
+        linkCandidatesError.value = exception.message;
+    }
+}
 const playlists = ref([]);
 const jinglePlaylists = ref([]);
 const defaultRoute = computed(() => routeByKey("default"));
@@ -720,6 +741,8 @@ const reasons = {
     pre_roll_missed: "Song started without the crossfade its pre-roll needs",
     route_cooldown: "This route is in its cooldown period",
     route_reserved: "A sweeper is already reserved for this route",
+    linked_queued: "A linked jingle is coming up",
+    linked_recent: "A linked track played recently",
     repeat: "Only fitting sweeper played too recently",
     reserved: "Fitting sweepers are reserved for upcoming songs",
     no_sweepers: "No sweepers ready (empty playlist or not measured yet)",
@@ -769,7 +792,7 @@ const unmovedReasons = {
 // Spacing rules and track types skip a sweeper by design; any other reason means a due sweeper could not play.
 const intendedSkips = new Set([
     "jingle", "after_jingle", "after_sweeper", "jingle_follows", "excluded", "other", "live", "disabled", "intro_zero",
-    "off_schedule", "route_cooldown", "route_reserved",
+    "off_schedule", "route_cooldown", "route_reserved", "linked_queued", "linked_recent",
 ]);
 
 function status(entry) {
@@ -1030,6 +1053,7 @@ watch(() => routeByKey("default")?.playlist_ids?.join(","), syncDefaultPool, { f
 watch(previewLevel, (level) => preview?.setLevel(level));
 watch(previewId, stopPreview);
 watch(current, stopPreview);
+watch(settingsTab, (tab) => { if (tab === "spacing") void loadLinkCandidates(); });
 onUnmounted(() => preview?.close());
 
 let mediaRequest = 0;
@@ -1253,6 +1277,10 @@ async function saveIntro() {
 
 async function saveSettings() {
     await save(async () => {
+        if (settings.value.link_groups?.some((group) => group.media_ids.length < 2)) {
+            settingsTab.value = "spacing";
+            throw new Error("Each link group needs at least two tracks. Add tracks or remove the group.");
+        }
         syncDefaultPool();
         const result = await api("settings", settings.value);
         moduleStatus.value = result.module ?? moduleStatus.value;
@@ -1322,6 +1350,8 @@ onMounted(async () => {
         queueLength.value = state.queue_length ?? 2;
         moduleStatus.value = state.module ?? {};
         settings.value = state.settings;
+        settings.value.link_groups ??= [];
+        settings.value.link_window ??= 0;
         ensureSweeperRoutes();
         playlists.value = state.playlists;
         jinglePlaylists.value = state.jingle_playlists ?? [];

@@ -86,6 +86,16 @@ globalThis.fetch = async (url, options) => {
         ] };
     } else if (url.startsWith("/play/")) {
         data = {};
+    } else if (url.includes("/media?links=1")) {
+        linkRequests.push(url);
+        data = { rows: [
+            { id: 31, title: "Hot Hits (Dry)", artist: "Station", path: "sweepers/hot-hits-dry.mp3", sweeper: true, jingle: false,
+                playlists: [{ id: 10, name: "Sweepers", random: false }] },
+            { id: 41, title: "Hot Hits v2", artist: "Station", path: "jingles/hot-hits-v2.mp3", sweeper: false, jingle: true,
+                playlists: [{ id: 20, name: "Station IDs", random: true }] },
+            { id: 42, title: "Weekend", artist: "Station", path: "jingles/weekend.mp3", sweeper: false, jingle: true,
+                playlists: [{ id: 20, name: "Station IDs", random: true }] },
+        ] };
     } else if (url.includes("/media?playlist=")) {
         previewRequests.push(url);
         data = { rows: [
@@ -138,6 +148,7 @@ globalThis.fetch = async (url, options) => {
 };
 const previewRequests = [];
 const mediaLookups = [];
+const linkRequests = [];
 const historyRequests = [];
 const activePage = () => document.querySelector(".datatable-toolbar-top .page-item.active")?.textContent.trim();
 const goToPage = async (number) => {
@@ -807,6 +818,39 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         }
         spacing.value = "7";
         spacing.dispatchEvent(new Event("input", { bubbles: true }));
+        assert.equal(linkRequests.length, 1, "Link candidates load when Spacing & Jingles opens");
+        assert.equal([...panel("spacing").querySelectorAll("legend")].at(-1).textContent, "Linked Sweepers & Jingles");
+        const buttonByText = (text) => [...panel("spacing").querySelectorAll("button")].find((node) => node.textContent.trim() === text);
+        buttonByText("Suggest Links").dispatchEvent(new Event("click", { bubbles: true }));
+        await settle();
+        assert.match(panel("spacing").querySelector(".sweepers-link-suggestions").textContent, /Sweeper Hot Hits \(Dry\), Jingle Hot Hits v2/,
+            "Suggestions ignore version labels and punctuation");
+        buttonByText("Link").dispatchEvent(new Event("click", { bubbles: true }));
+        await settle();
+        buttonByText("Add Link Group").dispatchEvent(new Event("click", { bubbles: true }));
+        await settle();
+        const linkSearch = document.getElementById("sweepers-link-search-1");
+        linkSearch.value = "week";
+        linkSearch.dispatchEvent(new Event("input", { bubbles: true }));
+        await settle();
+        assert.deepEqual([...panel("spacing").querySelectorAll(".sweepers-link-results button")].map((node) => node.textContent.trim()),
+            ["Jingle: Weekend"], "Search offers only tracks that are not linked yet");
+        panel("spacing").querySelector(".sweepers-link-results button").dispatchEvent(new Event("click", { bubbles: true }));
+        await settle();
+        assert.match(panel("spacing").querySelector('[data-link-group="0"] .accordion-button').textContent, /1 sweeper · 1 jingle/);
+        assert.match(panel("spacing").querySelector('[data-link-group="0"]').textContent, /Random-order playlist/,
+            "A Random jingle playlist explains that linked jingles are swapped instead of skipped");
+        const linkWindow = document.getElementById("sweepers-link-window");
+        linkWindow.value = "15";
+        linkWindow.dispatchEvent(new Event("input", { bubbles: true }));
+        await settle();
+        const writesBeforeLinks = writes.length;
+        document.querySelector("form.sweepers-settings").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        await settle();
+        assert.equal(writes.length, writesBeforeLinks, "A link group with one track blocks saving");
+        assert.match(document.querySelector(".alert-danger").textContent, /at least two tracks/);
+        document.querySelector('[aria-label="Remove Weekend link group"]').dispatchEvent(new Event("click", { bubbles: true }));
+        await settle();
         await select(4);
         assert.equal(panel("spacing").style.display, "none");
         assert.notEqual(panel("audio").style.display, "none");
@@ -856,6 +900,9 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         await settle();
         assert.equal(writes.at(-1).body.songs_after_jingle, 7);
         assert.equal(writes.at(-1).body.duck_db, -9, "One save includes edits from all tabs");
+        assert.deepEqual(writes.at(-1).body.link_groups, [{ name: "Hot Hits (Dry)", media_ids: [31, 41] }],
+            "Link groups are saved with the other settings");
+        assert.equal(writes.at(-1).body.link_window, 15);
     } finally {
         app.unmount();
     }

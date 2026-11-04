@@ -9,12 +9,14 @@ use App\Http\Response;
 use App\Http\ServerRequest;
 use InvalidArgumentException;
 use Plugin\AzuracastSweepers\Service\Arranger;
+use Plugin\AzuracastSweepers\Service\LinkSync;
 use Plugin\AzuracastSweepers\Service\Media;
 use Plugin\AzuracastSweepers\Service\Planner;
 use Plugin\AzuracastSweepers\Service\State;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
 use Plugin\AzuracastSweepers\ValueObject\Timing;
 use Psr\Http\Message\ResponseInterface;
+use Throwable;
 
 final readonly class InternalController
 {
@@ -22,7 +24,8 @@ final readonly class InternalController
         private Media $media,
         private Planner $planner,
         private State $state,
-        private Arranger $arranger
+        private Arranger $arranger,
+        private LinkSync $linkSync
     ) {
     }
 
@@ -109,17 +112,27 @@ final readonly class InternalController
             throw new InvalidArgumentException('Invalid release_spacing.');
         }
         $station = $request->getStation();
+        $started = hrtime(true);
         $settings = Settings::fromArray($this->state->read($station->getRadioConfigDir())['settings'] ?? []);
+        if ($settings->enabled && $settings->links->groups !== []) {
+            $this->syncLinks(
+                $station,
+                fn(int $deadline) => $this->linkSync->beforeSend($station, $settings, $deadline),
+                (float)$budget / 2
+            );
+        }
         if (!$settings->enabled || (!$settings->swapForIntro && !$settings->swapFromPlaylist)) {
             return $response->withJson(['moved' => '', 'before' => '', 'replaced' => '']);
         }
+        // Link sync and song matching share the budget the module waits for.
+        $remaining = max(0.1, (float)$budget - (hrtime(true) - $started) / 1_000_000_000);
 
         return $response->withJson($this->arranger->arrange(
             $station,
             $gap,
             (string)($body['counted'] ?? ''),
             $this->measurements($station, $settings, $body['jingles'] ?? []),
-            (float)$budget,
+            $remaining,
             $releaseSpacing
         ));
     }
@@ -154,18 +167,38 @@ final readonly class InternalController
     public function heartbeatAction(ServerRequest $request, Response $response, array $params): ResponseInterface
     {
         $body = $this->payload($request);
+        $station = $request->getStation();
         $result = $this->planner->heartbeat(
-            $request->getStation(),
+            $station,
             $body['tokens'] ?? [],
             $body['events'] ?? [],
             $body['version'] ?? null
         );
+        $settings = $result['settings'];
+        if ($settings->enabled && $result['played'] !== [] && $settings->links->groups !== []) {
+            $this->syncLinks(
+                $station,
+                fn(int $deadline) => $this->linkSync->sweepersPlayed($station, $settings, $result['played'], $deadline),
+                1.0
+            );
+        }
 
         return $response->withJson([
             'success' => true,
-            'settings' => $result['settings']->runtime(),
+            'settings' => $settings->runtime(),
             'blocked' => $result['blocked'],
         ]);
+    }
+
+    // Link sync is best effort: the station's playback must never depend on it.
+    private function syncLinks(Station $station, callable $sync, float $budgetSeconds): void
+    {
+        try {
+            $sync(hrtime(true) + (int)($budgetSeconds * 1_000_000_000));
+        } catch (Throwable $exception) {
+            error_log('AzuraCast Sweepers: linked jingle sync skipped for station ' . $station->id . ': '
+                . $exception->getMessage());
+        }
     }
 
     public function playedAction(ServerRequest $request, Response $response, array $params): ResponseInterface

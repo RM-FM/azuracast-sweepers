@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Plugin\AzuracastSweepers\Service;
 
 use App\Entity\CustomField;
+use App\Entity\Enums\PlaylistOrders;
+use App\Entity\Enums\PlaylistSources;
 use App\Entity\Enums\PlaylistTypes;
 use App\Entity\Repository\CustomFieldRepository;
 use App\Entity\Station;
@@ -12,6 +14,7 @@ use App\Entity\StationMedia;
 use App\Entity\StationMediaCustomField;
 use App\Entity\StationPlaylist;
 use App\Event\Radio\AnnotateNextSong;
+use BackedEnum;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\Pagination\Paginator;
@@ -186,6 +189,51 @@ final readonly class Media
     public function timingIdentity(Station $station, StationMedia $media): string
     {
         return self::identity($media) . ':' . hash('sha256', $this->uri($station, $media));
+    }
+
+    /**
+     * @param list<int> $sweeperPlaylistIds
+     * @param list<int> $jinglePlaylistIds Selected jingle playlists; Jingle Mode playlists are always included.
+     * @return list<array{id: int, title: ?string, artist: ?string, path: string, sweeper: bool, jingle: bool,
+     *     playlists: list<array{id: int, name: string, random: bool}>}>
+     */
+    public function linkCandidates(Station $station, array $sweeperPlaylistIds, array $jinglePlaylistIds): array
+    {
+        $rows = $this->em->createQuery(
+            <<<'DQL'
+                SELECT sm.id, sm.title, sm.artist, sm.path, sp.id AS playlist_id, sp.name, sp.order,
+                    sp.is_jingle, sp.type
+                FROM App\Entity\StationPlaylistMedia spm JOIN spm.playlist sp JOIN spm.media sm
+                WHERE sp.station = :station AND sp.source = :songs
+                AND (sp.is_jingle = true OR sp.id IN (:sweepers) OR sp.id IN (:jingles))
+                ORDER BY sm.path ASC
+            DQL
+        )->setParameter('station', $station)
+            ->setParameter('songs', PlaylistSources::Songs->value)
+            ->setParameter('sweepers', $sweeperPlaylistIds === [] ? [0] : $sweeperPlaylistIds)
+            ->setParameter('jingles', $jinglePlaylistIds === [] ? [0] : $jinglePlaylistIds)
+            ->getArrayResult();
+        $value = static fn(mixed $enum): string => $enum instanceof BackedEnum ? (string)$enum->value : (string)$enum;
+        $result = [];
+        foreach ($rows as $row) {
+            $id = (int)$row['id'];
+            $playlistId = (int)$row['playlist_id'];
+            $sweeper = in_array($playlistId, $sweeperPlaylistIds, true)
+                && $value($row['type']) === PlaylistTypes::Advanced->value;
+            $result[$id] ??= [
+                'id' => $id, 'title' => $row['title'], 'artist' => $row['artist'], 'path' => $row['path'],
+                'sweeper' => false, 'jingle' => false, 'playlists' => [],
+            ];
+            $result[$id]['sweeper'] = $result[$id]['sweeper'] || $sweeper;
+            $result[$id]['jingle'] = $result[$id]['jingle'] || !$sweeper;
+            $result[$id]['playlists'][] = [
+                'id' => $playlistId,
+                'name' => (string)$row['name'],
+                'random' => $value($row['order']) === PlaylistOrders::Random->value,
+            ];
+        }
+
+        return array_values($result);
     }
 
     /**

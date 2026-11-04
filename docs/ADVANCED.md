@@ -267,6 +267,17 @@ Defaults for a new installation:
   sweeper playlists never get a sweeper.
 - **Excluded playlists:** tracks never get a sweeper and are never moved or replaced.
   Selecting a playlist group covers all its playlists.
+- **Linked sweepers and jingles:** link tracks that say the same, for example
+  differently produced versions. When a linked sweeper is heard, its linked jingles
+  count as played in their Shuffle or Sequential jingle playlists, and a linked jingle
+  already waiting in the queue is swapped for another jingle from its playlist. When a
+  linked jingle plays, its sweepers count as played in the sweeper rotation. A sweeper
+  is not chosen while a linked jingle is coming up, and a linked jingle about to be
+  sent is swapped while one of its sweepers is planned. Random-order jingle playlists
+  cannot skip a jingle, so there the swap is the only protection. When no other jingle
+  is free, both play. **Keep linked tracks apart** adds a minimum time between them;
+  `0` keeps only the coordination above. **Suggest Links** proposes groups whose titles
+  match once case, punctuation and version labels such as "(Dry)" or "v2" are ignored.
 - **Other sweepers before a repeat:** if no other sweeper fits, the song gets none.
   With a single sweeper, repeats are always allowed.
 - **Prefer the longest fitting sweepers:** at 20% tolerance, bodies filling 80–100%

@@ -133,6 +133,7 @@ The five tabs are **General**, **Sweeper Rules**, **Spacing & Jingles**,
 - Optionally give listener requests or songs from a playlist their own sweepers under
   **Sweeper Rules**.
 - Set spacing around jingles and sweepers. A value of `0` turns that spacing rule off.
+- Optionally link sweepers and jingles that say the same, so they share one rotation.
 - Optionally move or swap songs to find a fitting intro; both options are off by default.
 - Adjust ducking and optional reverb, using the preview to check the sound.
 

@@ -6,6 +6,7 @@ namespace Plugin\AzuracastSweepers\Service;
 
 use App\Entity\Station;
 use InvalidArgumentException;
+use Plugin\AzuracastSweepers\ValueObject\Links;
 use Plugin\AzuracastSweepers\ValueObject\Selection;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
 
@@ -36,6 +37,7 @@ final readonly class Planner
         }
 
         $context = $this->queue->context($station, $token);
+        $queuedMedia = $this->queue->queuedMedia($station);
         $song = $this->media->get($station, $mediaId);
         $intro = $this->media->intro($song);
         $directory = $station->getRadioConfigDir();
@@ -49,6 +51,7 @@ final readonly class Planner
             $cueOut,
             $measurements,
             $context,
+            $queuedMedia,
             &$result
         ): array {
             $settings = Settings::fromArray($data['settings'] ?? []);
@@ -157,6 +160,10 @@ final readonly class Planner
             $measured = 0;
             $recent = 0;
             $preRollLimited = 0;
+            $linkedQueued = 0;
+            $linkedRecent = 0;
+            $links = $settings->links;
+            $history = $data['history'] ?? [];
 
             foreach ($jingles as $jingle) {
                 if ($jingle->id === $song->id) {
@@ -188,10 +195,22 @@ final readonly class Planner
                     $recent += in_array($jingle->id, $pending, true) ? 0 : 1;
                     continue;
                 }
+                $linked = $links->members($jingle->id);
+                if (array_intersect($linked, $queuedMedia) !== []) {
+                    $linkedQueued++;
+                    continue;
+                }
+                if (array_intersect($linked, $pending) !== []) {
+                    continue;
+                }
+                if ($links->recent($history, $jingle->id, microtime(true))) {
+                    $linkedRecent++;
+                    continue;
+                }
 
                 $candidates[] = [
                     'id' => $jingle->id,
-                    'last_played' => $data['history'][$jingle->id] ?? 0,
+                    'last_played' => $links->lastPlayed($history, $jingle->id),
                     'body' => $fit['duck_duration'],
                     'jingle' => $jingle,
                     'timing' => $timing,
@@ -242,6 +261,8 @@ final readonly class Planner
             return $decide(match (true) {
                 $measured === 0 => 'no_sweepers',
                 $fitting === 0 => $preRollLimited > 0 ? 'pre_roll_limit' : 'no_fit',
+                $recent === 0 && $linkedQueued > 0 => 'linked_queued',
+                $recent === 0 && $linkedRecent > 0 => 'linked_recent',
                 $recent === 0 => 'reserved',
                 default => 'repeat',
             });
@@ -256,17 +277,20 @@ final readonly class Planner
     }
 
     /**
-     * @return array{settings: Settings, blocked: list<string>}
+     * @return array{settings: Settings, blocked: list<string>, played: list<array{media_id: int, at: float}>}
+     *     played lists sweepers first confirmed audible by these events.
      */
     public function heartbeat(Station $station, array $tokens, array $events, mixed $version = null): array
     {
         if (count($tokens) > 16 || count($events) > 128) {
             throw new InvalidArgumentException('Too many reservation events.');
         }
+        $played = [];
         $data = $this->state->update($station->getRadioConfigDir(), static function (array $data) use (
             $tokens,
             $events,
-            $version
+            $version,
+            &$played
         ): array {
             // Proves the module is running; limited to one state write per 30 seconds.
             if (
@@ -277,8 +301,17 @@ final readonly class Planner
                 $data['heartbeat'] = ['at' => time(), 'version' => substr($version, 0, 64)];
             }
             foreach ($events as $event) {
-                if (is_array($event)) {
-                    $data = self::apply($data, $event);
+                if (!is_array($event)) {
+                    continue;
+                }
+                $token = (string)($event['token'] ?? '');
+                $before = ($event['event'] ?? '') === 'played' ? self::playedSweeper($data, $token) : null;
+                $data = self::apply($data, $event);
+                if ($before === null && ($event['event'] ?? '') === 'played') {
+                    $after = self::playedSweeper($data, $token);
+                    if ($after !== null) {
+                        $played[] = $after;
+                    }
                 }
             }
             foreach ($tokens as $token) {
@@ -306,7 +339,31 @@ final readonly class Planner
         return [
             'settings' => $settings,
             'blocked' => $settings->enabled ? $this->queue->blocked($station, $pending, $settings) : [],
+            'played' => $played,
         ];
+    }
+
+    /**
+     * @return array{media_id: int, at: float}|null The sweeper this token played, once confirmed.
+     */
+    private static function playedSweeper(array $data, string $token): ?array
+    {
+        if ($token === '') {
+            return null;
+        }
+        foreach ($data['log'] ?? [] as $entry) {
+            if (
+                ($entry['token'] ?? null) === $token && ($entry['result'] ?? null) === 'played'
+                && is_int($entry['jingle_id'] ?? null)
+            ) {
+                return [
+                    'media_id' => $entry['jingle_id'],
+                    'at' => (float)($entry['sweeper_started_at'] ?? $entry['at'] ?? microtime(true)),
+                ];
+            }
+        }
+
+        return null;
     }
 
     public static function apply(array $data, array $event): array
@@ -331,6 +388,15 @@ final readonly class Planner
         }
 
         if ($type === 'start') {
+            $mediaId = (string)($event['media_id'] ?? '');
+            if (
+                preg_match('/^[1-9]\d{0,9}$/D', $mediaId)
+                && Links::fromArray($data['settings']['link_groups'] ?? [], 0)->linked((int)$mediaId)
+            ) {
+                // A linked jingle counts as a play of its whole group in the sweeper rotation.
+                $last = (float)($data['history'][(int)$mediaId] ?? 0);
+                $data['history'][(int)$mediaId] = max($last, (float)$at);
+            }
             if ($index !== null && isset($log[$index]['song_started_at'])) {
                 return $data;
             }

@@ -184,6 +184,19 @@ final readonly class Queue
     }
 
     /**
+     * @return list<int> Media of every queue entry that has not played yet, including ones sent to Liquidsoap.
+     */
+    public function queuedMedia(Station $station): array
+    {
+        return array_values(array_map('intval', array_filter($this->em->createQuery(
+            <<<'DQL'
+                SELECT IDENTITY(sq.media) FROM App\Entity\StationQueue sq
+                WHERE sq.station = :station AND sq.is_played = 0
+            DQL
+        )->setParameter('station', $station)->getSingleColumnResult())));
+    }
+
+    /**
      * @return list<array<string, mixed>>|null Null when the counted track is unknown.
      */
     public function upcoming(Station $station, string $counted): ?array

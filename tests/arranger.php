@@ -94,6 +94,12 @@ namespace Plugin\AzuracastSweepers\Service {
 
         public bool $blocksAll = false;
         public array $context = ['playlist_id' => 1, 'request_id' => null];
+        public array $queued = [];
+
+        public function queuedMedia(): array
+        {
+            return $this->queued;
+        }
 
         public function blocked(Station $station, array $tokens): array
         {
@@ -152,6 +158,7 @@ namespace {
     use Plugin\AzuracastSweepers\Service\Queue;
     use Plugin\AzuracastSweepers\Service\Schedule;
     use Plugin\AzuracastSweepers\Service\State;
+    use Plugin\AzuracastSweepers\ValueObject\Links;
     use Plugin\AzuracastSweepers\ValueObject\Settings;
     use Plugin\AzuracastSweepers\ValueObject\SweeperRoute;
     use Plugin\AzuracastSweepers\ValueObject\Timing;
@@ -602,7 +609,37 @@ namespace {
             'Rules that follow song spacing still skip a sweeper before an upcoming jingle.'
         );
         $queue->blocksAll = false;
-        echo "15 longest-fit and spacing planner checks passed.\n";
+        $media->intros[21] = 12.5;
+        $linkedSettings = new Settings(playlistIds: [9], sweeperGap: 0, links: new Links([
+            ['name' => 'Hot Hits', 'media_ids' => [1, 77]],
+        ]));
+        $state->update($directory, static fn(): array => ['settings' => $linkedSettings->toArray()]);
+        $queue->queued = [77];
+        $planner->plan($station, 21, '500', 0, 180, $measurements);
+        $check(
+            $state->read($directory)['decisions']['500'] === 'linked_queued',
+            'A sweeper waits while a linked jingle is coming up in the queue.'
+        );
+        $queue->queued = [];
+        $state->update($directory, static fn(): array => [
+            'settings' => (new Settings(playlistIds: [9], sweeperGap: 0, links: new Links([
+                ['name' => 'Hot Hits', 'media_ids' => [1, 77]],
+            ], 30)))->toArray(),
+            'history' => [77 => microtime(true) - 60],
+        ]);
+        $planner->plan($station, 21, '501', 0, 180, $measurements);
+        $check(
+            $state->read($directory)['decisions']['501'] === 'linked_recent',
+            'A linked jingle played within the window keeps its sweepers away.'
+        );
+        $heartbeat = $planner->heartbeat($station, [], [
+            ['event' => 'start', 'token' => '600', 'detail' => 'jingle', 'media_id' => '77', 'at' => microtime(true)],
+        ]);
+        $check(
+            $heartbeat['played'] === [] && $state->read($directory)['history'][77] > microtime(true) - 5,
+            'A linked jingle start updates the shared rotation history and is not reported as a sweeper play.'
+        );
+        echo "18 longest-fit, spacing and link planner checks passed.\n";
     } finally {
         foreach (glob($directory . '/*') as $path) {
             unlink($path);
