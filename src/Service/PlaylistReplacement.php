@@ -38,6 +38,7 @@ final readonly class PlaylistReplacement
     /**
      * @param callable(int): bool $usable
      * @param bool $jingle Replace a jingle from a jingle playlist; it may be any unsent queue entry.
+     * @param ?callable(int): array $rank Orders candidates by media ID instead of AzuraCast's order; lowest first.
      */
     public function replace(
         Station $station,
@@ -47,7 +48,8 @@ final readonly class PlaylistReplacement
         callable $usable,
         ?string &$reason = null,
         ?int $deadline = null,
-        bool $jingle = false
+        bool $jingle = false,
+        ?callable $rank = null
     ): ?int {
         $deadline ??= hrtime(true) + 500_000_000;
         // Share the lock held by AzuraCast's NowPlaying station worker, which builds the native queue.
@@ -63,7 +65,7 @@ final readonly class PlaylistReplacement
             usleep(25_000);
         }
         try {
-            return $this->select($station, $target, $counted, $settings, $usable, $reason, $deadline, $jingle);
+            return $this->select($station, $target, $counted, $settings, $usable, $reason, $deadline, $jingle, $rank);
         } finally {
             $lock->release();
         }
@@ -77,7 +79,8 @@ final readonly class PlaylistReplacement
         callable $usable,
         ?string &$reason,
         int $deadline,
-        bool $jingle
+        bool $jingle,
+        ?callable $rank
     ): ?int {
         if (hrtime(true) >= $deadline) {
             $reason = 'replace_timeout';
@@ -142,7 +145,7 @@ final readonly class PlaylistReplacement
         $reason = 'replace_none';
         $selected = null;
         $selectedQueued = true;
-        foreach ($this->candidates($playlist) as $queued => $candidate) {
+        foreach ($this->ranked($this->candidates($playlist), $rank) as [$queued, $candidate]) {
             if (hrtime(true) >= $deadline) {
                 $reason = 'replace_timeout';
 
@@ -313,6 +316,24 @@ final readonly class PlaylistReplacement
             $candidate->last_played = $row['last_played'];
             yield false => $candidate;
         }
+    }
+
+    /**
+     * @param iterable<bool, StationPlaylistQueue> $candidates
+     * @return iterable<array{bool, StationPlaylistQueue}>
+     */
+    private function ranked(iterable $candidates, ?callable $rank): iterable
+    {
+        $pairs = [];
+        foreach ($candidates as $queued => $candidate) {
+            if ($rank === null) {
+                yield [$queued, $candidate];
+                continue;
+            }
+            $pairs[] = [$queued, $candidate];
+        }
+        usort($pairs, static fn(array $a, array $b): int => $rank($a[1]->media_id) <=> $rank($b[1]->media_id));
+        yield from $pairs;
     }
 
     private static function withoutTarget(array $history, array $target): array

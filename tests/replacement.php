@@ -50,9 +50,16 @@ namespace App\Entity {
 
         public string $short_name = 'replacement_test';
 
+        public string $radio_config_dir = '';
+
         public object $backend_config;
 
         public object $media_storage_location;
+
+        public function getRadioConfigDir(): string
+        {
+            return $this->radio_config_dir;
+        }
     }
 
     #[ORM\Entity, ORM\Table(name: 'replacement_playlist')]
@@ -172,8 +179,11 @@ namespace {
     use Doctrine\ORM\ORMSetup;
     use Doctrine\ORM\Tools\SchemaTool;
     use DoctrineExtensions\Query\Mysql\Rand;
+    use Plugin\AzuracastSweepers\Service\LinkSync;
     use Plugin\AzuracastSweepers\Service\Media;
     use Plugin\AzuracastSweepers\Service\PlaylistReplacement;
+    use Plugin\AzuracastSweepers\Service\State;
+    use Plugin\AzuracastSweepers\ValueObject\Links;
     use Plugin\AzuracastSweepers\ValueObject\Settings;
     use Symfony\Component\EventDispatcher\EventDispatcher;
     use Symfony\Component\Lock\Store\FlockStore;
@@ -502,5 +512,112 @@ namespace {
             && $flags() === $before,
         'Queued and current songs stay excluded when the round wraps.'
     );
+
+    $jinglePlaylist = new StationPlaylist($station);
+    $jinglePlaylist->id = 3;
+    $jinglePlaylist->name = 'Jingles';
+    $jinglePlaylist->is_jingle = true;
+    $jinglePlaylist->order = PlaylistOrders::Sequential;
+    $em->persist($jinglePlaylist);
+    foreach ([11, 12, 13, 14] as $position => $id) {
+        $media[$id] = new StationMedia($station, $id);
+        $jingleSlot = new StationPlaylistMedia($jinglePlaylist, $media[$id]);
+        $jingleSlot->weight = $position + 1;
+        $em->persist($media[$id]);
+        $em->persist($jingleSlot);
+    }
+    $connection->executeStatement('UPDATE station_queue SET sent_to_autodj = 1, is_played = 1');
+    $directory = sys_get_temp_dir() . '/sweepers-links-' . getmypid();
+    mkdir($directory);
+    $station->radio_config_dir = $directory;
+    $state = new State();
+    $linkSync = new LinkSync($em, $locks, $replacement, $state);
+    $linkSettings = new Settings(links: new Links(array_map(
+        static fn(int $id): array => ['name' => 'Dropin ' . $id, 'media_ids' => [$id + 10, $id]],
+        [11, 12, 13, 14]
+    )));
+    $round = static fn(): array => array_map('boolval', $connection->fetchAllKeyValue(
+        'SELECT media_id, is_queued FROM station_playlist_media WHERE playlist_id = 3 ORDER BY weight'
+    ));
+    $setRound = static fn(array $queued) => $connection->executeStatement(
+        'UPDATE station_playlist_media SET is_queued = media_id IN (' . implode(',', [0, ...$queued]) . ')'
+            . ' WHERE playlist_id = 3'
+    );
+    $now = time();
+    $queueJingle = static function (int $id, int $at, bool $sent) use ($em, $station, $media, $jinglePlaylist): void {
+        $entry = StationQueue::fromMedia($station, $media[$id]);
+        $entry->playlist = $jinglePlaylist;
+        $entry->timestamp_played = new DateTimeImmutable('@' . $at);
+        $entry->sent_to_autodj = $sent;
+        $entry->is_played = $sent;
+        $em->persist($entry);
+        $em->flush();
+    };
+    $send = static function (array $data) use ($state, $directory, $linkSync, $station, $linkSettings, $connection): int {
+        $state->update($directory, static fn(): array => $data);
+        $linkSync->beforeSend($station, $linkSettings, hrtime(true) + 1_000_000_000);
+        $next = (int)$connection->fetchOne(
+            'SELECT media_id FROM station_queue WHERE sent_to_autodj = 0 ORDER BY timestamp_cued, id LIMIT 1'
+        );
+        $connection->executeStatement('UPDATE station_queue SET sent_to_autodj = 1, is_played = 1');
+
+        return $next;
+    };
+
+    $queueJingle(11, $now - 600, true);
+    $queueJingle(11, $now + 120, false);
+    $setRound([12, 13, 14]);
+    $heard = [11 => $now - 600.0, 21 => $now - 2000.0, 22 => $now - 200.0, 23 => $now - 300.0, 24 => $now - 5000.0];
+    $check(
+        $send(['history' => $heard]) === 14 && $round() === [11 => true, 12 => true, 13 => true, 14 => false],
+        'A restarted round gives the jingle that just played to the least recently heard free group.'
+    );
+    $heard[14] = $now + 120.0;
+    $queueJingle(11, $now + 300, false);
+    $setRound([12, 13]);
+    $check(
+        $send(['history' => $heard]) === 11 && $round() === [11 => false, 12 => true, 13 => true, 14 => false],
+        'The least recently heard group keeps AzuraCast\'s choice.'
+    );
+    $heard[11] = $now + 300.0;
+    $queueJingle(12, $now + 600, false);
+    $setRound([13]);
+    $check(
+        $send(['history' => $heard + [22 => $now + 400.0]]) === 13
+            && $round() === [11 => false, 12 => true, 13 => false, 14 => false],
+        'A jingle whose sweeper was heard since the last jingle gives way.'
+    );
+    $queueJingle(12, $now + 900, false);
+    $setRound([14]);
+    $check(
+        $send([
+            'history' => $heard,
+            'plans' => ['planned' => ['jingle_id' => 24, 'played' => false, 'expires_at' => time() + 60]],
+        ]) === 12,
+        'When the rest of the round is held back too, AzuraCast\'s choice stands.'
+    );
+    $queueJingle(13, $now + 1200, false);
+    $setRound([]);
+    $check($send(['history' => $heard + [23 => $now + 1100.0]]) === 13, 'Entries outside the round never take over.');
+
+    $state->update($directory, static fn(): array => ['link_marks' => [
+        12 => ['token' => 'old', 'at' => 4242, 'slots' => [
+            (int)$connection->fetchOne('SELECT id FROM station_playlist_media WHERE media_id = 12') => [
+                'queued' => true, 'last' => 77,
+            ],
+        ]],
+    ], 'link_finalised' => ['old' => 1]]);
+    $connection->executeStatement('UPDATE station_playlist_media SET is_queued = 0, last_played = 4242 WHERE media_id = 12');
+    $em->clear();
+    $linkSync->releaseMarks($station, hrtime(true) + 1_000_000_000);
+    $check(
+        $connection->fetchAssociative('SELECT is_queued, last_played FROM station_playlist_media WHERE media_id = 12')
+            == ['is_queued' => 1, 'last_played' => 77]
+            && !array_key_exists('link_marks', $state->read($directory))
+            && !array_key_exists('link_finalised', $state->read($directory)),
+        'Marks left by an earlier version return their jingles once.'
+    );
+    array_map(unlink(...), glob($directory . '/*') ?: []);
+    rmdir($directory);
     echo $checks . " replacement checks passed using native AzuraCast repositories, entities and duplicate prevention.\n";
 }

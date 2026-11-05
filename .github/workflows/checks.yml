@@ -53,7 +53,7 @@ jobs:
             // The slow suites run when their inputs change and on every release PR; the daily
             // compatibility workflow runs them regardless.
             const playbackInputs = /^(liquidsoap\/|tests\/playback\.py|tests\/spacing\.liq|tests\/liquidsoap\.liq|tests\/failsafe\.sh|\.github\/workflows\/checks\.yml)/;
-            const replacementInputs = /^(src\/Service\/(PlaylistReplacement|Queue|Media)\.php|tests\/replacement\.php|composer\.(json|lock)|\.github\/workflows\/checks\.yml)/;
+            const replacementInputs = /^(src\/Service\/(PlaylistReplacement|Queue|Media|LinkSync)\.php|tests\/replacement\.php|composer\.(json|lock)|\.github\/workflows\/checks\.yml)/;
             let changed = null;
             if (runChecks && !releasePr) {
               const base = pr ? pr.base.sha : context.payload.before;

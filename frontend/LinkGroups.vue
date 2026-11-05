@@ -31,7 +31,7 @@
                         </div>
                         <div v-if="group.media_ids.length < 2" class="form-text text-warning">Add at least two tracks.</div>
                         <div v-if="randomJingles(group).length" class="form-text">
-                            {{ randomJingles(group).join(", ") }}: Random-order playlist. AzuraCast cannot skip a jingle there, so a linked jingle is swapped for another one when it comes up too soon.
+                            {{ randomJingles(group).join(", ") }}: Random-order playlist. Linked jingles still wait and the last jingle does not repeat, but the next one is picked at random rather than by the least recently heard group.
                         </div>
                         <div class="mt-3">
                             <label class="form-label" :for="'sweepers-link-search-' + index">Add tracks</label>

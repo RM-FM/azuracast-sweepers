@@ -1,5 +1,21 @@
 # Release notes
 
+## 1.3.1 - 2026-11-05
+
+### Fixes
+
+- **Linked sweepers and jingles:** a linked group no longer takes over the jingle
+  slot. Jingles now follow the least recently heard group within their playlist's
+  round, never repeat the jingle that just played while another is left, and wait
+  while a linked sweeper was just heard or is coming up. Sequential, Shuffle and
+  Random jingle playlists all rotate through every jingle again.
+
+### Update notes
+
+- **AzuraCast Broadcast (Liquidsoap) restart: Not required**; the Liquidsoap module
+  is unchanged. Run `bash bin/setup.sh` to rebuild the frontend and reload PHP/worker
+  processes. Jingles held back by 1.3.0 return to their rotation automatically.
+
 ## 1.3.0 - 2026-11-04
 
 ### Features
