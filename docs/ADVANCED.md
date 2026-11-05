@@ -268,19 +268,26 @@ Defaults for a new installation:
 - **Excluded playlists:** tracks never get a sweeper and are never moved or replaced.
   Selecting a playlist group covers all its playlists.
 - **Linked sweepers and jingles:** link tracks that say the same, for example
-  differently produced versions. The plugin mirrors sweepers into AzuraCast's jingle
-  rotation the way AzuraCast treats its own queue: while a linked sweeper is reserved,
-  its linked jingles count as already queued in their Shuffle or Sequential jingle
-  playlists, so AzuraCast does not pick them; this is undone if the reservation is
-  dropped. When the sweeper is heard, the mark becomes final with the actual play
-  time. When a linked jingle plays, its sweepers count as played in the sweeper
-  rotation, and a sweeper is not chosen while a linked jingle is coming up. A linked
-  jingle that still reaches the queue, for example from a Random-order playlist or a
-  new round, is swapped for another jingle from its playlist before it is sent; when
-  no other jingle is free, both play. **Keep linked tracks apart** adds a minimum time
-  between them; `0` keeps only the coordination above. **Suggest Links** proposes
-  groups whose titles match once case, punctuation and version labels such as
-  "(Dry)" or "v2" are ignored.
+  differently produced versions. A link group shares one rotation: when any of its
+  tracks plays, the whole group counts as just played. Sweepers rotate by the
+  group's last play, and a sweeper is not chosen while a linked jingle is coming up.
+  Right before AzuraCast sends a jingle from a playlist with linked tracks, the
+  plugin may swap it for another jingle from the current round of that playlist,
+  in this order of preference:
+  1. A jingle whose linked tracks were not heard since the playlist's last jingle
+     and are not planned as the next sweeper, other than the last jingle itself;
+     the least recently heard group first.
+  2. A jingle held back by its group; the least recently heard group first.
+  3. The last jingle again, only when nothing else is left in the round.
+
+  AzuraCast's choice stands unless another entry ranks better, and an unlinked
+  jingle keeps its place among equals. The swap returns AzuraCast's choice to the
+  round, so every jingle still plays once per Shuffle or Sequential round.
+  Random-order playlists choose at random among the best-ranked jingles.
+  **Keep linked tracks apart** also holds a group back for this long after any of
+  its tracks played; `0` keeps only the coordination above. **Suggest Links**
+  proposes groups whose titles match once case, punctuation and version labels such
+  as "(Dry)" or "v2" are ignored.
 - **Other sweepers before a repeat:** if no other sweeper fits, the song gets none.
   With a single sweeper, repeats are always allowed.
 - **Prefer the longest fitting sweepers:** at 20% tolerance, bodies filling 80–100%

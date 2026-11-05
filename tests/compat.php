@@ -98,10 +98,7 @@ $methods = [
     'App\Event\Radio\AnnotateNextSong' => ['fromStationMedia'],
     'App\Entity\Station' => ['getRadioConfigDir', 'validateAdapterApiKey'],
     'App\Entity\StationQueue' => ['fromMedia'],
-    'App\Entity\Repository\StationPlaylistMediaRepository' => [
-        'getQueue', 'findByPlaylistAndMedia', 'isQueueEmpty', 'resetQueue',
-    ],
-    'App\Entity\StationPlaylistMedia' => ['played'],
+    'App\Entity\Repository\StationPlaylistMediaRepository' => ['getQueue', 'findByPlaylistAndMedia'],
     'App\Entity\Repository\StationQueueRepository' => ['getRecentlyPlayedByTimeRange'],
     'App\Entity\Repository\CustomFieldRepository' => ['getCustomFields'],
     'App\Radio\AutoDJ\DuplicatePrevention' => ['preventDuplicates'],

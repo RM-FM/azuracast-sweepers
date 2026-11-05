@@ -9,7 +9,7 @@ use Plugin\AzuracastSweepers\Service\Queue;
 use Plugin\AzuracastSweepers\Service\Schedule;
 use Plugin\AzuracastSweepers\Service\State;
 use Plugin\AzuracastSweepers\ValueObject\Arrangement;
-use Plugin\AzuracastSweepers\ValueObject\LinkMarks;
+use Plugin\AzuracastSweepers\ValueObject\JingleRotation;
 use Plugin\AzuracastSweepers\ValueObject\Links;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
 use Plugin\AzuracastSweepers\ValueObject\Selection;
@@ -256,51 +256,55 @@ check(
     ($linkedStart['history'][2] ?? null) === 1000.0 && !isset($unlinkedStart['history'][8]),
     'Only linked tracks record their start in the shared rotation history.'
 );
-$markLinks = new Links([['name' => 'Hot Hits', 'media_ids' => [9, 20, 21]]]);
-$reserved = ['plans' => ['800' => ['jingle_id' => 9, 'played' => false, 'expires_at' => 2000]]];
+$jingleLinks = new Links([
+    ['name' => 'Dropin 1', 'media_ids' => [21, 11]],
+    ['name' => 'Dropin 2', 'media_ids' => [22, 12]],
+    ['name' => 'Dropin 3', 'media_ids' => [23, 13]],
+]);
+$heard = [21 => 500.0, 12 => 300.0, 13 => 400.0];
+$rotation = new JingleRotation($jingleLinks, $heard, [], 13, 400.0, 1000.0, false);
 check(
-    LinkMarks::plan($reserved, $markLinks, true, 1000)
-        === ['reserve' => [20 => '800', 21 => '800'], 'finalize' => [], 'restore' => [], 'drop' => []],
-    'A reserved sweeper holds back its linked jingles.'
-);
-$marked = $reserved + ['link_marks' => [20 => ['token' => '800', 'at' => 1000], 21 => ['token' => '800', 'at' => 1000]]];
-check(LinkMarks::empty(LinkMarks::plan($marked, $markLinks, true, 1001)), 'Applied marks are not repeated.');
-check(
-    LinkMarks::plan(['link_marks' => $marked['link_marks']], $markLinks, true, 1001)['restore'] === [20, 21],
-    'A dropped reservation returns its jingles to the rotation.'
-);
-check(
-    LinkMarks::plan($marked, $markLinks, false, 1001)['restore'] === [20, 21],
-    'Switching sweepers off returns reserved jingles.'
+    $rotation->tier(11) === JingleRotation::HELD && $rotation->tier(12) === JingleRotation::FREE
+        && $rotation->tier(13) === JingleRotation::REPEAT,
+    'A jingle waits while its sweeper was heard since the last jingle and never follows itself.'
 );
 check(
-    LinkMarks::plan($marked, new Links(), true, 1001)['restore'] === [20, 21],
-    'Removing a link group returns its reserved jingles.'
-);
-$playedMarks = ['link_marks' => $marked['link_marks'], 'log' => [
-    ['token' => '800', 'result' => 'played', 'jingle_id' => 9, 'sweeper_started_at' => 1010.5],
-]];
-check(
-    LinkMarks::plan($playedMarks, $markLinks, true, 1020)
-        === ['reserve' => [], 'finalize' => [['token' => '800', 'media_ids' => [20, 21], 'at' => 1010]],
-            'restore' => [], 'drop' => []],
-    'A played sweeper makes its marks final with the actual play time instead of restoring them.'
+    $rotation->key(14, true, 200) < $rotation->key(12, true, 0)
+        && $rotation->key(12, true, 0) < $rotation->key(11, true, 0)
+        && $rotation->key(11, true, 0) < $rotation->key(13, true, 0),
+    'Free entries play first, least recently heard group first; held entries and the last jingle follow.'
 );
 check(
-    LinkMarks::plan($playedMarks + ['link_finalised' => ['800' => 1010]], $markLinks, true, 1020)['drop'] === [20, 21]
-        && LinkMarks::empty(LinkMarks::plan(['log' => $playedMarks['log'], 'link_finalised' => ['800' => 1010]], $markLinks, true, 1020)),
-    'Finalised sweepers are applied once.'
+    $rotation->key(11, true, 0) < $rotation->key(12, false, 0),
+    'Entries still in the round come before entries it already played.'
 );
 check(
-    LinkMarks::plan(['log' => $playedMarks['log']], $markLinks, true, 1010 + LinkMarks::PLAYED_SECONDS + 1)['finalize'] === [],
-    'Old plays no longer change the rotation.'
+    $rotation->key(14, true, null, true) < $rotation->key(12, true, 0)
+        && $rotation->key(12, true, 0) < $rotation->key(14, true, 900, false),
+    'AzuraCast\'s choice of an unlinked jingle stands among equals.'
 );
-$handover = ['plans' => ['801' => ['jingle_id' => 20, 'played' => false, 'expires_at' => 2000]],
-    'link_marks' => [9 => ['token' => '800', 'at' => 1000], 21 => ['token' => '800', 'at' => 1000]]];
 check(
-    LinkMarks::plan($handover, $markLinks, true, 1001)
-        === ['reserve' => [9 => '801', 21 => '801'], 'finalize' => [], 'restore' => [], 'drop' => []],
-    'A new reservation of the same group takes over existing marks instead of restoring them.'
+    (new JingleRotation($jingleLinks, $heard, [22], 13, 400.0, 1000.0, false))->tier(12) === JingleRotation::HELD,
+    'A planned sweeper holds back its linked jingles.'
+);
+check(
+    (new JingleRotation($jingleLinks, $heard, [], null, null, 1000.0, false))->tier(11) === JingleRotation::FREE
+        && (new JingleRotation(
+            new Links($jingleLinks->groups, 10),
+            [22 => 700.0],
+            [],
+            null,
+            null,
+            1000.0,
+            false
+        ))->tier(12) === JingleRotation::HELD,
+    'Without an earlier jingle only plans and the configured window hold a jingle back.'
+);
+$randomRotation = new JingleRotation($jingleLinks, $heard, [], 13, 400.0, 1000.0, true);
+check(
+    $randomRotation->key(12, true, 0) === $randomRotation->key(14, true, 900)
+        && $randomRotation->key(12, true, 0) < $randomRotation->key(11, true, 0),
+    'Random playlists choose freely among equals, still after the holds.'
 );
 $playedAt = microtime(true);
 $preRollPlan = [

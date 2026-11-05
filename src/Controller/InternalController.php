@@ -85,10 +85,6 @@ final readonly class InternalController
             (float)$body['cue_out'],
             $this->measurements($station, $settings, $body['jingles'] ?? [])
         );
-        if ($settings->links->groups !== []) {
-            // A short budget: the module waits for this response. The next heartbeat catches up.
-            $this->reconcileLinks($station, $settings, 0.2);
-        }
 
         return $response->withJson($plan);
     }
@@ -181,30 +177,13 @@ final readonly class InternalController
             $body['version'] ?? null
         );
         $settings = $result['settings'];
-        if ($settings->enabled && $result['played'] !== [] && $settings->links->groups !== []) {
-            $this->syncLinks(
-                $station,
-                fn(int $deadline) => $this->linkSync->sweepersPlayed($station, $settings, $result['played'], $deadline),
-                1.0
-            );
-        }
-        // Also when sweepers or links were switched off: reserved jingles then return to their rotation.
-        $this->reconcileLinks($station, $settings, 1.0);
+        $this->syncLinks($station, fn(int $deadline) => $this->linkSync->releaseMarks($station, $deadline), 1.0);
 
         return $response->withJson([
             'success' => true,
             'settings' => $settings->runtime(),
             'blocked' => $result['blocked'],
         ]);
-    }
-
-    private function reconcileLinks(Station $station, Settings $settings, float $budgetSeconds): void
-    {
-        $this->syncLinks(
-            $station,
-            fn(int $deadline) => $this->linkSync->reconcile($station, $settings, $deadline),
-            $budgetSeconds
-        );
     }
 
     // Link sync is best effort: the station's playback must never depend on it.

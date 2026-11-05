@@ -839,7 +839,7 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         await settle();
         assert.match(panel("spacing").querySelector('[data-link-group="0"] .accordion-button').textContent, /1 sweeper · 1 jingle/);
         assert.match(panel("spacing").querySelector('[data-link-group="0"]').textContent, /Random-order playlist/,
-            "A Random jingle playlist explains that linked jingles are swapped instead of skipped");
+            "A Random jingle playlist explains that it picks at random among the free jingles");
         const linkWindow = document.getElementById("sweepers-link-window");
         linkWindow.value = "15";
         linkWindow.dispatchEvent(new Event("input", { bubbles: true }));
