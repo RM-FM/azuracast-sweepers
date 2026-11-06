@@ -3,12 +3,11 @@ export const MODES = [
     ["publish", "Publish: write intros to AzuraCast"],
 ];
 
-const STATION_FIELDS = ["enabled", "mode", "auto_process", "min_song_seconds", "exclude_playlists", "billing", "budget_usd"];
+const STATION_FIELDS = ["enabled", "mode", "auto_process", "min_song_seconds", "exclude_playlists", "budget_usd"];
 
 const BLOCKED = {
     "no Runpod key": "Add a Runpod API key to start analyzing songs.",
     "monthly budget reached": "This month's GPU budget is used up. Analysis continues next month or after raising the budget.",
-    "station limit on the instance key reached": "This station's monthly limit on the account provided by the server administrator is used up.",
     "waiting for GPU retry": "The last GPU batch could not start. It is retried automatically in a few minutes.",
 };
 
@@ -29,13 +28,24 @@ export function money(value) {
     return value === null || value === undefined ? "–" : `US$${Number(value).toFixed(2)}`;
 }
 
+// Runpod stops workers when the prepaid balance runs out; warn well before that.
+export const LOW_BALANCE_USD = 5;
+
 export function spendNote(status) {
-    if (status.settings.account === "shared") {
-        return status.limit_usd ? "Monthly limit for this station, set by the server administrator."
-            : "Paid by the server administrator's account within its monthly budget.";
-    }
     return status.limit_usd ? "" : "No monthly budget is set for this station.";
 }
+
+export function keyStationsText(stations) {
+    return stations > 1 ? `This key is used by ${stations} stations.` : "This key is used by this station only.";
+}
+
+export function balanceText(balance) {
+    if (balance === null || balance === undefined) return "Runpod balance not checked yet.";
+    return balance < LOW_BALANCE_USD
+        ? `Runpod balance: ${money(balance)}. Add funds soon; Runpod stops GPU work when the balance is used up.`
+        : `Runpod balance: ${money(balance)}.`;
+}
+
 export function blockedText(reason) {
     return reason ? BLOCKED[reason] ?? reason : "";
 }

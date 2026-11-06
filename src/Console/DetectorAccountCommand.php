@@ -41,7 +41,7 @@ final class DetectorAccountCommand extends Command
     {
         $this->access->ensureAccount();
         if ($input->getOption('sync') === true) {
-            $stations = $this->detector->request('GET', '/api/v1/instance')['stations'] ?? [];
+            $stations = $this->detector->request('GET', '/api/v1/stations')['stations'] ?? [];
             $enabled = array_values(array_map(
                 static fn(array $station): int => (int)$station['id'],
                 array_filter(is_array($stations) ? $stations : [], static fn(mixed $s): bool

@@ -444,16 +444,18 @@ installs, updates and connects it and provides its station page.
   stations the detector has enabled; setup runs it after every installation or update.
 - **Permissions:** the page needs the station's Media permission to view. Changing
   settings, the Runpod key or starting work needs Broadcasting, like the sweeper
-  settings. Server-wide settings (the shared Runpod key, its budget, the price cap,
-  analysis sharing and which stations may use the shared account) need Administer
-  Settings.
+  settings. All detector settings belong to a station; there are no server-wide ones.
 - **Runpod keys** are checked with Runpod, stored only by the detector and never sent
-  back to the browser. Without a key a station's songs wait; stored analyses of
-  identical files are still reused.
+  back to the browser. Several stations may use the same key; they then share one GPU
+  worker, and each station's share of its cost counts against that station's budget.
+  The page shows the number of stations using the key (not which ones), their combined
+  spending this month and the key's Runpod balance. Runpod offers no monthly budget of
+  its own. Without a key a station's songs wait; stored analyses of identical files are
+  still reused at no cost.
 
 A detector installed before the plugin managed it is linked on the next plugin setup:
-it switches to the plugin's AzuraCast account, keeps its stations enabled on the shared
-Runpod account and gets station access granted. Its former AzuraCast API user is no longer
+it switches to the plugin's AzuraCast account, keeps its stations enabled, gives each of
+them the Runpod key the detector used so far and gets station access granted. Its former AzuraCast API user is no longer
 needed and can be deleted.
 
 ## Troubleshooting

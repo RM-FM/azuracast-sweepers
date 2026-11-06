@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Plugin\AzuracastSweepers\EventHandler;
 
-use App\Enums\GlobalPermissions;
 use App\Enums\StationPermissions;
 use App\Event\BuildConsoleCommands;
 use App\Event\BuildRoutes;
@@ -80,12 +79,6 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
                 '/detector/{action:process|retry|backfill|publish|worker}',
                 DetectorController::class . ':actionAction'
             )->add(new Middleware\Permissions(StationPermissions::Broadcasting, true));
-            $group->get('/detector/instance', DetectorController::class . ':instanceAction')
-                ->add(new Middleware\Permissions(GlobalPermissions::Settings));
-            $group->post(
-                '/detector/instance/{part:settings|key|station|worker}',
-                DetectorController::class . ':instanceUpdateAction'
-            )->add(new Middleware\Permissions(GlobalPermissions::Settings));
         })
             ->add(new Middleware\Permissions(StationPermissions::Media, true))
             ->add(Middleware\RequireStation::class)

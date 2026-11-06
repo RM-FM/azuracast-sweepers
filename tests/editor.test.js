@@ -67,20 +67,7 @@ globalThis.fetch = async (url, options) => {
     } else if (url.includes("/detector")) {
         const body = options?.body ? JSON.parse(options.body) : undefined;
         detectorRequests.push({ path: url.slice(url.indexOf("/detector")), body });
-        if (url.endsWith("/detector/instance")) {
-            data = { version: "1.0.0", settings: { max_price_per_hour: .9, shared_budget_usd: 50, share_analyses: true },
-                shared_key: true, shared_spend_month_usd: 1.05, shared_worker: null, shared_recovery: null, analyses: 10,
-                cost_per_1000_songs_usd: 3.91, stations: [
-                    { id: 1, name: "Test", enabled: true, billing: "own", shared_allowed: false, shared_cap_usd: 0, shared_spend_month_usd: 0 },
-                    { id: 2, name: "Other station", enabled: true, billing: "shared", shared_allowed: true, shared_cap_usd: 5, shared_spend_month_usd: 1 },
-                ] };
-        } else if (url.endsWith("/detector/instance/station")) {
-            detectorSettings = { ...detectorSettings, shared_allowed: body.shared_allowed, shared_cap_usd: body.shared_cap_usd };
-            data = { version: "1.0.0", settings: { max_price_per_hour: .9, shared_budget_usd: 50, share_analyses: true },
-                shared_key: true, shared_spend_month_usd: 1.05, analyses: 10, cost_per_1000_songs_usd: 3.91, stations: [
-                    { id: 2, name: "Other station", enabled: true, billing: "shared", shared_allowed: true, shared_cap_usd: 5, shared_spend_month_usd: 1 },
-                ] };
-        } else if (url.endsWith("/detector/settings")) {
+        if (url.endsWith("/detector/settings")) {
             detectorSettings = { ...detectorSettings, ...body };
             data = { station: detectorStation(detectorSettings) };
         } else if (url.endsWith("/detector/key")) {
@@ -181,12 +168,13 @@ const detectorRequests = [];
 let detectorInfo = { installed: true, can_manage: true, can_admin: false };
 let detectorSettings = {};
 let detectorActivity = null;
+let detectorKey = { stations: 1, spend_month_usd: 0.42, balance_usd: 12.3, balance_checked_at: 1900 };
 const detectorStation = (overrides = {}) => ({
     settings: { id: 1, enabled: true, mode: "shadow", auto_process: true, min_song_seconds: 60, exclude_playlists: [],
-        billing: "own", budget_usd: 10, shared_allowed: false, shared_cap_usd: 0, account: "station-1", ...overrides },
+        budget_usd: 10, ...overrides },
     queue: { done: 120, pending: 4, failed: 1, known: 300 },
     publications: { planned: overrides.mode === "publish" ? 3 : 0, written: 0 },
-    library_without_intro: 300, process_requested: false, jobs: [], blocked: null, key: true, shared_key_available: false,
+    library_without_intro: 300, process_requested: false, jobs: [], blocked: null, key: detectorKey,
     spend_month_usd: 0.42, limit_usd: 10, worker: null, recovery: null, activity: detectorActivity, now: 2000,
     runs: [{ id: "r1", status: "complete", songs: 4, started_at: 1792948000, finished_at: 1792948600, error: null }],
     failures: [{ media_id: 9, path: "broken.mp3", attempts: 2, error: "HTTP 404", updated_at: 1792948000 }],
@@ -1261,7 +1249,7 @@ test("intro detector page saves only changed station fields, offers publishing a
     try {
         assert.equal(document.querySelector("#detector-heading").textContent, "Intro Detector");
         assert.match(document.querySelector("[data-detector-spend]").textContent, /US\$0\.42 of US\$10\.00/);
-        assert.equal(document.querySelector("#detector-instance-heading"), null, "Server-wide settings are for administrators");
+        assert.doesNotMatch(document.querySelector("#app").textContent, /Shared Account|server administrator/i);
         const length = document.querySelector("#detector-min-length");
         length.value = "90";
         length.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1278,10 +1266,18 @@ test("intro detector page saves only changed station fields, offers publishing a
         assert.equal(key.type, "password");
         key.value = " rpa_NEWKEY12345678 ";
         key.dispatchEvent(new Event("input", { bubbles: true }));
+        const budget = document.querySelector("#detector-budget");
+        budget.value = "20";
+        budget.dispatchEvent(new Event("input", { bubbles: true }));
         await settle();
-        await click("Save Key");
-        assert.deepEqual(detectorRequests.at(-1), { path: "/detector/key", body: { key: "rpa_NEWKEY12345678" } });
+        const count = detectorRequests.length;
+        await submitForm("#detector-budget");
+        assert.deepEqual(detectorRequests.slice(count), [
+            { path: "/detector/key", body: { key: "rpa_NEWKEY12345678" } },
+            { path: "/detector/settings", body: { budget_usd: 20 } },
+        ], "One save stores the checked key first, then the settings");
         assert.equal(document.querySelector("#detector-key").value, "", "The key is not kept in the page");
+        assert.equal([...document.querySelectorAll("button")].filter((b) => /^Save/.test(b.textContent.trim())).length, 1);
     } finally {
         app.unmount();
     }
@@ -1310,31 +1306,38 @@ test("intro detector page is read-only without Broadcasting and explains a missi
     }
     detectorInfo = { installed: true, can_manage: true, can_admin: false };
 });
-test("intro detector page shows administrators this station's server access and other stations only on request", async () => {
+test("intro detector page shows how many stations use the key, their spend and the Runpod balance", async () => {
     detectorRequests.length = 0;
     detectorSettings = {};
     detectorInfo = { installed: true, can_manage: true, can_admin: true };
-    const app = await mountDetector();
+    let app = await mountDetector();
     try {
-        assert.equal(document.querySelector("#detector-instance-heading").textContent, "Shared Account");
-        assert.doesNotMatch(document.querySelector("#app").textContent, /Other station/, "Other stations stay hidden");
-        assert.equal(document.querySelector("#detector-shared-key"), null);
-        const allow = document.querySelector("#detector-allow");
-        allow.checked = true;
-        allow.dispatchEvent(new Event("change", { bubbles: true }));
-        await settle();
-        await click("Save Station Access");
-        assert.deepEqual(detectorRequests.find((request) => request.path === "/detector/instance/station").body,
-            { station_id: 1, shared_allowed: true, shared_cap_usd: 0 }, "Only this station's access is changed");
-        await click("Shared account settings for all stations…");
-        assert.match(document.querySelector("#detector-server-all").textContent, /Other station/);
-        assert.ok(document.querySelector("#detector-shared-key"));
+        const use = document.querySelector("[data-detector-key-use]").textContent;
+        assert.match(use, /used by this station only/);
+        assert.doesNotMatch(use, /stations with this key/);
+        assert.match(document.querySelector("[data-detector-balance]").textContent, /Runpod balance: US\$12\.30\./);
+        assert.doesNotMatch(document.querySelector("[data-detector-balance]").textContent, /Add funds/);
     } finally {
         app.unmount();
+    }
+    detectorKey = { stations: 3, spend_month_usd: 2.5, balance_usd: 3.2, balance_checked_at: 1900 };
+    app = await mountDetector();
+    try {
+        const use = document.querySelector("[data-detector-key-use]").textContent;
+        assert.match(use, /All 3 stations with this key this month\s*US\$2\.50/);
+        assert.match(use, /used by 3 stations/);
+        assert.match(document.querySelector("[data-detector-balance]").textContent, /US\$3\.20\. Add funds soon[\s\S]*Add funds/);
+        globalThis.window.confirm = () => true;
+        document.querySelector("[data-detector-remove-key]").click();
+        await settle();
+        assert.deepEqual(detectorRequests.at(-1), { path: "/detector/key", body: { key: null } });
+    } finally {
+        delete globalThis.window.confirm;
+        app.unmount();
+        detectorKey = { stations: 1, spend_month_usd: 0.42, balance_usd: 12.3, balance_checked_at: 1900 };
         detectorInfo = { installed: true, can_manage: true, can_admin: false };
     }
-});
-test("intro detector page shows a running batch and tells a waiting station when another one runs", async () => {
+});test("intro detector page shows a running batch and tells a waiting station when another one runs", async () => {
     detectorSettings = {};
     detectorInfo = { installed: true, can_manage: true, can_admin: false };
     detectorActivity = { step: "analyze", done: 3, total: 6, started_at: 1400, step_started_at: 1700, own: true, songs: 40, station_songs: 12 };

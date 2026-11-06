@@ -9,7 +9,6 @@ use App\Enums\GlobalPermissions;
 use App\Enums\StationPermissions;
 use App\Http\Response;
 use App\Http\ServerRequest;
-use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
 use Plugin\AzuracastSweepers\Service\DetectorAccess;
 use Plugin\AzuracastSweepers\Service\DetectorClient;
@@ -22,13 +21,12 @@ use Psr\Http\Message\ResponseInterface;
 final readonly class DetectorController
 {
     private const array STATION_FIELDS = [
-        'enabled', 'mode', 'auto_process', 'min_song_seconds', 'exclude_playlists', 'billing', 'budget_usd',
+        'enabled', 'mode', 'auto_process', 'min_song_seconds', 'exclude_playlists', 'budget_usd',
     ];
 
     public function __construct(
         private DetectorClient $detector,
-        private DetectorAccess $access,
-        private EntityManagerInterface $em
+        private DetectorAccess $access
     ) {
     }
 
@@ -38,6 +36,7 @@ final readonly class DetectorController
         $capabilities = [
             'installed' => $this->detector->installed(),
             'can_manage' => $request->getAcl()->isAllowed(StationPermissions::Broadcasting, $station),
+            // Only for the installation hint while the detector is missing.
             'can_admin' => $request->getAcl()->isAllowed(GlobalPermissions::Settings),
         ];
         if (!$capabilities['installed']) {
@@ -120,41 +119,6 @@ final readonly class DetectorController
         ));
     }
 
-    public function instanceAction(ServerRequest $request, Response $response, array $params): ResponseInterface
-    {
-        return $this->call($response, fn(): array => $this->withStationNames(
-            $this->detector->request('GET', '/api/v1/instance')
-        ));
-    }
-
-    public function instanceUpdateAction(ServerRequest $request, Response $response, array $params): ResponseInterface
-    {
-        $this->verified($request);
-        $body = $this->body($request);
-        $part = $params['part'] ?? 'settings';
-
-        return $this->call($response, function () use ($part, $body): array {
-            $result = match ($part) {
-                'settings' => $this->detector->request('PUT', '/api/v1/instance', array_intersect_key(
-                    $body,
-                    array_flip(['max_price_per_hour', 'shared_budget_usd', 'share_analyses'])
-                )),
-                'key' => is_string($body['key'] ?? null) && $body['key'] !== ''
-                    ? $this->detector->request('PUT', '/api/v1/instance/key', ['key' => $body['key']])
-                    : $this->detector->request('DELETE', '/api/v1/instance/key'),
-                'station' => $this->detector->request(
-                    'PUT',
-                    '/api/v1/instance/stations/' . $this->station($body['station_id'] ?? null)->id,
-                    array_intersect_key($body, array_flip(['shared_allowed', 'shared_cap_usd']))
-                ),
-                'worker' => $this->detector->request('POST', '/api/v1/instance/worker/retire', $body),
-                default => throw new DetectorError('Unknown instance setting.', 404),
-            };
-
-            return $part === 'worker' ? $result : $this->withStationNames($result);
-        });
-    }
-
     private function path(Station $station, string $suffix = ''): string
     {
         return '/api/v1/stations/' . $station->id . $suffix;
@@ -165,27 +129,6 @@ final readonly class DetectorController
         $request->getCsrf()->verify($request->getHeaderLine('X-CSRF-Token'), 'sweepers');
 
         return $request->getStation();
-    }
-
-    private function station(mixed $id): Station
-    {
-        $station = is_int($id) ? $this->em->find(Station::class, $id) : null;
-
-        return $station ?? throw new InvalidArgumentException('Unknown station.');
-    }
-
-    /**
-     * @param array<mixed> $instance
-     * @return array<mixed>
-     */
-    private function withStationNames(array $instance): array
-    {
-        foreach ($instance['stations'] ?? [] as $index => $item) {
-            $id = is_array($item) ? ($item['id'] ?? null) : null;
-            $instance['stations'][$index]['name'] = is_int($id) ? $this->em->find(Station::class, $id)?->name : null;
-        }
-
-        return $instance;
     }
 
     /**

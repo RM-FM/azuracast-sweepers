@@ -100,21 +100,17 @@ namespace {
         ->newInstanceWithoutConstructor();
     $subscriber->routes(new \App\Event\BuildRoutes($app));
 
-    if ($app->groups !== 2 || count($app->routes) !== 23) {
+    if ($app->groups !== 2 || count($app->routes) !== 21) {
         throw new \RuntimeException('Sweeper routes were not registered.');
     }
     $paths = array_map(static fn(array $route): string => $route[0] . ' ' . $route[1], $app->routes);
-    foreach (['GET /detector', 'POST /detector/settings', 'POST /detector/key', 'GET /detector/instance'] as $route) {
+    foreach (['GET /detector', 'POST /detector/settings', 'POST /detector/key'] as $route) {
         if (!in_array($route, $paths, true)) {
             throw new \RuntimeException("Missing route $route.");
         }
     }
-    $global = array_filter(
-        \App\Middleware\Permissions::$created,
-        static fn(array $args): bool => $args === [\App\Enums\GlobalPermissions::Settings]
-    );
-    if (count($global) !== 2) {
-        throw new \RuntimeException('Instance-wide detector routes must require Administer Settings.');
+    if (in_array('GET /detector/instance', $paths, true)) {
+        throw new \RuntimeException('Detector settings belong to stations; there is no instance route.');
     }
-    echo '2 route groups bound; 23 routes registered.' . PHP_EOL;
+    echo '2 route groups bound; 21 routes registered.' . PHP_EOL;
 }

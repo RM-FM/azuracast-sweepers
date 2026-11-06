@@ -11,7 +11,7 @@
                 <h2 id="detector-missing-heading" class="card-title my-0">Intro Detector</h2>
             </div>
             <div class="card-body">
-                <p class="card-text">The Intro Detector finds the intro end of each song, so sweepers fit automatically: where the vocals start or, in songs that open without vocals, where the musical intro ends. Songs are analyzed on rented GPUs at Runpod; each station enables it and pays with its own Runpod key and budget (about US$4 per 1,000 songs).</p>
+                <p class="card-text">The Intro Detector finds the intro end of each song, so sweepers fit automatically: where the vocals start or, in songs that open without vocals, where the musical intro ends. Songs are analyzed on rented GPUs at Runpod; each station enables it with a Runpod key and its own monthly budget (about US$4 per 1,000 songs).</p>
                 <template v-if="info.can_admin">
                     <p class="card-text">It is not installed on this server. To install it, run this in the plugin directory on the server:</p>
                     <pre class="mb-2"><code>sudo bash bin/setup.sh --detector</code></pre>
@@ -35,7 +35,7 @@
                 <form id="detector-panel-status" v-show="tab === 'status'" class="form sweepers-settings" role="tabpanel" aria-labelledby="detector-tab-status" @submit.prevent>
                     <div v-if="status.recovery" class="alert alert-warning" role="alert" data-detector-recovery>
                         <p class="mb-2">A stopped GPU worker may still hold results that were never copied back. Analysis is paused until it is removed.</p>
-                        <button v-if="info.can_manage" type="button" class="btn btn-sm btn-warning" :disabled="busy" @click="retireWorker('worker')">Delete the worker and analyze its songs again</button>
+                        <button v-if="info.can_manage" type="button" class="btn btn-sm btn-warning" :disabled="busy" @click="retireWorker">Delete the worker and analyze its songs again</button>
                     </div>
                     <div v-else-if="status.blocked" class="alert alert-warning" role="status" data-detector-blocked>{{ blockedText(status.blocked) }}</div>
 
@@ -190,34 +190,31 @@
                                 <div class="form-text">Songs from these playlists are never analyzed.</div>
                             </fieldset>
 
-                            <fieldset class="form-group">
-                                <legend>GPU Billing</legend>
+                            <fieldset class="form-group" data-detector-runpod>
+                                <legend>Runpod</legend>
                                 <div class="row g-3">
                                     <div class="form-group col-md-6">
-                                        <div class="form-check">
-                                            <input id="detector-billing-own" v-model="form.billing" class="form-check-input" type="radio" value="own">
-                                            <label class="form-check-label" for="detector-billing-own">This station's own Runpod account</label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input id="detector-billing-shared" v-model="form.billing" class="form-check-input" type="radio" value="shared" :disabled="!status.shared_key_available">
-                                            <label class="form-check-label" for="detector-billing-shared">Provided by the server administrator{{ status.shared_key_available ? "" : " (not offered to this station)" }}</label>
-                                        </div>
-                                    </div>
-                                    <div v-if="form.billing === 'own'" class="form-group col-md-6">
-                                        <label class="form-label" for="detector-budget">Monthly GPU budget (US$)</label>
-                                        <input id="detector-budget" v-model.number="form.budget_usd" class="form-control" type="number" min="0" step="1" required>
-                                        <div class="form-text">No GPU work starts once this month's estimated spend reaches the budget. 0 means no limit.</div>
-                                    </div>
-                                    <div v-if="form.billing === status.settings.billing" class="form-group col-md-6" data-detector-spend>
-                                        <SpendMeter label="Spent this month" :spend="status.spend_month_usd" :limit="status.limit_usd" :note="spendNote(status)" />
-                                    </div>
-                                    <div v-if="info.can_manage && form.billing === 'own'" class="form-group col-12">
                                         <label class="form-label" for="detector-key">Runpod API key <span class="badge" :class="status.key ? 'text-bg-success' : 'text-bg-secondary'">{{ status.key ? "Stored" : "Missing" }}</span></label>
-                                        <input id="detector-key" v-model="stationKey" class="form-control" type="password" autocomplete="off" :placeholder="status.key ? 'Enter a new key to replace the stored one' : 'Paste the Runpod API key'">
-                                        <div class="form-text">Create a key with read/write access in the <a href="https://console.runpod.io/user/credentials" target="_blank" rel="noopener">Runpod console</a>. It is checked with Runpod, stored on the server and never shown again.</div>
-                                        <div class="buttons mt-2">
-                                            <button type="button" class="btn btn-sm btn-primary" :disabled="busy || !stationKey" @click="saveKey('key', stationKey)">Save Key</button>
-                                            <button v-if="status.key" type="button" class="btn btn-sm btn-outline-danger" :disabled="busy" @click="removeKey('key')">Remove Key</button>
+                                        <input v-if="info.can_manage" id="detector-key" v-model="stationKey" class="form-control" type="password" autocomplete="off" :placeholder="status.key ? 'Enter a new key to replace the stored one' : 'Paste the Runpod API key'">
+                                        <div class="form-text">
+                                            Create a key with read/write access in the <a href="https://console.runpod.io/user/credentials" target="_blank" rel="noopener">Runpod console</a>. Use one key for several stations or a separate key per station. It is checked with Runpod when you save, stored on the server and never shown again.
+                                            <button v-if="info.can_manage && status.key" type="button" class="btn btn-link btn-sm p-0 align-baseline text-danger" data-detector-remove-key @click="removeKey">Remove the stored key</button>
+                                        </div>
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        <label class="form-label" for="detector-budget">Monthly GPU budget of this station (US$)</label>
+                                        <input id="detector-budget" v-model.number="form.budget_usd" class="form-control" type="number" min="0" step="1" required>
+                                        <div class="form-text">No GPU work starts for this station once its estimated spend this month reaches the budget. 0 means no limit.</div>
+                                    </div>
+                                    <div class="form-group col-md-6" data-detector-spend>
+                                        <SpendMeter label="This station this month" :spend="status.spend_month_usd" :limit="status.limit_usd" :note="spendNote(status)" />
+                                    </div>
+                                    <div v-if="status.key" class="form-group col-md-6" data-detector-key-use>
+                                        <SpendMeter v-if="status.key.stations > 1" :label="`All ${status.key.stations} stations with this key this month`" :spend="status.key.spend_month_usd" />
+                                        <div class="form-text">{{ keyStationsText(status.key.stations) }}</div>
+                                        <div class="form-text" :class="{ 'text-warning fw-semibold': lowBalance }" data-detector-balance>
+                                            {{ balanceText(status.key.balance_usd) }}
+                                            <a v-if="lowBalance" href="https://console.runpod.io/user/billing" target="_blank" rel="noopener">Add funds</a>
                                         </div>
                                     </div>
                                 </div>
@@ -228,87 +225,6 @@
                         </div>
                     </form>
 
-                    <form v-if="info.can_admin && instance" class="form sweepers-settings mt-4" data-detector-admin @submit.prevent>
-                    <fieldset class="form-group">
-                        <legend id="detector-instance-heading">Shared Account</legend>
-                        <p class="form-text">Only system administrators see this section.</p>
-                        <div class="row g-3 mb-3">
-                            <div class="col-md-6" data-detector-shared-spend>
-                                <div class="mb-2">Runpod key <span class="badge" :class="instance.shared_key ? 'text-bg-success' : 'text-bg-secondary'">{{ instance.shared_key ? "Stored" : "Missing" }}</span></div>
-                                <SpendMeter label="All stations this month" :spend="instance.shared_spend_month_usd" :limit="instance.settings.shared_budget_usd" />
-                            </div>
-                        </div>
-                        <div class="row g-3">
-                            <div class="form-group col-12">
-                                <div class="form-check form-switch">
-                                    <input id="detector-allow" v-model="allowance.shared_allowed" class="form-check-input" type="checkbox" role="switch">
-                                    <label class="form-check-label" for="detector-allow">This station may use the shared account</label>
-                                </div>
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label class="form-label" for="detector-cap">Monthly limit for this station (US$)</label>
-                                <input id="detector-cap" v-model.number="allowance.shared_cap_usd" class="form-control" type="number" min="0" step="1" :disabled="!allowance.shared_allowed">
-                                <div class="form-text">0 means only the shared account's budget applies.</div>
-                            </div>
-                        </div>
-                        <div class="buttons mt-2">
-                            <button type="button" class="btn btn-sm btn-primary" :disabled="busy" @click="saveAllowance(status.settings.id)">Save Station Access</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" :aria-expanded="showServer" aria-controls="detector-server-all" @click="showServer = !showServer">{{ showServer ? "Hide shared account settings" : "Shared account settings for all stations…" }}</button>
-                        </div>
-
-                        <div v-if="showServer" id="detector-server-all" class="border-top pt-3 mt-3">
-                            <p class="form-text">Intro Detector {{ instance.version }} · {{ instance.analyses }} analyzed songs<span v-if="instance.cost_per_1000_songs_usd !== null"> · {{ money(instance.cost_per_1000_songs_usd) }} per 1,000 songs so far</span>.</p>
-                            <div v-if="instance.shared_recovery" class="alert alert-warning" role="alert">
-                                <p class="mb-2">A stopped GPU worker of the shared account may still hold results. Analysis on that account is paused until it is removed.</p>
-                                <button type="button" class="btn btn-sm btn-warning" :disabled="busy" @click="retireWorker('instance/worker')">Delete the worker and analyze its songs again</button>
-                            </div>
-                            <div class="row g-3">
-                                <div class="form-group col-md-4">
-                                    <label class="form-label" for="detector-price">Highest GPU price (US$ per hour)</label>
-                                    <input id="detector-price" v-model.number="instanceForm.max_price_per_hour" class="form-control" type="number" min="0.05" max="20" step="0.01" required>
-                                </div>
-                                <div class="form-group col-md-4">
-                                    <label class="form-label" for="detector-shared-budget">Monthly budget of the shared account (US$)</label>
-                                    <input id="detector-shared-budget" v-model.number="instanceForm.shared_budget_usd" class="form-control" type="number" min="0" step="1" required>
-                                </div>
-                                <div class="form-group col-md-4">
-                                    <label class="form-label" for="detector-share">Shared analyses</label>
-                                    <div class="form-check form-switch">
-                                        <input id="detector-share" v-model="instanceForm.share_analyses" class="form-check-input" type="checkbox" role="switch">
-                                        <label class="form-check-label" for="detector-share">Reuse analyses of identical files across stations</label>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="buttons mt-2 mb-3">
-                                <button type="button" class="btn btn-sm btn-primary" :disabled="busy" @click="saveInstance">Save Server Settings</button>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="detector-shared-key">Shared Runpod API key <span class="badge" :class="instance.shared_key ? 'text-bg-success' : 'text-bg-secondary'">{{ instance.shared_key ? "Stored" : "Missing" }}</span></label>
-                                <input id="detector-shared-key" v-model="sharedKey" class="form-control" type="password" autocomplete="off" placeholder="Paste the Runpod API key to offer to stations">
-                                <div class="buttons mt-2">
-                                    <button type="button" class="btn btn-sm btn-primary" :disabled="busy || !sharedKey" @click="saveKey('instance/key', sharedKey)">Save Key</button>
-                                    <button v-if="instance.shared_key" type="button" class="btn btn-sm btn-outline-danger" :disabled="busy" @click="removeKey('instance/key')">Remove Key</button>
-                                </div>
-                            </div>
-                            <div class="table-responsive mt-3">
-                                <table class="table table-sm table-striped mb-0">
-                                    <thead><tr><th>Station</th><th>Intro Detector</th><th>Shared account</th><th>Monthly limit</th><th>Spent this month</th></tr></thead>
-                                    <tbody>
-                                        <tr v-if="!instance.stations.length"><td colspan="5" class="text-muted">No station has used the Intro Detector yet.</td></tr>
-                                        <tr v-for="row in instance.stations" :key="row.id">
-                                            <td>{{ row.name ?? `Station ${row.id}` }}</td>
-                                            <td>{{ row.enabled ? (row.billing === "shared" ? "On, shared account" : "On, own account") : "Off" }}</td>
-                                            <td>{{ row.shared_allowed ? "Allowed" : "Not allowed" }}</td>
-                                            <td>{{ row.shared_cap_usd ? money(row.shared_cap_usd) : "Budget only" }}</td>
-                                            <td>{{ money(row.shared_spend_month_usd) }}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <p class="form-text mt-2 mb-0">Station access is changed on each station's Intro Detector page.</p>
-                        </div>
-                    </fieldset>
-                    </form>
                 </div>
             </div>
         </section>
@@ -321,8 +237,8 @@ import Icon from "./Icon.vue";
 import PlaylistPicker from "./PlaylistPicker.vue";
 import SpendMeter from "./SpendMeter.vue";
 import {
-    MODES, activityLine, blockedText, changedFields, estimateText, jobText, libraryText, money, progressPercent, queueCounts, runResult,
-    spendNote, stationForm, stepText, waitingText,
+    LOW_BALANCE_USD, MODES, activityLine, balanceText, blockedText, changedFields, estimateText, jobText, keyStationsText, libraryText,
+    progressPercent, queueCounts, runResult, spendNote, stationForm, stepText, waitingText,
 } from "./detector.js";
 import { formatStationTime } from "./dates.js";
 
@@ -344,17 +260,15 @@ const status = ref(null);
 const form = ref({});
 const stationKey = ref("");
 const estimate = ref(null);
-const instance = ref(null);
-const instanceForm = ref({});
-const allowance = ref({ shared_allowed: false, shared_cap_usd: 0 });
-const showServer = ref(false);
-const sharedKey = ref("");
+
 let timer;
 let lastRefresh = 0;
 
 const counts = computed(() => queueCounts(status.value?.queue));
 const planned = computed(() => status.value?.publications?.planned ?? 0);
-const dirty = computed(() => status.value && Object.keys(changedFields(form.value, status.value.settings)).length > 0);
+const dirty = computed(() => status.value
+    && (stationKey.value.trim() !== "" || Object.keys(changedFields(form.value, status.value.settings)).length > 0));
+const lowBalance = computed(() => (status.value?.key?.balance_usd ?? Infinity) < LOW_BALANCE_USD);
 const summary = computed(() => [
     ["Mode", status.value.settings.enabled ? (status.value.settings.mode === "publish" ? "Publishing" : "Shadow") : "Off"],
     ["Done", counts.value.done],
@@ -372,30 +286,15 @@ function apply(result) {
     info.value = { installed: result.installed, can_manage: result.can_manage, can_admin: result.can_admin };
     if (result.station) {
         const keepForm = status.value && dirty.value;
-        const saved = status.value?.settings;
-        const keepAllowance = saved && (allowance.value.shared_allowed !== saved.shared_allowed
-            || allowance.value.shared_cap_usd !== saved.shared_cap_usd);
         status.value = result.station;
         if (!keepForm) form.value = stationForm(result.station.settings);
-        if (!keepAllowance) {
-            allowance.value = {
-                shared_allowed: result.station.settings.shared_allowed,
-                shared_cap_usd: result.station.settings.shared_cap_usd,
-            };
-        }
     }
-}
-
-function applyInstance(result) {
-    instance.value = result;
-    instanceForm.value = { ...result.settings };
 }
 
 async function load() {
     error.value = "";
     try {
         apply(await props.api("detector"));
-        if (info.value.installed && info.value.can_admin) applyInstance(await props.api("detector/instance"));
     } catch (exception) {
         error.value = exception.message;
     } finally {
@@ -419,34 +318,23 @@ async function run(task, message = "") {
 
 function saveSettings() {
     const changes = changedFields(form.value, status.value.settings);
+    const key = stationKey.value.trim();
     return run(async () => {
-        const result = await props.api("detector/settings", changes);
-        status.value = result.station;
-        form.value = stationForm(result.station.settings);
-    }, "Saved.");
-}
-
-function saveKey(path, key) {
-    return run(async () => {
-        const result = await props.api(`detector/${path}`, { key: key.trim() });
-        if (path === "key") {
+        // The key goes first: if Runpod rejects it, nothing else is saved.
+        if (key) {
+            status.value = (await props.api("detector/key", { key })).station;
             stationKey.value = "";
-            status.value = result.station;
-        } else {
-            sharedKey.value = "";
-            applyInstance(result);
-            apply(await props.api("detector"));
         }
-    }, "The Runpod key was accepted and stored.");
+        if (Object.keys(changes).length) status.value = (await props.api("detector/settings", changes)).station;
+        form.value = stationForm(status.value.settings);
+    }, key ? "Saved. Runpod accepted the key." : "Saved.");
 }
 
-function removeKey(path) {
-    if (!window.confirm("Remove the stored Runpod key? GPU analysis stops until a new key is entered.")) return;
+function removeKey() {
+    if (!window.confirm("Remove the stored Runpod key from this station? GPU analysis for this station stops until a key is entered.")) return;
     return run(async () => {
-        const result = await props.api(`detector/${path}`, { key: null });
-        if (path === "key") status.value = result.station;
-        else applyInstance(result);
-    }, "The Runpod key was removed.");
+        status.value = (await props.api("detector/key", { key: null })).station;
+    }, "The Runpod key was removed from this station.");
 }
 
 function action(name, data) {
@@ -476,23 +364,12 @@ function startLibrary() {
     }, "The library was queued. Its songs are analyzed after new uploads.");
 }
 
-function retireWorker(path) {
+function retireWorker() {
     if (!window.confirm("Delete the stopped GPU worker? Results it may hold are lost and its songs are analyzed again.")) return;
     return run(async () => {
-        await props.api(`detector/${path}`, { delete: true, force: true });
+        await props.api("detector/worker", { delete: true, force: true });
         await load();
     }, "The GPU worker was deleted.");
-}
-
-function saveInstance() {
-    return run(async () => applyInstance(await props.api("detector/instance/settings", instanceForm.value)), "Saved.");
-}
-
-function saveAllowance(stationId) {
-    return run(async () => {
-        applyInstance(await props.api("detector/instance/station", { station_id: stationId, ...allowance.value }));
-        apply(await props.api("detector"));
-    }, "Saved.");
 }
 
 onMounted(async () => {

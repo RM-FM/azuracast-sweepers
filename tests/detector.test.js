@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-    activityLine, blockedText, changedFields, duration, estimateText, jobText, libraryText, money, progressPercent, queueCounts, runResult,
-    spendNote, stationForm, stepRemaining, stepText, waitingText,
+    activityLine, balanceText, blockedText, changedFields, duration, estimateText, jobText, keyStationsText, libraryText, money,
+    progressPercent, queueCounts, runResult, spendNote, stationForm, stepRemaining, stepText, waitingText,
 } from "../frontend/detector.js";
 
 test("detector form sends only changed station fields", () => {
     const saved = { enabled: false, mode: "shadow", auto_process: true, min_song_seconds: 60, exclude_playlists: [3],
-        billing: "own", budget_usd: 10, shared_allowed: true, account: "station-1" };
+        budget_usd: 10, id: 1 };
     const form = stationForm(saved);
-    assert.equal(form.account, undefined, "Only station fields are editable");
+    assert.equal(form.id, undefined, "Only station fields are editable");
     form.exclude_playlists.push(4);
     assert.deepEqual(saved.exclude_playlists, [3], "Editing the form leaves the saved settings alone");
     form.enabled = true;
@@ -28,12 +28,14 @@ test("detector texts explain money, blocks and backfill estimates", () => {
     assert.match(estimateText(0, null), /already has an intro/);
 });
 
-test("spending notes name the budget that applies", () => {
-    const status = (account, limit) => ({ settings: { account }, spend_month_usd: 1, limit_usd: limit });
-    assert.equal(spendNote(status("station-1", 10)), "");
-    assert.match(spendNote(status("station-1", 0)), /No monthly budget/);
-    assert.match(spendNote(status("shared", 0)), /server administrator's account within its monthly budget/);
-    assert.match(spendNote(status("shared", 5)), /Monthly limit for this station/);
+test("spending notes describe the station budget, the key's stations and the Runpod balance", () => {
+    assert.equal(spendNote({ limit_usd: 10 }), "");
+    assert.match(spendNote({ limit_usd: 0 }), /No monthly budget/);
+    assert.equal(keyStationsText(1), "This key is used by this station only.");
+    assert.equal(keyStationsText(4), "This key is used by 4 stations.");
+    assert.equal(balanceText(12.345), "Runpod balance: US$12.35.");
+    assert.match(balanceText(4.3), /US\$4\.30\. Add funds soon/);
+    assert.match(balanceText(null), /not checked yet/);
 });
 test("analysis texts say what is waiting and what happens next", () => {
     assert.match(waitingText(3, true, false), /3 songs are waiting\. They are analyzed automatically/);
