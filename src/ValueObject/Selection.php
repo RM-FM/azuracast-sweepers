@@ -35,9 +35,11 @@ final class Selection
     {
         $minimum = $available * (1 - $settings->lengthTolerance / 100);
         usort($candidates, static fn(array $a, array $b): int => [
+            ($a['held'] ?? false) ? 1 : 0,
             $settings->longestFit && $a['body'] < $minimum - 0.000001 ? 1 : 0,
             $a['last_played'], $a['id'],
         ] <=> [
+            ($b['held'] ?? false) ? 1 : 0,
             $settings->longestFit && $b['body'] < $minimum - 0.000001 ? 1 : 0,
             $b['last_played'], $b['id'],
         ]);

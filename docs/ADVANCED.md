@@ -271,6 +271,9 @@ Defaults for a new installation:
   differently produced versions. A link group shares one rotation: when any of its
   tracks plays, the whole group counts as just played. Sweepers rotate by the
   group's last play, and a sweeper is not chosen while a linked jingle is coming up.
+  A sweeper whose linked jingle played after the last sweeper comes after every other
+  fitting sweeper, ahead of the longest-fit preference, and is used only when no other
+  one is eligible.
   Right before AzuraCast sends a jingle from a playlist with linked tracks, the
   plugin may swap it for another jingle from the current round of that playlist,
   in this order of preference:

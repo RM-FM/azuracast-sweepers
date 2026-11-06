@@ -166,6 +166,7 @@ final readonly class Planner
             $linkedRecent = 0;
             $links = $settings->links->withShared($this->media->sharedTracks($station, $settings));
             $history = $data['history'] ?? [];
+            $lastSweeperAt = self::lastSweeperAt($data['log'] ?? []);
 
             foreach ($jingles as $jingle) {
                 if ($jingle->id === $song->id) {
@@ -213,6 +214,8 @@ final readonly class Planner
                 $candidates[] = [
                     'id' => $jingle->id,
                     'last_played' => $links->lastPlayed($history, $jingle->id),
+                    // Mirrors the jingle side: a group whose linked jingle followed the last sweeper waits.
+                    'held' => $lastSweeperAt !== null && $links->heardSince($history, $jingle->id, $lastSweeperAt),
                     'body' => $fit['duck_duration'],
                     'jingle' => $jingle,
                     'timing' => $timing,
@@ -594,6 +597,20 @@ final readonly class Planner
             'pre_roll' => (bool)($plan['payload']['pre_roll'] ?? $entry['pre_roll'] ?? false),
             'route_key' => $plan['route_key'] ?? $entry['route_key'] ?? null,
         ];
+    }
+
+    /**
+     * @param list<array> $log newest first
+     */
+    private static function lastSweeperAt(array $log): ?float
+    {
+        foreach ($log as $entry) {
+            if (($entry['result'] ?? null) === 'played') {
+                return (float)($entry['sweeper_started_at'] ?? $entry['at'] ?? 0);
+            }
+        }
+
+        return null;
     }
 
     /**
