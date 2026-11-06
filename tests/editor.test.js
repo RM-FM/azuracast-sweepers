@@ -180,13 +180,14 @@ const historyRequests = [];
 const detectorRequests = [];
 let detectorInfo = { installed: true, can_manage: true, can_admin: false };
 let detectorSettings = {};
+let detectorActivity = null;
 const detectorStation = (overrides = {}) => ({
     settings: { id: 1, enabled: true, mode: "shadow", auto_process: true, min_song_seconds: 60, exclude_playlists: [],
         billing: "own", budget_usd: 10, shared_allowed: false, shared_cap_usd: 0, account: "station-1", ...overrides },
     queue: { done: 120, pending: 4, failed: 1, known: 300 },
     publications: { planned: overrides.mode === "publish" ? 3 : 0, written: 0 },
     library_without_intro: 300, process_requested: false, jobs: [], blocked: null, key: true, shared_key_available: false,
-    spend_month_usd: 0.42, limit_usd: 10, worker: null, recovery: null,
+    spend_month_usd: 0.42, limit_usd: 10, worker: null, recovery: null, activity: detectorActivity, now: 2000,
     runs: [{ id: "r1", status: "complete", songs: 4, started_at: 1792948000, finished_at: 1792948600, error: null }],
     failures: [{ media_id: 9, path: "broken.mp3", attempts: 2, error: "HTTP 404", updated_at: 1792948000 }],
 });
@@ -1331,5 +1332,32 @@ test("intro detector page shows administrators this station's server access and 
     } finally {
         app.unmount();
         detectorInfo = { installed: true, can_manage: true, can_admin: false };
+    }
+});
+test("intro detector page shows a running batch and tells a waiting station when another one runs", async () => {
+    detectorSettings = {};
+    detectorInfo = { installed: true, can_manage: true, can_admin: false };
+    detectorActivity = { step: "analyze", done: 3, total: 6, started_at: 1400, step_started_at: 1700, own: true, songs: 40, station_songs: 12 };
+    let app = await mountDetector();
+    try {
+        const card = document.querySelector("[data-detector-activity]");
+        assert.match(card.textContent, /Analyzing songs: 3 of 6 parts/);
+        assert.match(card.textContent, /Running for 10 min · about 5 min left in this step/);
+        assert.match(card.textContent, /12 of the 40 songs/);
+        assert.equal(card.querySelector(".progress-bar").getAttribute("style").replace(/\s|;/g, ""), "width:50%");
+        assert.equal(document.querySelector("[data-detector-queued]"), null);
+    } finally {
+        app.unmount();
+    }
+    detectorActivity = { step: "worker", done: 0, total: 0, started_at: 1900, step_started_at: 1900, own: false };
+    app = await mountDetector();
+    try {
+        assert.equal(document.querySelector("[data-detector-activity]"), null);
+        assert.match(document.querySelector("[data-detector-queued]").textContent,
+            /Another station's analysis is running \(Starting a GPU worker/);
+        assert.doesNotMatch(document.querySelector("[data-detector-queued]").textContent, /songs in this run/);
+    } finally {
+        app.unmount();
+        detectorActivity = null;
     }
 });

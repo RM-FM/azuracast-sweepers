@@ -39,6 +39,18 @@
                     </div>
                     <div v-else-if="status.blocked" class="alert alert-warning" role="status" data-detector-blocked>{{ blockedText(status.blocked) }}</div>
 
+                    <div v-if="status.activity?.own" class="alert alert-info" role="status" data-detector-activity>
+                        <div class="fw-semibold mb-1">Analysis running</div>
+                        <div>{{ stepText(status.activity) }}</div>
+                        <div class="progress my-2" role="progressbar" aria-label="Progress of this step" :aria-valuenow="progressPercent(status.activity) ?? undefined" aria-valuemin="0" aria-valuemax="100">
+                            <div class="progress-bar" :class="{ 'progress-bar-striped progress-bar-animated': progressPercent(status.activity) === null }" :style="{ width: (progressPercent(status.activity) ?? 100) + '%' }"></div>
+                        </div>
+                        <div class="small">{{ activityLine(status.activity, status.now) }} This station has {{ status.activity.station_songs }} of the {{ status.activity.songs }} songs in this run.</div>
+                    </div>
+                    <div v-else-if="status.activity && counts.waiting" class="alert alert-secondary" role="status" data-detector-queued>
+                        Another station's analysis is running ({{ stepText(status.activity) }}). This station's waiting songs follow afterwards.
+                    </div>
+
                     <fieldset class="form-group">
                         <legend>Status</legend>
                         <p class="card-text">Finds where the vocals start in new songs and stores it as the intro end, so sweepers fit automatically. In shadow mode it only records proposed intros.</p>
@@ -112,7 +124,7 @@
                                         <tr v-for="run in status.runs" :key="run.id">
                                             <td class="text-nowrap">{{ time(run.started_at) }}</td>
                                             <td>{{ run.songs }}</td>
-                                            <td>{{ runResult(run.status) }}<span v-if="run.error" class="small text-muted"> · {{ run.error }}</span></td>
+                                            <td>{{ runResult(run.status, run.phase) }}<span v-if="run.error" class="small text-muted"> · {{ run.error }}</span></td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -301,8 +313,8 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import Icon from "./Icon.vue";
 import PlaylistPicker from "./PlaylistPicker.vue";
 import {
-    MODES, blockedText, changedFields, estimateText, jobText, libraryText, money, queueCounts, runResult, spendLine, stationCost,
-    stationForm, waitingText, workerText,
+    MODES, activityLine, blockedText, changedFields, estimateText, jobText, libraryText, money, progressPercent, queueCounts, runResult,
+    spendLine, stationCost, stationForm, stepText, waitingText, workerText,
 } from "./detector.js";
 import { formatStationTime } from "./dates.js";
 
@@ -312,6 +324,7 @@ const props = defineProps({
     timezone: { type: String, default: undefined },
 });
 const REFRESH_MS = 30000;
+const REFRESH_RUNNING_MS = 10000;
 const tabs = [["status", "Status"], ["settings", "Settings"]];
 const tab = ref("status");
 const loading = ref(true);
@@ -329,6 +342,7 @@ const allowance = ref({ shared_allowed: false, shared_cap_usd: 0 });
 const showServer = ref(false);
 const sharedKey = ref("");
 let timer;
+let lastRefresh = 0;
 
 const counts = computed(() => queueCounts(status.value?.queue));
 const planned = computed(() => status.value?.publications?.planned ?? 0);
@@ -475,11 +489,14 @@ function saveAllowance(stationId) {
 
 onMounted(async () => {
     await load();
+    lastRefresh = Date.now();
     timer = setInterval(() => {
-        if (!busy.value && info.value.installed && document.visibilityState === "visible") {
+        const due = Date.now() - lastRefresh >= (status.value?.activity ? REFRESH_RUNNING_MS : REFRESH_MS);
+        if (due && !busy.value && info.value.installed && document.visibilityState === "visible") {
+            lastRefresh = Date.now();
             props.api("detector").then(apply, () => {});
         }
-    }, REFRESH_MS);
+    }, REFRESH_RUNNING_MS);
 });
 onUnmounted(() => clearInterval(timer));
 </script>

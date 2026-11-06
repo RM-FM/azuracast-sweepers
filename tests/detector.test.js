@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-    blockedText, changedFields, estimateText, jobText, libraryText, money, queueCounts, runResult, spendLine, stationCost, stationForm,
-    waitingText, workerText,
+    activityLine, blockedText, changedFields, duration, estimateText, jobText, libraryText, money, progressPercent, queueCounts, runResult,
+    spendLine, stationCost, stationForm, stepRemaining, stepText, waitingText, workerText,
 } from "../frontend/detector.js";
 
 test("detector form sends only changed station fields", () => {
@@ -47,4 +47,21 @@ test("analysis texts say what is waiting and what happens next", () => {
     assert.match(libraryText(0), /Every song/);
     assert.equal(jobText("republish"), "Writing intros to AzuraCast…");
     assert.equal(runResult("partial"), "Partly done");
+});
+
+test("batch progress names the step, its share done and the time left", () => {
+    const analyze = { step: "analyze", done: 2, total: 8, started_at: 1000, step_started_at: 1300 };
+    assert.equal(stepText(analyze), "Analyzing songs: 2 of 8 parts");
+    assert.equal(stepText({ step: "worker", done: 0, total: 0 }), "Starting a GPU worker (usually about 5 minutes)");
+    assert.equal(stepText({ step: "copy", done: 0, total: 0 }), "Copying results back");
+    assert.equal(progressPercent(analyze), 25);
+    assert.equal(progressPercent({ step: "upload", done: 0, total: 0 }), null);
+    assert.equal(stepRemaining(analyze, 1500), 600, "Two parts took 200 s, six remain");
+    assert.equal(stepRemaining({ step: "worker", step_started_at: 1000 }, 1100), 200);
+    assert.equal(stepRemaining({ step: "analyze", done: 0, total: 8, step_started_at: 1000 }, 1100), null);
+    assert.equal(activityLine(analyze, 1500), "Running for 8 min · about 10 min left in this step.");
+    assert.equal(duration(30), "less than a minute");
+    assert.equal(duration(3900), "1 h 5 min");
+    assert.equal(runResult("failed", "worker"), "Failed while starting a GPU worker");
+    assert.equal(runResult("interrupted"), "Interrupted");
 });
