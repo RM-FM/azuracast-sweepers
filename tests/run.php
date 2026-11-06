@@ -231,6 +231,11 @@ check(
     'The window counts only the other tracks of a group.'
 );
 check(!(new Links([['name' => 'A', 'media_ids' => [1, 2]]]))->recent([2 => 1000], 1, 1001), 'A zero window never blocks.');
+check(
+    $links->heardSince([3 => 1000], 1, 999) && !$links->heardSince([3 => 1000], 1, 1000)
+        && !$links->heardSince([1 => 1000], 1, 999),
+    'Only a later play of another group track counts as heard since.'
+);
 $linked = Settings::fromArray(['link_groups' => [['name' => ' Hot Hits ', 'media_ids' => [1, 2]]], 'link_window' => 5]);
 check(
     $linked->links->groups === [['name' => 'Hot Hits', 'media_ids' => [1, 2]]]
@@ -470,6 +475,14 @@ $rotation[1]['last_played'] = 4;
 check(Selection::order($rotation, 30, $longest)[0]['id'] === 3, 'Within tolerance actual playback advances rotation.');
 check(Selection::order($rotation, 30, new Settings(longestFit: true, lengthTolerance: 100))[0]['id'] === 1,
     '100% tolerance admits every fitting body.');
+$heldRotation = $rotation;
+$heldRotation[1]['held'] = true;
+$heldRotation[2]['held'] = true;
+check(
+    array_column(Selection::order($heldRotation, 30, $longest), 'id') === [1, 3, 2]
+        && array_column(Selection::order([$heldRotation[1], $heldRotation[2]], 30, $longest), 'id') === [3, 2],
+    'A held group follows every other fitting sweeper, even a preferred length, but remains usable.'
+);
 $custom = new Settings(
     songsAfterJingle: 3,
     countJingleMode: false,

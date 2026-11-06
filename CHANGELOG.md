@@ -1,5 +1,19 @@
 # Release notes
 
+## 1.3.3 - Pending
+
+### Fixes
+
+- **Linked sweepers and jingles:** a sweeper whose linked jingle played after the last
+  sweeper now waits behind every other fitting sweeper, also when it would fill the
+  intro best. It is still used when no other sweeper is eligible.
+
+### Update notes
+
+- **AzuraCast Broadcast (Liquidsoap) restart: Not required**; the Liquidsoap module
+  is unchanged. Run `bash bin/setup.sh` to rebuild the frontend and reload PHP/worker
+  processes.
+
 ## 1.3.2 - 2026-11-06
 
 ### Fixes

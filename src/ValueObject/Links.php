@@ -115,6 +115,20 @@ final readonly class Links
     /**
      * @param array<int|string, float|int> $history
      */
+    public function heardSince(array $history, int $mediaId, float $since): bool
+    {
+        foreach ($this->members($mediaId) as $id) {
+            if ((float)($history[$id] ?? 0) > $since) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int|string, float|int> $history
+     */
     public function recent(array $history, int $mediaId, float $now): bool
     {
         if ($this->windowMinutes === 0) {

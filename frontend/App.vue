@@ -149,7 +149,7 @@
 
                     <fieldset class="form-group col-12">
                         <legend>Linked Sweepers &amp; Jingles</legend>
-                        <p class="form-text sweepers-section-text">Link sweepers and jingles that say the same, for example differently produced versions. When any track of a group plays, the whole group counts as just played: sweepers and jingles both prefer the group heard longest ago, and a jingle waits while its linked sweeper was just heard or is coming up.</p>
+                        <p class="form-text sweepers-section-text">Link sweepers and jingles that say the same, for example differently produced versions. When any track of a group plays, the whole group counts as just played: sweepers and jingles both prefer the group heard longest ago, a jingle waits while its linked sweeper was just heard or is coming up, and a sweeper waits after its linked jingle.</p>
                         <LinkGroups v-if="settings.link_groups" v-model:window="settings.link_window" :groups="settings.link_groups" :candidates="linkCandidates" :error="linkCandidatesError" />
                     </fieldset>
                     </div>
