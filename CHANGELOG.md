@@ -1,5 +1,17 @@
 # Release notes
 
+## 1.3.2 - 2026-11-06
+
+### Improvements
+
+- Keep the compatibility checks working with the current AzuraCast rolling release
+  after a change to its playlist media repository. The plugin code is unchanged.
+
+### Update notes
+
+- **AzuraCast Broadcast (Liquidsoap) restart: Not required**; the Liquidsoap module
+  is unchanged. No frontend rebuild or PHP/worker reload is needed.
+
 ## 1.3.1 - 2026-11-05
 
 ### Fixes
