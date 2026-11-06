@@ -67,7 +67,20 @@ globalThis.fetch = async (url, options) => {
     } else if (url.includes("/detector")) {
         const body = options?.body ? JSON.parse(options.body) : undefined;
         detectorRequests.push({ path: url.slice(url.indexOf("/detector")), body });
-        if (url.endsWith("/detector/settings")) {
+        if (url.endsWith("/detector/instance")) {
+            data = { version: "1.0.0", settings: { max_price_per_hour: .9, shared_budget_usd: 50, share_analyses: true },
+                shared_key: true, shared_spend_month_usd: 1.05, shared_worker: null, shared_recovery: null, analyses: 10,
+                cost_per_1000_songs_usd: 3.91, stations: [
+                    { id: 1, name: "Test", enabled: true, billing: "own", shared_allowed: false, shared_cap_usd: 0, shared_spend_month_usd: 0 },
+                    { id: 2, name: "Other station", enabled: true, billing: "shared", shared_allowed: true, shared_cap_usd: 5, shared_spend_month_usd: 1 },
+                ] };
+        } else if (url.endsWith("/detector/instance/station")) {
+            detectorSettings = { ...detectorSettings, shared_allowed: body.shared_allowed, shared_cap_usd: body.shared_cap_usd };
+            data = { version: "1.0.0", settings: { max_price_per_hour: .9, shared_budget_usd: 50, share_analyses: true },
+                shared_key: true, shared_spend_month_usd: 1.05, analyses: 10, cost_per_1000_songs_usd: 3.91, stations: [
+                    { id: 2, name: "Other station", enabled: true, billing: "shared", shared_allowed: true, shared_cap_usd: 5, shared_spend_month_usd: 1 },
+                ] };
+        } else if (url.endsWith("/detector/settings")) {
             detectorSettings = { ...detectorSettings, ...body };
             data = { station: detectorStation(detectorSettings) };
         } else if (url.endsWith("/detector/key")) {
@@ -1265,7 +1278,7 @@ test("intro detector page saves only changed station fields, offers publishing a
         key.value = " rpa_NEWKEY12345678 ";
         key.dispatchEvent(new Event("input", { bubbles: true }));
         await settle();
-        await submitForm("#detector-key");
+        await click("Save Key");
         assert.deepEqual(detectorRequests.at(-1), { path: "/detector/key", body: { key: "rpa_NEWKEY12345678" } });
         assert.equal(document.querySelector("#detector-key").value, "", "The key is not kept in the page");
     } finally {
@@ -1278,7 +1291,7 @@ test("intro detector page is read-only without Broadcasting and explains a missi
     detectorInfo = { installed: true, can_manage: false, can_admin: false };
     let app = await mountDetector();
     try {
-        assert.ok(document.querySelector("#detector-enabled").closest("fieldset").hasAttribute("disabled"));
+        assert.ok(document.querySelector("#detector-enabled").closest("fieldset[disabled]"), "Settings are read-only");
         assert.equal([...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Analyze now"), undefined);
         assert.equal(document.querySelector("#detector-key"), null);
     } finally {
@@ -1295,4 +1308,28 @@ test("intro detector page is read-only without Broadcasting and explains a missi
         }
     }
     detectorInfo = { installed: true, can_manage: true, can_admin: false };
+});
+test("intro detector page shows administrators this station's server access and other stations only on request", async () => {
+    detectorRequests.length = 0;
+    detectorSettings = {};
+    detectorInfo = { installed: true, can_manage: true, can_admin: true };
+    const app = await mountDetector();
+    try {
+        assert.equal(document.querySelector("#detector-instance-heading").textContent, "Server Account");
+        assert.doesNotMatch(document.querySelector("#app").textContent, /Other station/, "Other stations stay hidden");
+        assert.equal(document.querySelector("#detector-shared-key"), null);
+        const allow = document.querySelector("#detector-allow");
+        allow.checked = true;
+        allow.dispatchEvent(new Event("change", { bubbles: true }));
+        await settle();
+        await click("Save Station Access");
+        assert.deepEqual(detectorRequests.find((request) => request.path === "/detector/instance/station").body,
+            { station_id: 1, shared_allowed: true, shared_cap_usd: 0 }, "Only this station's access is changed");
+        await click("Server account settings for all stations…");
+        assert.match(document.querySelector("#detector-server-all").textContent, /Other station/);
+        assert.ok(document.querySelector("#detector-shared-key"));
+    } finally {
+        app.unmount();
+        detectorInfo = { installed: true, can_manage: true, can_admin: false };
+    }
 });
