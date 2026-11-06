@@ -1,5 +1,25 @@
 # Release notes
 
+## 1.3.2 - 2026-11-06
+
+### Fixes
+
+- **Settings:** a rejected save now shows the actual reason instead of "The session
+  expired or the server could not complete the request".
+- Saved playlists that were deleted or can no longer be used, for example a sweeper
+  playlist that is no longer Advanced, appear as removable "Unavailable playlist"
+  tags instead of silently blocking every save.
+- **Linked sweepers and jingles:** a track that is in both a sweeper pool and a jingle
+  playlist is linked with itself automatically, so it is no longer heard as a jingle
+  right after playing as a sweeper, or the other way round. It needs a link group
+  only to link it with other tracks.
+
+### Update notes
+
+- **AzuraCast Broadcast (Liquidsoap) restart: Not required**; the Liquidsoap module
+  is unchanged. Run `bash bin/setup.sh` to rebuild the frontend and reload PHP/worker
+  processes.
+
 ## 1.3.1 - 2026-11-05
 
 ### Fixes

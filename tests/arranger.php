@@ -28,6 +28,12 @@ namespace Plugin\AzuracastSweepers\Service {
     {
         public array $intros = [21 => 0, 22 => 10, 33 => 10];
         public array $jingleIds = [9];
+        public array $shared = [];
+
+        public function sharedTracks(): array
+        {
+            return $this->shared;
+        }
 
         public function jingles(): array
         {

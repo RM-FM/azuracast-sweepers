@@ -208,9 +208,11 @@ namespace {
     $schema->dropSchema($metadata);
     $schema->createSchema($metadata);
 
-    $queue = new StationQueueRepository(new StationPlaylistRepository());
+    $playlists = new StationPlaylistRepository();
+    $queue = new StationQueueRepository($playlists);
     $queue->em = $em;
-    $playlistMedia = new StationPlaylistMediaRepository($queue);
+    // Older AzuraCast releases take only the queue repository and ignore the extra argument.
+    $playlistMedia = new StationPlaylistMediaRepository($queue, $playlists);
     $playlistMedia->em = $em;
     $duplicates = new DuplicatePrevention();
     $duplicates->setLogger(new \Monolog\Logger('replacement-test'));
@@ -555,7 +557,7 @@ namespace {
     };
     $send = static function (array $data) use ($state, $directory, $linkSync, $station, $linkSettings, $connection): int {
         $state->update($directory, static fn(): array => $data);
-        $linkSync->beforeSend($station, $linkSettings, hrtime(true) + 1_000_000_000);
+        $linkSync->beforeSend($station, $linkSettings, $linkSettings->links, hrtime(true) + 1_000_000_000);
         $next = (int)$connection->fetchOne(
             'SELECT media_id FROM station_queue WHERE sent_to_autodj = 0 ORDER BY timestamp_cued, id LIMIT 1'
         );

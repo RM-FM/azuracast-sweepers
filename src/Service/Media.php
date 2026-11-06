@@ -19,6 +19,7 @@ use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\Pagination\Paginator;
 use InvalidArgumentException;
+use Plugin\AzuracastSweepers\ValueObject\Settings;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
 
@@ -234,6 +235,22 @@ final readonly class Media
         }
 
         return array_values($result);
+    }
+
+    /**
+     * @return list<int> Tracks in a sweeper pool that are also in a jingle playlist.
+     */
+    public function sharedTracks(Station $station, Settings $settings): array
+    {
+        $sweeperPlaylistIds = $settings->allSweeperPlaylistIds();
+        if ($sweeperPlaylistIds === []) {
+            return [];
+        }
+
+        return array_column(array_filter(
+            $this->linkCandidates($station, $sweeperPlaylistIds, $settings->jinglePlaylistIds),
+            static fn(array $row): bool => $row['sweeper'] && $row['jingle']
+        ), 'id');
     }
 
     /**

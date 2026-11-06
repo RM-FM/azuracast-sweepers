@@ -9,6 +9,7 @@ use InvalidArgumentException;
 use Plugin\AzuracastSweepers\ValueObject\Links;
 use Plugin\AzuracastSweepers\ValueObject\Selection;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
+use Throwable;
 
 final readonly class Planner
 {
@@ -163,7 +164,7 @@ final readonly class Planner
             $preRollLimited = 0;
             $linkedQueued = 0;
             $linkedRecent = 0;
-            $links = $settings->links;
+            $links = $settings->links->withShared($this->media->sharedTracks($station, $settings));
             $history = $data['history'] ?? [];
 
             foreach ($jingles as $jingle) {
@@ -287,10 +288,12 @@ final readonly class Planner
             throw new InvalidArgumentException('Too many reservation events.');
         }
         $played = [];
+        $sharedTracks = $this->sharedTracksFor($station, $events);
         $data = $this->state->update($station->getRadioConfigDir(), static function (array $data) use (
             $tokens,
             $events,
             $version,
+            $sharedTracks,
             &$played
         ): array {
             // Proves the module is running; limited to one state write per 30 seconds.
@@ -307,7 +310,7 @@ final readonly class Planner
                 }
                 $token = (string)($event['token'] ?? '');
                 $before = ($event['event'] ?? '') === 'played' ? self::playedSweeper($data, $token) : null;
-                $data = self::apply($data, $event);
+                $data = self::apply($data, $event, $sharedTracks);
                 if ($before === null && ($event['event'] ?? '') === 'played') {
                     $after = self::playedSweeper($data, $token);
                     if ($after !== null) {
@@ -345,6 +348,29 @@ final readonly class Planner
     }
 
     /**
+     * @return list<int>
+     */
+    private function sharedTracksFor(Station $station, array $events): array
+    {
+        foreach ($events as $event) {
+            if (is_array($event) && ($event['event'] ?? '') === 'start' && ($event['media_id'] ?? '') !== '') {
+                // Playback events must be stored even if the lookup fails.
+                try {
+                    $data = $this->state->read($station->getRadioConfigDir());
+
+                    return $this->media->sharedTracks($station, Settings::fromArray($data['settings'] ?? []));
+                } catch (Throwable $exception) {
+                    error_log('AzuraCast Sweepers: shared track lookup skipped: ' . $exception->getMessage());
+
+                    return [];
+                }
+            }
+        }
+
+        return [];
+    }
+
+    /**
      * @return array{media_id: int, at: float}|null The sweeper this token played, once confirmed.
      */
     private static function playedSweeper(array $data, string $token): ?array
@@ -367,7 +393,10 @@ final readonly class Planner
         return null;
     }
 
-    public static function apply(array $data, array $event): array
+    /**
+     * @param list<int> $sharedTracks Tracks that are a sweeper and a jingle at once.
+     */
+    public static function apply(array $data, array $event, array $sharedTracks = []): array
     {
         $type = (string)($event['event'] ?? '');
         $token = (string)($event['token'] ?? '');
@@ -392,7 +421,8 @@ final readonly class Planner
             $mediaId = (string)($event['media_id'] ?? '');
             if (
                 preg_match('/^[1-9]\d{0,9}$/D', $mediaId)
-                && Links::fromArray($data['settings']['link_groups'] ?? [], 0)->linked((int)$mediaId)
+                && Links::fromArray($data['settings']['link_groups'] ?? [], 0)
+                    ->withShared($sharedTracks)->linked((int)$mediaId)
             ) {
                 // A linked jingle counts as a play of its whole group in the sweeper rotation.
                 $last = (float)($data['history'][(int)$mediaId] ?? 0);

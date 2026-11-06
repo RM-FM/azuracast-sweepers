@@ -116,10 +116,15 @@ final readonly class InternalController
         $station = $request->getStation();
         $started = hrtime(true);
         $settings = Settings::fromArray($this->state->read($station->getRadioConfigDir())['settings'] ?? []);
-        if ($settings->enabled && $settings->links->groups !== []) {
+        if ($settings->enabled) {
             $this->syncLinks(
                 $station,
-                fn(int $deadline) => $this->linkSync->beforeSend($station, $settings, $deadline),
+                fn(int $deadline) => $this->linkSync->beforeSend(
+                    $station,
+                    $settings,
+                    $settings->links->withShared($this->media->sharedTracks($station, $settings)),
+                    $deadline
+                ),
                 (float)$budget / 2
             );
         }
