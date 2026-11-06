@@ -33,6 +33,12 @@ export function spendLine(spend, limit) {
     return `${money(spend)} of ${limit ? money(limit) : "no limit"} this month`;
 }
 
+export function stationCost(status) {
+    const shared = status.settings.account === "shared";
+    const limit = status.limit_usd ? money(status.limit_usd) : shared ? "the server account's budget" : "no limit";
+    return `${money(status.spend_month_usd)} of ${limit} this month${shared ? " on the server's Runpod account" : ""}`;
+}
+
 export function blockedText(reason) {
     return reason ? BLOCKED[reason] ?? reason : "";
 }

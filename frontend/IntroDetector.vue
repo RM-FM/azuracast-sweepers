@@ -48,7 +48,7 @@
                                 <dd class="fs-5 mb-0">{{ value }}</dd>
                             </div>
                         </dl>
-                        <p class="form-text mb-2">GPU cost: {{ spendLine(status.spend_month_usd, status.limit_usd) }}. {{ workerText(status.worker) }}</p>
+                        <p class="form-text mb-2">GPU cost: {{ stationCost(status) }}. {{ workerText(status.worker) }}</p>
                         <button type="button" class="btn btn-sm btn-secondary" :disabled="busy" @click="load"><Icon name="refresh" /><span>Refresh</span></button>
                     </fieldset>
 
@@ -167,14 +167,12 @@
                                             <input id="detector-billing-shared" v-model="form.billing" class="form-check-input" type="radio" value="shared" :disabled="!status.shared_key_available">
                                             <label class="form-check-label" for="detector-billing-shared">The server's Runpod account{{ status.shared_key_available ? "" : " (not offered to this station)" }}</label>
                                         </div>
+                                        <div v-if="form.billing === 'shared'" class="form-text">{{ stationCost(status) }}.</div>
                                     </div>
                                     <div v-if="form.billing === 'own'" class="form-group col-md-6">
                                         <label class="form-label" for="detector-budget">Monthly GPU budget (US$)</label>
                                         <input id="detector-budget" v-model.number="form.budget_usd" class="form-control" type="number" min="0" step="1" required>
                                         <div class="form-text">No GPU work starts once this month's estimated spend reaches the budget. 0 means no limit.</div>
-                                    </div>
-                                    <div v-else class="form-group col-md-6">
-                                        <div class="form-text mt-0">{{ spendLine(status.spend_month_usd, status.limit_usd) }} on the server account for this station.</div>
                                     </div>
                                     <div v-if="info.can_manage && form.billing === 'own'" class="form-group col-12">
                                         <label class="form-label" for="detector-key">Runpod API key <span class="badge" :class="status.key ? 'text-bg-success' : 'text-bg-secondary'">{{ status.key ? "Stored" : "Missing" }}</span></label>
@@ -197,8 +195,8 @@
                     <fieldset class="form-group">
                         <legend id="detector-instance-heading">Server Account</legend>
                         <p class="form-text">Only system administrators see this section. The server's Runpod account is {{ instance.shared_key ? "set up" : "not set up yet" }}; {{ spendLine(instance.shared_spend_month_usd, instance.settings.shared_budget_usd) }}.</p>
-                        <div class="row g-3 align-items-end">
-                            <div class="form-group col-md-6">
+                        <div class="row g-3">
+                            <div class="form-group col-12">
                                 <div class="form-check form-switch">
                                     <input id="detector-allow" v-model="allowance.shared_allowed" class="form-check-input" type="checkbox" role="switch">
                                     <label class="form-check-label" for="detector-allow">This station may use the server account</label>
@@ -278,7 +276,7 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import Icon from "./Icon.vue";
 import PlaylistPicker from "./PlaylistPicker.vue";
-import { MODES, blockedText, changedFields, estimateText, money, queueCounts, spendLine, stationForm, workerText } from "./detector.js";
+import { MODES, blockedText, changedFields, estimateText, money, queueCounts, spendLine, stationCost, stationForm, workerText } from "./detector.js";
 import { formatStationTime } from "./dates.js";
 
 const props = defineProps({

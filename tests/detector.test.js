@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { blockedText, changedFields, estimateText, money, queueCounts, spendLine, stationForm, workerText } from "../frontend/detector.js";
+import { blockedText, changedFields, estimateText, money, queueCounts, spendLine, stationCost, stationForm, workerText } from "../frontend/detector.js";
 
 test("detector form sends only changed station fields", () => {
     const saved = { enabled: false, mode: "shadow", auto_process: true, min_song_seconds: 60, exclude_playlists: [3],
@@ -26,4 +26,11 @@ test("detector texts explain money, blocks, workers and backfill estimates", () 
     assert.deepEqual(queueCounts({ done: 2, pending: 1, known: 7 }), { done: 2, waiting: 1, failed: 0, library: 7, skipped: 0 });
     assert.match(estimateText(1000, 4), /1000 songs without an intro, about US\$4\.00/);
     assert.match(estimateText(0, null), /already has an intro/);
+});
+test("station cost names the budget that applies", () => {
+    const status = (account, limit) => ({ settings: { account }, spend_month_usd: 1, limit_usd: limit });
+    assert.equal(stationCost(status("station-1", 10)), "US$1.00 of US$10.00 this month");
+    assert.equal(stationCost(status("station-1", 0)), "US$1.00 of no limit this month");
+    assert.equal(stationCost(status("shared", 0)), "US$1.00 of the server account's budget this month on the server's Runpod account");
+    assert.equal(stationCost(status("shared", 5)), "US$1.00 of US$5.00 this month on the server's Runpod account");
 });
