@@ -1,9 +1,5 @@
-export const MODES = [
-    ["shadow", "Shadow: record proposed intros, change nothing"],
-    ["publish", "Publish: write intros to AzuraCast"],
-];
 
-const STATION_FIELDS = ["enabled", "mode", "auto_process", "min_song_seconds", "max_song_seconds", "exclude_playlists", "budget_usd"];
+const STATION_FIELDS = ["enabled", "auto_process", "min_song_seconds", "max_song_seconds", "exclude_playlists", "budget_usd"];
 
 const BLOCKED = {
     "no Runpod key": "Add a Runpod API key to start analyzing songs.",
@@ -81,7 +77,7 @@ export function libraryText(count) {
         : "Every song that was already in the library has an intro or a result.";
 }
 
-const JOBS = { sync: "Reading the station's library…", republish: "Writing intros to AzuraCast…" };
+const JOBS = { sync: "Reading the station's library…", republish: "Writing intros to AzuraCast…", publish: "Writing intros to AzuraCast…" };
 const RESULTS = { complete: "Done", partial: "Partly done", failed: "Failed", running: "Running", interrupted: "Interrupted" };
 const STEPS = {
     download: "Downloading songs from AzuraCast",

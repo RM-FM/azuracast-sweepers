@@ -6,7 +6,7 @@ import {
 } from "../frontend/detector.js";
 
 test("detector form sends only changed station fields", () => {
-    const saved = { enabled: false, mode: "shadow", auto_process: true, min_song_seconds: 60, exclude_playlists: [3],
+    const saved = { enabled: false, auto_process: true, min_song_seconds: 60, exclude_playlists: [3],
         budget_usd: 10, id: 1 };
     const form = stationForm(saved);
     assert.equal(form.id, undefined, "Only station fields are editable");
@@ -45,6 +45,7 @@ test("analysis texts say what is waiting and what happens next", () => {
     assert.match(libraryText(120), /120 songs that were already in the library have no intro yet/);
     assert.match(libraryText(0), /Every song/);
     assert.equal(jobText("republish"), "Writing intros to AzuraCast…");
+    assert.equal(jobText("publish"), "Writing intros to AzuraCast…");
     assert.equal(runResult("partial"), "Partly done");
 });
 

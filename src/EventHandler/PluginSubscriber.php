@@ -70,13 +70,12 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
             $group->post('/settings', PanelController::class . ':settingsAction')
                 ->add(new Middleware\Permissions(StationPermissions::Broadcasting, true));
             $group->get('/detector', DetectorController::class . ':statusAction');
-            $group->get('/detector/preview', DetectorController::class . ':previewAction');
             $group->post('/detector/settings', DetectorController::class . ':settingsAction')
                 ->add(new Middleware\Permissions(StationPermissions::Broadcasting, true));
             $group->post('/detector/key', DetectorController::class . ':keyAction')
                 ->add(new Middleware\Permissions(StationPermissions::Broadcasting, true));
             $group->post(
-                '/detector/{action:process|retry|backfill|publish|worker}',
+                '/detector/{action:process|retry|backfill|worker}',
                 DetectorController::class . ':actionAction'
             )->add(new Middleware\Permissions(StationPermissions::Broadcasting, true));
         })

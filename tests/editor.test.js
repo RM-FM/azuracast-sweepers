@@ -72,8 +72,7 @@ globalThis.fetch = async (url, options) => {
             data = { station: detectorStation(detectorSettings) };
         } else if (url.endsWith("/detector/key")) {
             data = { station: detectorStation(detectorSettings) };
-        } else if (url.endsWith("/detector/publish")) {
-            data = detectorStation(detectorSettings);
+
         } else {
             data = detectorInfo.installed ? { ...detectorInfo, station: detectorStation(detectorSettings) } : { ...detectorInfo };
         }
@@ -170,10 +169,10 @@ let detectorSettings = {};
 let detectorActivity = null;
 let detectorKey = { stations: 1, spend_month_usd: 0.42, balance_usd: 12.3, balance_checked_at: 1900 };
 const detectorStation = (overrides = {}) => ({
-    settings: { id: 1, enabled: true, mode: "shadow", auto_process: true, min_song_seconds: 60, max_song_seconds: 900, exclude_playlists: [],
+    settings: { id: 1, enabled: true, auto_process: true, min_song_seconds: 60, max_song_seconds: 900, exclude_playlists: [],
         budget_usd: 10, ...overrides },
     queue: { done: 120, pending: 4, failed: 1, known: 300 },
-    publications: { planned: overrides.mode === "publish" ? 3 : 0, written: 0 },
+    publications: { written: 5667, unresolved: 34 },
     library_without_intro: 300, process_requested: false, jobs: [], blocked: null, key: detectorKey,
     spend_month_usd: 0.42, limit_usd: 10, worker: null, recovery: null, activity: detectorActivity, now: 2000,
     runs: [{ id: "r1", status: "complete", songs: 4, started_at: 1792948000, finished_at: 1792948600, error: null }],
@@ -1241,7 +1240,7 @@ const mountDetector = async () => {
     return app;
 };
 
-test("intro detector page saves only changed station fields, offers publishing and keeps the key write-only", async () => {
+test("intro detector page saves only changed station fields, has no shadow mode and keeps the key write-only", async () => {
     detectorRequests.length = 0;
     detectorSettings = {};
     detectorInfo = { installed: true, can_manage: true, can_admin: false };
@@ -1261,12 +1260,10 @@ test("intro detector page saves only changed station fields, offers publishing a
         await settle();
         await submitForm("#detector-enabled");
         assert.deepEqual(detectorRequests.at(-1), { path: "/detector/settings", body: { min_song_seconds: 90, max_song_seconds: 1200 } });
-        assert.equal(document.querySelector("[data-detector-planned]"), null, "Shadow mode offers no publishing");
-        detectorSettings = { mode: "publish" };
-        await click("Refresh");
-        assert.match(document.querySelector("[data-detector-planned]").textContent, /3 intros were found/);
-        await click("Write them to AzuraCast");
-        assert.equal(detectorRequests.at(-1).path, "/detector/publish");
+        assert.equal(document.querySelector("#detector-mode"), null, "Intros are always written");
+        assert.doesNotMatch(document.querySelector("#app").textContent, /Shadow|Write them to AzuraCast|Written to AzuraCast/);
+        const summary = [...document.querySelectorAll(".detector-summary dt")].map((term) => term.textContent);
+        assert.deepEqual(summary, ["Detector", "Analyzed", "Waiting", "Failed", "Older songs without intro"]);
         const key = document.querySelector("#detector-key");
         assert.equal(key.type, "password");
         key.value = " rpa_NEWKEY12345678 ";

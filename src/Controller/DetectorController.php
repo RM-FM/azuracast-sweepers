@@ -21,7 +21,7 @@ use Psr\Http\Message\ResponseInterface;
 final readonly class DetectorController
 {
     private const array STATION_FIELDS = [
-        'enabled', 'mode', 'auto_process', 'min_song_seconds', 'max_song_seconds', 'exclude_playlists', 'budget_usd',
+        'enabled', 'auto_process', 'min_song_seconds', 'max_song_seconds', 'exclude_playlists', 'budget_usd',
     ];
 
     public function __construct(
@@ -96,8 +96,9 @@ final readonly class DetectorController
         $station = $this->verified($request);
         $action = $params['action'];
         $body = $this->body($request);
-        $paths = ['process' => '/process', 'retry' => '/retry', 'backfill' => '/backfill',
-            'publish' => '/publish', 'worker' => '/worker/retire'];
+        $paths = [
+            'process' => '/process', 'retry' => '/retry', 'backfill' => '/backfill', 'worker' => '/worker/retire',
+        ];
         if (!isset($paths[$action])) {
             return $response->withStatus(404);
         }
@@ -106,16 +107,6 @@ final readonly class DetectorController
             'POST',
             $this->path($station, $paths[$action]),
             $body
-        ));
-    }
-
-    public function previewAction(ServerRequest $request, Response $response, array $params): ResponseInterface
-    {
-        $station = $request->getStation();
-
-        return $this->call($response, fn(): array => $this->detector->request(
-            'GET',
-            $this->path($station, '/preview')
         ));
     }
 

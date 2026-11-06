@@ -170,9 +170,9 @@ about US$4 per 1,000 songs, and each song only once.
 - **Install:** answer **Y** when setup offers it, or run `sudo bash bin/setup.sh --detector`
   later. It runs next to AzuraCast and needs no open port.
 - **Use:** open **Sweepers → Intro Detector** for a station, switch it on, enter a
-  Runpod API key and the station's monthly budget. It starts in shadow mode, which
-  only records proposed intros; switch to publish mode once you trust them.
-  Intros entered by hand are never overwritten.
+  Runpod API key and the station's monthly budget. Intros it finds are written to
+  AzuraCast right away; intros entered by hand are never overwritten. Correct any
+  intro in the Intro Manager; a corrected value is kept.
 - **Runpod keys:** use one key for several stations or a separate key per station,
   whichever suits how you pay for them. Stations with the same key share one GPU
   worker; each keeps its own budget. The page shows the station's spending, how many

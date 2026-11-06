@@ -53,7 +53,7 @@
 
                     <fieldset class="form-group">
                         <legend>Status</legend>
-                        <p class="card-text">Finds the intro end of new songs, so sweepers fit automatically: where the vocals start or, in songs that open without vocals, where the musical intro ends. In shadow mode it only records the proposed intros.</p>
+                        <p class="card-text">Finds the intro end of new songs and writes it to AzuraCast, so sweepers fit automatically: where the vocals start or, in songs that open without vocals, where the musical intro ends. Intros entered by hand are never overwritten.</p>
                         <dl class="row g-3 mb-2 detector-summary">
                             <div v-for="[label, value] in summary" :key="label" class="col-6 col-md-4 col-xl-2">
                                 <dt class="small text-muted fw-normal">{{ label }}</dt>
@@ -102,13 +102,6 @@
                                         <div class="small">{{ counts.failed }} songs could not be analyzed; the reasons are listed below.</div>
                                     </div>
                                     <button v-if="info.can_manage" type="button" class="btn btn-sm btn-outline-secondary" :disabled="busy" @click="action('retry', {})">Try again</button>
-                                </li>
-                                <li v-if="planned && status.settings.mode === 'publish'" class="list-group-item d-flex flex-wrap align-items-center gap-2" data-detector-planned>
-                                    <div class="flex-fill">
-                                        <div class="fw-semibold">Results from shadow mode</div>
-                                        <div class="small">{{ planned }} intros were found in shadow mode and are not in AzuraCast yet. Writing them needs no GPU.</div>
-                                    </div>
-                                    <button v-if="info.can_manage" type="button" class="btn btn-sm btn-primary" :disabled="busy || status.jobs.includes('republish')" @click="publish">Write them to AzuraCast</button>
                                 </li>
                             </ul>
                         </fieldset>
@@ -160,7 +153,7 @@
                                             <input id="detector-enabled" v-model="form.enabled" class="form-check-input" type="checkbox" role="switch">
                                             <label class="form-check-label" for="detector-enabled">Use the Intro Detector for this station</label>
                                         </div>
-                                        <div class="form-text">Existing songs are analyzed only when you start that on the Status tab.</div>
+                                        <div class="form-text">Intros it finds are written to AzuraCast; intros entered by hand are never overwritten. Existing songs are analyzed only when you start that on the Status tab.</div>
                                     </div>
                                     <div class="form-group col-md-6">
                                         <div class="form-check form-switch">
@@ -169,13 +162,7 @@
                                         </div>
                                         <div class="form-text">Otherwise new songs wait for "Analyze now".</div>
                                     </div>
-                                    <div class="form-group col-md-6">
-                                        <label class="form-label" for="detector-mode">Mode</label>
-                                        <select id="detector-mode" v-model="form.mode" class="form-select">
-                                            <option v-for="[value, label] in MODES" :key="value" :value="value">{{ label }}</option>
-                                        </select>
-                                        <div class="form-text">Intros entered by hand are never overwritten.</div>
-                                    </div>
+
                                     <div class="form-group col-md-6">
                                         <div class="row g-3">
                                             <div class="col-6">
@@ -245,7 +232,7 @@ import Icon from "./Icon.vue";
 import PlaylistPicker from "./PlaylistPicker.vue";
 import SpendMeter from "./SpendMeter.vue";
 import {
-    LOW_BALANCE_USD, MODES, activityLine, balanceText, blockedText, changedFields, estimateText, jobText, keyStationsText, libraryText,
+    LOW_BALANCE_USD, activityLine, balanceText, blockedText, changedFields, estimateText, jobText, keyStationsText, libraryText,
     progressPercent, queueCounts, runResult, spendNote, stationForm, stepText, waitingText,
 } from "./detector.js";
 import { formatStationTime } from "./dates.js";
@@ -273,17 +260,15 @@ let timer;
 let lastRefresh = 0;
 
 const counts = computed(() => queueCounts(status.value?.queue));
-const planned = computed(() => status.value?.publications?.planned ?? 0);
 const dirty = computed(() => status.value
     && (stationKey.value.trim() !== "" || Object.keys(changedFields(form.value, status.value.settings)).length > 0));
 const lowBalance = computed(() => (status.value?.key?.balance_usd ?? Infinity) < LOW_BALANCE_USD);
 const summary = computed(() => [
-    ["Mode", status.value.settings.enabled ? (status.value.settings.mode === "publish" ? "Publishing" : "Shadow") : "Off"],
-    ["Done", counts.value.done],
+    ["Detector", status.value.settings.enabled ? "On" : "Off"],
+    ["Analyzed", counts.value.done],
     ["Waiting", counts.value.waiting],
     ["Failed", counts.value.failed],
-    ["Library without intro", status.value.library_without_intro],
-    ["Written to AzuraCast", status.value.publications.written ?? 0],
+    ["Older songs without intro", status.value.library_without_intro],
 ]);
 
 function time(seconds) {
@@ -352,11 +337,6 @@ function action(name, data) {
     }, name === "process" ? "Analysis was requested; new songs are processed shortly." : "The songs were queued again.");
 }
 
-function publish() {
-    return run(async () => {
-        status.value = await props.api("detector/publish", {});
-    }, "The stored intros are being written to AzuraCast.");
-}
 
 function estimateLibrary() {
     return run(async () => {
