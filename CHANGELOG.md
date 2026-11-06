@@ -1,5 +1,24 @@
 # Release notes
 
+## 2.0.0 - Pending
+
+### Features
+
+- **Intro Detector integration:** setup offers to install the optional Intro Detector
+  and updates it together with the plugin. A new **Sweepers → Intro Detector** page
+  manages it per station: on/off, shadow or publish mode, automatic processing,
+  skipped playlists, the station's own Runpod key and monthly budget, status, costs,
+  failed songs and analyzing the existing library. Station broadcasting permission is
+  enough; system administrators can also offer the server's Runpod account to stations.
+
+### Update notes
+
+- **AzuraCast Broadcast (Liquidsoap) restart: Not required**; the Liquidsoap module
+  is unchanged. Run `sudo bash bin/setup.sh` to rebuild the frontend, reload PHP/worker
+  processes and install or update the Intro Detector.
+- An Intro Detector installed before this release is linked automatically and keeps
+  its stations; stations, keys and budgets are then managed on the new page.
+
 ## 1.3.3 - 2026-11-06
 
 ### Fixes

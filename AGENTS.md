@@ -18,7 +18,12 @@
 - Do not replace AzuraCast scheduling, normalize twice or count prefetch as jingle playback.
 - The plugin uses only `intro_end`; its authenticated cue endpoint updates that field alone and preserves other custom fields.
 - Keep detection, reviews, vetoes, import workflows and their storage in the private detector.
-- The plugin page configures sweepers and edits only `intro_end` on a waveform; do not add review fields or plugin-owned database tables.
+- The Sweepers pages configure sweepers and edit only `intro_end` on a waveform; do not add review fields or
+  plugin-owned database tables. The Intro Detector page manages the detector only through its management API
+  and the detector role's AzuraCast station permissions; it never stores detector data or Runpod keys.
+- Intro Detector access mirrors the sweeper settings: viewing needs station Media, changes need station
+  Broadcasting, server-wide detector settings need Administer Settings. Its API stays on AzuraCast's Docker
+  network without a published port. Setup installs and updates the release pinned in `detector.version`.
 - Before pushing, run the fast checks locally: PHP tests/lint, Node tests, the frontend build and the native
   Liquidsoap type and spacing checks. The playback scenarios and the MariaDB replacement test are slow;
   CI runs them when their inputs change, on release PRs and in the daily compatibility workflow.

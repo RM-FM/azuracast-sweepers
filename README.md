@@ -22,7 +22,8 @@ cd /var/azuracast/plugins/azuracast-sweepers
 bash bin/setup.sh
 ```
 
-The script handles installation for you.
+The script handles installation for you. At the end it offers the optional
+[Intro Detector](#intro-detector-optional); answer **N** if you do not want it.
 
 > [!WARNING]
 > If installation requires interrupting broadcasting, the script asks first.
@@ -44,6 +45,8 @@ bash bin/setup.sh
 ```
 
 Settings and intro values are kept. If an interruption is needed, the script asks first.
+An installed Intro Detector is updated to the matching release at the same time; this
+needs `sudo bash bin/setup.sh`.
 
 **Sweepers → Settings** shows the installed version and available updates.
 After updating, check whether Settings asks you to **Restart Broadcasting**.
@@ -153,6 +156,26 @@ for defaults, matching rules and timing details.
 
 Use the date range, live search and sweeper filter to check playback over the last
 seven days. Times use the station's time zone.
+
+## Intro Detector (optional)
+
+The [Intro Detector](https://github.com/RM-FM/azuracast-intro-detector) finds where
+the vocals start in each song and fills in the intro end, so sweepers fit
+automatically. Songs are analyzed on rented GPUs at [Runpod](https://www.runpod.io/):
+about US$4 per 1,000 songs, and each song only once.
+
+- **Install:** answer **Y** when setup offers it, or run `sudo bash bin/setup.sh --detector`
+  later. It runs next to AzuraCast and needs no open port.
+- **Use:** open **Sweepers → Intro Detector** for a station, switch it on, enter the
+  station's Runpod API key and a monthly budget. It starts in shadow mode, which
+  only records proposed intros; switch to publish mode once you trust them.
+  Intros entered by hand are never overwritten.
+- **Permissions:** anyone who may change the station's broadcasting settings manages
+  the station's detector settings; others see them read-only. System administrators
+  can also offer the server's own Runpod account to stations, each with a monthly limit.
+
+New uploads are analyzed automatically; **Analyze existing library** queues the
+rest after showing an estimate. Details: [Intro Detector integration](docs/ADVANCED.md#intro-detector).
 
 ## More documentation
 
