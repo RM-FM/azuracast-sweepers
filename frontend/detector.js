@@ -57,10 +57,17 @@ export function queueCounts(queue = {}) {
     };
 }
 
-export function estimateText(songs, usd) {
-    if (!songs) return "Every older song already has an intro or a result.";
-    const cost = usd === null || usd === undefined ? "" : ` and costs about ${money(usd)} of GPU time`;
-    return `Analyzing ${songs} older songs takes a while${cost}. Songs analyzed for another station are reused at no cost; new uploads go first.`;
+/** Figures of a library estimate; budget left is null without a monthly budget. */
+export function estimateFigures(estimate, budgetLeft) {
+    return [
+        ["Songs", String(estimate.songs)],
+        ["Estimated cost", estimate.estimated_usd === null ? "Known after the first run" : money(estimate.estimated_usd)],
+        ...(budgetLeft === null ? [] : [["Budget left this month", money(budgetLeft)]]),
+    ];
+}
+
+export function overBudget(estimate, budgetLeft) {
+    return budgetLeft !== null && estimate.estimated_usd !== null && estimate.estimated_usd > budgetLeft;
 }
 
 export function waitingText(count, automatic, requested) {
@@ -73,7 +80,7 @@ export function waitingText(count, automatic, requested) {
 
 export function libraryText(count) {
     return count
-        ? `${count} songs that were already in the library have no intro yet. They are only analyzed if you start it.`
+        ? "Songs that were in the library before the detector was switched on have no intro yet. They are only analyzed if you start it."
         : "Every song that was already in the library has an intro or a result.";
 }
 

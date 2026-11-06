@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-    activityLine, balanceText, blockedText, changedFields, duration, estimateText, jobText, keyStationsText, libraryText, money,
-    progressPercent, queueCounts, runResult, spendNote, stationForm, stepRemaining, stepText, waitingText,
+    activityLine, balanceText, blockedText, changedFields, duration, estimateFigures, jobText, keyStationsText, libraryText, money,
+    overBudget, progressPercent, queueCounts, runResult, spendNote, stationForm, stepRemaining, stepText, waitingText,
 } from "../frontend/detector.js";
 
 test("detector form sends only changed station fields", () => {
@@ -24,8 +24,12 @@ test("detector texts explain money, blocks and backfill estimates", () => {
     assert.equal(blockedText("something new"), "something new");
     assert.equal(blockedText(null), "");
     assert.deepEqual(queueCounts({ done: 2, pending: 1, known: 7 }), { done: 2, waiting: 1, failed: 0, library: 7, skipped: 0 });
-    assert.match(estimateText(1000, 4), /Analyzing 1000 older songs takes a while and costs about US\$4\.00/);
-    assert.match(estimateText(0, null), /already has an intro/);
+    assert.deepEqual(estimateFigures({ songs: 1000, estimated_usd: 4 }, 9.5),
+        [["Songs", "1000"], ["Estimated cost", "US$4.00"], ["Budget left this month", "US$9.50"]]);
+    assert.deepEqual(estimateFigures({ songs: 3, estimated_usd: null }, null), [["Songs", "3"], ["Estimated cost", "Known after the first run"]]);
+    assert.equal(overBudget({ estimated_usd: 4 }, 9.5), false);
+    assert.equal(overBudget({ estimated_usd: 12 }, 9.5), true);
+    assert.equal(overBudget({ estimated_usd: 12 }, null), false, "No budget, no limit");
 });
 
 test("spending notes describe the station budget, the key's stations and the Runpod balance", () => {
@@ -42,7 +46,7 @@ test("analysis texts say what is waiting and what happens next", () => {
     assert.match(waitingText(3, false, false), /waiting until you start/);
     assert.match(waitingText(0, true, false), /No songs are waiting\. New uploads are analyzed automatically/);
     assert.equal(waitingText(3, true, true), "The analysis starts shortly.");
-    assert.match(libraryText(120), /120 songs that were already in the library have no intro yet/);
+    assert.match(libraryText(120), /only analyzed if you start it/);
     assert.match(libraryText(0), /Every song/);
     assert.equal(jobText("republish"), "Writing intros to AzuraCast…");
     assert.equal(jobText("publish"), "Writing intros to AzuraCast…");

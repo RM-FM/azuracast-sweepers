@@ -173,7 +173,7 @@ const detectorStation = (overrides = {}) => ({
         budget_usd: 10, ...overrides },
     queue: { done: 120, pending: 4, failed: 1, known: 300 },
     publications: { written: 5667, unresolved: 34 },
-    library_without_intro: 300, process_requested: false, jobs: [], blocked: null, key: detectorKey,
+    library_without_intro: 300, library_estimate_usd: 1.2, process_requested: false, jobs: [], blocked: null, key: detectorKey,
     spend_month_usd: 0.42, limit_usd: 10, worker: null, recovery: null, activity: detectorActivity, now: 2000,
     runs: [{ id: "r1", status: "complete", songs: 4, started_at: 1792948000, finished_at: 1792948600, error: null }],
     failures: [{ media_id: 9, path: "broken.mp3", attempts: 2, error: "HTTP 404", updated_at: 1792948000 }],
@@ -1262,8 +1262,15 @@ test("intro detector page saves only changed station fields, has no shadow mode 
         assert.deepEqual(detectorRequests.at(-1), { path: "/detector/settings", body: { min_song_seconds: 90, max_song_seconds: 1200 } });
         assert.equal(document.querySelector("#detector-mode"), null, "Intros are always written");
         assert.doesNotMatch(document.querySelector("#app").textContent, /Shadow|Write them to AzuraCast|Written to AzuraCast/);
-        const summary = [...document.querySelectorAll(".detector-summary dt")].map((term) => term.textContent);
+        const summary = [...document.querySelectorAll("#detector-panel-status > fieldset:not([data-detector-analysis]) .detector-summary dt")].map((term) => term.textContent);
         assert.deepEqual(summary, ["Detector", "Analyzed", "Waiting", "Failed", "Older songs without intro"]);
+        const estimate = document.querySelector("[data-detector-estimate]");
+        assert.deepEqual([...estimate.querySelectorAll("dt")].map((term) => term.textContent),
+            ["Songs", "Estimated cost", "Budget left this month"], "The cost is shown without asking for it");
+        assert.deepEqual([...estimate.querySelectorAll("dd")].map((value) => value.textContent), ["300", "US$1.20", "US$9.58"]);
+        assert.equal(estimate.querySelector("[data-detector-over-budget]"), null);
+        await click("Analyze them");
+        assert.deepEqual(detectorRequests.at(-1), { path: "/detector/backfill", body: {} });
         const key = document.querySelector("#detector-key");
         assert.equal(key.type, "password");
         key.value = " rpa_NEWKEY12345678 ";

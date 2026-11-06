@@ -81,22 +81,22 @@
                                     <button v-if="info.can_manage && counts.waiting && !status.process_requested" type="button" class="btn btn-sm btn-primary" :disabled="busy" @click="action('process', {})">Analyze now</button>
                                 </li>
                                 <li class="list-group-item" data-detector-task="library">
-                                    <div class="d-flex flex-wrap align-items-center gap-2">
-                                        <div class="flex-fill">
-                                            <div class="fw-semibold">Older songs</div>
-                                            <div class="small">{{ libraryText(status.library_without_intro) }}</div>
+                                    <div class="fw-semibold">Older songs</div>
+                                    <div class="small">{{ libraryText(status.library_without_intro) }}</div>
+                                    <div v-if="status.library_without_intro" class="mt-2" data-detector-estimate>
+                                        <dl class="row g-3 mb-2 detector-summary">
+                                            <div v-for="[label, value] in estimateFigures(libraryEstimate, budgetLeft)" :key="label" class="col-6 col-md-4 col-xl-3">
+                                                <dt class="small text-muted fw-normal">{{ label }}</dt>
+                                                <dd class="fs-5 mb-0">{{ value }}</dd>
+                                            </div>
+                                        </dl>
+                                        <div v-if="overBudget(libraryEstimate, budgetLeft)" class="alert alert-warning py-2 small mb-2" role="status" data-detector-over-budget>This is more than the budget left this month. The analysis pauses when the budget is reached and continues next month or after raising it.</div>
+                                        <div class="d-flex flex-wrap align-items-center gap-2">
+                                            <button v-if="info.can_manage" type="button" class="btn btn-sm btn-primary" :disabled="busy" @click="startLibrary">Analyze them</button>
+                                            <span class="small text-muted">Songs already analyzed for another station cost nothing. New uploads go first.</span>
                                         </div>
-                                        <button v-if="info.can_manage && status.library_without_intro && !estimate" type="button" class="btn btn-sm btn-secondary" :disabled="busy" @click="estimateLibrary">Show cost…</button>
                                     </div>
-                                    <div v-if="estimate" class="mt-2" data-detector-estimate>
-                                        <p class="small mb-2">{{ estimateText(estimate.songs, estimate.estimated_usd) }}</p>
-                                        <div class="buttons">
-                                            <button v-if="estimate.songs" type="button" class="btn btn-sm btn-primary" :disabled="busy" @click="startLibrary">Analyze them</button>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary" @click="estimate = null">Cancel</button>
-                                        </div>
-                                    </div>
-                                </li>
-                                <li v-if="counts.failed" class="list-group-item d-flex flex-wrap align-items-center gap-2" data-detector-task="failed">
+                                </li>                                <li v-if="counts.failed" class="list-group-item d-flex flex-wrap align-items-center gap-2" data-detector-task="failed">
                                     <div class="flex-fill">
                                         <div class="fw-semibold">Failed songs</div>
                                         <div class="small">{{ counts.failed }} songs could not be analyzed; the reasons are listed below.</div>
@@ -232,8 +232,8 @@ import Icon from "./Icon.vue";
 import PlaylistPicker from "./PlaylistPicker.vue";
 import SpendMeter from "./SpendMeter.vue";
 import {
-    LOW_BALANCE_USD, activityLine, balanceText, blockedText, changedFields, estimateText, jobText, keyStationsText, libraryText,
-    progressPercent, queueCounts, runResult, spendNote, stationForm, stepText, waitingText,
+    LOW_BALANCE_USD, activityLine, balanceText, blockedText, changedFields, estimateFigures, jobText, keyStationsText, libraryText,
+    overBudget, progressPercent, queueCounts, runResult, spendNote, stationForm, stepText, waitingText,
 } from "./detector.js";
 import { formatStationTime } from "./dates.js";
 
@@ -254,7 +254,6 @@ const info = ref({});
 const status = ref(null);
 const form = ref({});
 const stationKey = ref("");
-const estimate = ref(null);
 
 let timer;
 let lastRefresh = 0;
@@ -262,6 +261,8 @@ let lastRefresh = 0;
 const counts = computed(() => queueCounts(status.value?.queue));
 const dirty = computed(() => status.value
     && (stationKey.value.trim() !== "" || Object.keys(changedFields(form.value, status.value.settings)).length > 0));
+const budgetLeft = computed(() => status.value?.limit_usd ? Math.max(0, status.value.limit_usd - status.value.spend_month_usd) : null);
+const libraryEstimate = computed(() => ({ songs: status.value.library_without_intro, estimated_usd: status.value.library_estimate_usd ?? null }));
 const lowBalance = computed(() => (status.value?.key?.balance_usd ?? Infinity) < LOW_BALANCE_USD);
 const summary = computed(() => [
     ["Detector", status.value.settings.enabled ? "On" : "Off"],
@@ -338,17 +339,10 @@ function action(name, data) {
 }
 
 
-function estimateLibrary() {
-    return run(async () => {
-        estimate.value = await props.api("detector/backfill", { dry_run: true });
-    });
-}
 
 function startLibrary() {
     return run(async () => {
-        const result = await props.api("detector/backfill", {});
-        status.value = result.station;
-        estimate.value = null;
+        status.value = (await props.api("detector/backfill", {})).station;
     }, "The library was queued. Its songs are analyzed after new uploads.");
 }
 
