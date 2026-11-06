@@ -32,7 +32,7 @@
                     </div>
                 </nav>
 
-                <div id="detector-panel-status" v-show="tab === 'status'" role="tabpanel" aria-labelledby="detector-tab-status">
+                <form id="detector-panel-status" v-show="tab === 'status'" class="form sweepers-settings" role="tabpanel" aria-labelledby="detector-tab-status" @submit.prevent>
                     <div v-if="status.recovery" class="alert alert-warning" role="alert" data-detector-recovery>
                         <p class="mb-2">A stopped GPU worker may still hold results that were never copied back. Analysis is paused until it is removed.</p>
                         <button v-if="info.can_manage" type="button" class="btn btn-sm btn-warning" :disabled="busy" @click="retireWorker('worker')">Delete the worker and analyze its songs again</button>
@@ -112,10 +112,10 @@
                             </div>
                         </fieldset>
                     </template>
-                </div>
+                </form>
 
                 <div id="detector-panel-settings" v-show="tab === 'settings'" role="tabpanel" aria-labelledby="detector-tab-settings">
-                    <form class="form" @submit.prevent="saveSettings">
+                    <form class="form sweepers-settings" @submit.prevent="saveSettings">
                         <fieldset :disabled="!info.can_manage || busy">
                             <fieldset class="form-group">
                                 <legend>Detection</legend>
@@ -193,7 +193,8 @@
                         </div>
                     </form>
 
-                    <fieldset v-if="info.can_admin && instance" class="form-group mt-4" data-detector-admin>
+                    <form v-if="info.can_admin && instance" class="form sweepers-settings mt-4" data-detector-admin @submit.prevent>
+                    <fieldset class="form-group">
                         <legend id="detector-instance-heading">Server Account</legend>
                         <p class="form-text">Only system administrators see this section. The server's Runpod account is {{ instance.shared_key ? "set up" : "not set up yet" }}; {{ spendLine(instance.shared_spend_month_usd, instance.settings.shared_budget_usd) }}.</p>
                         <div class="row g-3 align-items-end">
@@ -266,6 +267,7 @@
                             <p class="form-text mt-2 mb-0">Station access is changed on each station's Intro Detector page.</p>
                         </div>
                     </fieldset>
+                    </form>
                 </div>
             </div>
         </section>
@@ -307,7 +309,7 @@ const counts = computed(() => queueCounts(status.value?.queue));
 const planned = computed(() => status.value?.publications?.planned ?? 0);
 const dirty = computed(() => status.value && Object.keys(changedFields(form.value, status.value.settings)).length > 0);
 const summary = computed(() => [
-    ["Status", status.value.settings.enabled ? (status.value.settings.mode === "publish" ? "Publishing" : "Shadow") : "Off"],
+    ["Mode", status.value.settings.enabled ? (status.value.settings.mode === "publish" ? "Publishing" : "Shadow") : "Off"],
     ["Done", counts.value.done],
     ["Waiting", counts.value.waiting],
     ["Failed", counts.value.failed],

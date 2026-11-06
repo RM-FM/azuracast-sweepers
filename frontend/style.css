@@ -567,3 +567,6 @@
     background: #303540;
     border-color: #596273;
 }
+.sweepers-page .sweepers-detector fieldset.form-group + fieldset.form-group {
+    margin-top: 2rem;
+}
