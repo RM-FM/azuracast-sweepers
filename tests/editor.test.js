@@ -1260,7 +1260,7 @@ test("intro detector page saves only changed station fields, offers publishing a
     const app = await mountDetector();
     try {
         assert.equal(document.querySelector("#detector-heading").textContent, "Intro Detector");
-        assert.match(document.querySelector("#app").textContent, /US\$0\.42 of US\$10\.00 this month/);
+        assert.match(document.querySelector("[data-detector-spend]").textContent, /US\$0\.42 of US\$10\.00/);
         assert.equal(document.querySelector("#detector-instance-heading"), null, "Server-wide settings are for administrators");
         const length = document.querySelector("#detector-min-length");
         length.value = "90";

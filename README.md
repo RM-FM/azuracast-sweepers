@@ -94,13 +94,14 @@ corresponding page.
 ### Intro end
 
 The plugin automatically creates the `intro_end` custom field. It records where
-the vocals start, in seconds from the **original file start**:
+the sweeper should end: where the vocals start or, in songs that open without
+vocals, where the musical intro ends. Values are seconds from the **original file start**:
 
 | Value | Meaning |
 | --- | --- |
 | Blank | Unknown, no sweeper |
 | `0` | No intro, no sweeper |
-| Positive number | The vocals start here |
+| Positive number | The intro ends here |
 
 Open **Sweepers → Intro Manager** and select a song. Use the waveform timeline,
 zoom and volume controls with Play/Stop, then **Set Intro** at the playhead or drag
@@ -160,9 +161,10 @@ seven days. Times use the station's time zone.
 
 ## Intro Detector (optional)
 
-The [Intro Detector](https://github.com/RM-FM/azuracast-intro-detector) finds where
-the vocals start in each song and fills in the intro end, so sweepers fit
-automatically. Songs are analyzed on rented GPUs at [Runpod](https://www.runpod.io/):
+The [Intro Detector](https://github.com/RM-FM/azuracast-intro-detector) finds the
+intro end of each song and fills it in, so sweepers fit automatically: where the
+vocals start or, in songs that open without vocals, where the musical intro ends.
+Songs are analyzed on rented GPUs at [Runpod](https://www.runpod.io/):
 about US$4 per 1,000 songs, and each song only once.
 
 - **Install:** answer **Y** when setup offers it, or run `sudo bash bin/setup.sh --detector`

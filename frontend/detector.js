@@ -29,24 +29,15 @@ export function money(value) {
     return value === null || value === undefined ? "–" : `US$${Number(value).toFixed(2)}`;
 }
 
-export function spendLine(spend, limit) {
-    return `${money(spend)} of ${limit ? money(limit) : "no limit"} this month`;
+export function spendNote(status) {
+    if (status.settings.account === "shared") {
+        return status.limit_usd ? "Monthly limit for this station on the server's account."
+            : "No limit for this station; the monthly budget of the server's account applies.";
+    }
+    return status.limit_usd ? "" : "No monthly budget is set for this station.";
 }
-
-export function stationCost(status) {
-    const shared = status.settings.account === "shared";
-    const limit = status.limit_usd ? money(status.limit_usd) : shared ? "the server account's budget" : "no limit";
-    return `${money(status.spend_month_usd)} of ${limit} this month${shared ? " on the server's Runpod account" : ""}`;
-}
-
 export function blockedText(reason) {
     return reason ? BLOCKED[reason] ?? reason : "";
-}
-
-export function workerText(worker) {
-    if (!worker) return "No GPU worker is running.";
-    const state = worker.idle_since ? "idle, deleted automatically after 10 minutes" : "working";
-    return `GPU worker ${worker.pod_id} (${worker.gpu_id ?? "GPU"}, ${money(worker.price)}/h): ${state}.`;
 }
 
 export function queueCounts(queue = {}) {

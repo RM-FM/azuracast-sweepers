@@ -212,9 +212,10 @@ if [[ -d "$detector_dir/.git" ]]; then
     detector_linked
 elif [[ ! -e "$declined" ]]; then
     status '\nOptional: Intro Detector\n'
-    status 'It finds where the vocals start in each song so sweepers fit automatically. Songs are analyzed on\n'
-    status 'rented GPUs at Runpod (paid, about US$4 per 1,000 songs). Each station enables it and enters its own\n'
-    status 'Runpod key and budget in Sweepers > Intro Detector. More: https://github.com/RM-FM/azuracast-intro-detector\n'
+    status 'It finds the intro end of each song (where the vocals start or the musical intro ends), so sweepers\n'
+    status 'fit automatically. Songs are analyzed on rented GPUs at Runpod (paid, about US$4 per 1,000 songs).\n'
+    status 'Each station enables it and enters its own Runpod key and budget in Sweepers > Intro Detector.\n'
+    status 'More: https://github.com/RM-FM/azuracast-intro-detector\n'
     status 'If it already runs on another server, answer N: it must run on this server to be managed here.\n'
     if [[ ! -t 0 ]]; then
         status 'To install it later, run: sudo bash bin/setup.sh --detector\n'

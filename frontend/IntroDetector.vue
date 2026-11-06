@@ -11,7 +11,7 @@
                 <h2 id="detector-missing-heading" class="card-title my-0">Intro Detector</h2>
             </div>
             <div class="card-body">
-                <p class="card-text">The Intro Detector finds where the vocals start in each song, so sweepers fit automatically. Songs are analyzed on rented GPUs at Runpod; each station enables it and pays with its own Runpod key and budget (about US$4 per 1,000 songs).</p>
+                <p class="card-text">The Intro Detector finds the intro end of each song, so sweepers fit automatically: where the vocals start or, in songs that open without vocals, where the musical intro ends. Songs are analyzed on rented GPUs at Runpod; each station enables it and pays with its own Runpod key and budget (about US$4 per 1,000 songs).</p>
                 <template v-if="info.can_admin">
                     <p class="card-text">It is not installed on this server. To install it, run this in the plugin directory on the server:</p>
                     <pre class="mb-2"><code>sudo bash bin/setup.sh --detector</code></pre>
@@ -53,14 +53,13 @@
 
                     <fieldset class="form-group">
                         <legend>Status</legend>
-                        <p class="card-text">Finds where the vocals start in new songs and stores it as the intro end, so sweepers fit automatically. In shadow mode it only records proposed intros.</p>
+                        <p class="card-text">Finds the intro end of new songs, so sweepers fit automatically: where the vocals start or, in songs that open without vocals, where the musical intro ends. In shadow mode it only records the proposed intros.</p>
                         <dl class="row g-3 mb-2 detector-summary">
                             <div v-for="[label, value] in summary" :key="label" class="col-6 col-md-4 col-xl-2">
                                 <dt class="small text-muted fw-normal">{{ label }}</dt>
                                 <dd class="fs-5 mb-0">{{ value }}</dd>
                             </div>
                         </dl>
-                        <p class="form-text mb-2">GPU cost: {{ stationCost(status) }}. {{ workerText(status.worker) }}</p>
                         <button type="button" class="btn btn-sm btn-secondary" :disabled="busy" @click="load"><Icon name="refresh" /><span>Refresh</span></button>
                     </fieldset>
 
@@ -203,12 +202,14 @@
                                             <input id="detector-billing-shared" v-model="form.billing" class="form-check-input" type="radio" value="shared" :disabled="!status.shared_key_available">
                                             <label class="form-check-label" for="detector-billing-shared">The server's Runpod account{{ status.shared_key_available ? "" : " (not offered to this station)" }}</label>
                                         </div>
-                                        <div v-if="form.billing === 'shared'" class="form-text">{{ stationCost(status) }}.</div>
                                     </div>
                                     <div v-if="form.billing === 'own'" class="form-group col-md-6">
                                         <label class="form-label" for="detector-budget">Monthly GPU budget (US$)</label>
                                         <input id="detector-budget" v-model.number="form.budget_usd" class="form-control" type="number" min="0" step="1" required>
                                         <div class="form-text">No GPU work starts once this month's estimated spend reaches the budget. 0 means no limit.</div>
+                                    </div>
+                                    <div v-if="form.billing === status.settings.billing" class="form-group col-md-6" data-detector-spend>
+                                        <SpendMeter label="Spent this month" :spend="status.spend_month_usd" :limit="status.limit_usd" :note="spendNote(status)" />
                                     </div>
                                     <div v-if="info.can_manage && form.billing === 'own'" class="form-group col-12">
                                         <label class="form-label" for="detector-key">Runpod API key <span class="badge" :class="status.key ? 'text-bg-success' : 'text-bg-secondary'">{{ status.key ? "Stored" : "Missing" }}</span></label>
@@ -230,7 +231,13 @@
                     <form v-if="info.can_admin && instance" class="form sweepers-settings mt-4" data-detector-admin @submit.prevent>
                     <fieldset class="form-group">
                         <legend id="detector-instance-heading">Server Account</legend>
-                        <p class="form-text">Only system administrators see this section. The server's Runpod account is {{ instance.shared_key ? "set up" : "not set up yet" }}; {{ spendLine(instance.shared_spend_month_usd, instance.settings.shared_budget_usd) }}.</p>
+                        <p class="form-text">Only system administrators see this section.</p>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6" data-detector-shared-spend>
+                                <div class="mb-2">Runpod key <span class="badge" :class="instance.shared_key ? 'text-bg-success' : 'text-bg-secondary'">{{ instance.shared_key ? "Stored" : "Missing" }}</span></div>
+                                <SpendMeter label="All stations this month" :spend="instance.shared_spend_month_usd" :limit="instance.settings.shared_budget_usd" />
+                            </div>
+                        </div>
                         <div class="row g-3">
                             <div class="form-group col-12">
                                 <div class="form-check form-switch">
@@ -312,9 +319,10 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import Icon from "./Icon.vue";
 import PlaylistPicker from "./PlaylistPicker.vue";
+import SpendMeter from "./SpendMeter.vue";
 import {
     MODES, activityLine, blockedText, changedFields, estimateText, jobText, libraryText, money, progressPercent, queueCounts, runResult,
-    spendLine, stationCost, stationForm, stepText, waitingText, workerText,
+    spendNote, stationForm, stepText, waitingText,
 } from "./detector.js";
 import { formatStationTime } from "./dates.js";
 
