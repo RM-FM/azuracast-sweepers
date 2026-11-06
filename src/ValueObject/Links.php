@@ -16,11 +16,16 @@ final readonly class Links
     /** @var array<int, int> Group index by media ID. */
     private array $groupByMedia;
 
+    /** @var array<int, true> Tracks in both a sweeper pool and a jingle playlist, by media ID. */
+    private array $shared;
+
     /**
      * @param list<array{name: string, media_ids: list<int>}> $groups
+     * @param list<int> $sharedMediaIds Tracks that are a sweeper and a jingle at once; each is linked with itself.
      */
-    public function __construct(public array $groups = [], public int $windowMinutes = 0)
+    public function __construct(public array $groups = [], public int $windowMinutes = 0, array $sharedMediaIds = [])
     {
+        $this->shared = array_fill_keys($sharedMediaIds, true);
         if (
             !array_is_list($groups) || count($groups) > self::MAX_GROUPS
             || $windowMinutes < 0 || $windowMinutes > self::MAX_WINDOW_MINUTES
@@ -59,6 +64,14 @@ final readonly class Links
     }
 
     /**
+     * @param list<int> $mediaIds
+     */
+    public function withShared(array $mediaIds): self
+    {
+        return new self($this->groups, $this->windowMinutes, $mediaIds);
+    }
+
+    /**
      * @return list<int> Every media ID that belongs to a group.
      */
     public function mediaIds(): array
@@ -67,24 +80,23 @@ final readonly class Links
     }
 
     /**
-     * @return list<int> The other tracks in the same group.
+     * @return list<int> The other tracks in the same group, and the track itself when it is also played in
+     *     its other role.
      */
     public function members(int $mediaId): array
     {
         $index = $this->groupByMedia[$mediaId] ?? null;
-        if ($index === null) {
-            return [];
-        }
-
-        return array_values(array_filter(
+        $members = $index === null ? [] : array_values(array_filter(
             $this->groups[$index]['media_ids'],
             static fn(int $id): bool => $id !== $mediaId
         ));
+
+        return isset($this->shared[$mediaId]) ? [...$members, $mediaId] : $members;
     }
 
     public function linked(int $mediaId): bool
     {
-        return isset($this->groupByMedia[$mediaId]);
+        return isset($this->groupByMedia[$mediaId]) || isset($this->shared[$mediaId]);
     }
 
     /**

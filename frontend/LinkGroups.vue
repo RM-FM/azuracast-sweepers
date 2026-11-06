@@ -7,6 +7,7 @@
                 <div class="form-text">Linked tracks never play within this time of each other. 0 = they only avoid each other while one of them is coming up.</div>
             </div>
         </div>
+        <p class="form-text">A track that is in both a sweeper and a jingle playlist is linked with itself automatically; it needs a group only to link it with other tracks.</p>
         <p v-if="error" class="text-danger small">{{ error }}</p>
         <div v-if="groups.length" class="accordion sweepers-link-groups mb-3">
             <div v-for="(group, index) in groups" :key="index" class="accordion-item" :data-link-group="index">

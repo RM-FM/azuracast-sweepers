@@ -287,7 +287,9 @@ Defaults for a new installation:
   **Keep linked tracks apart** also holds a group back for this long after any of
   its tracks played; `0` keeps only the coordination above. **Suggest Links**
   proposes groups whose titles match once case, punctuation and version labels such
-  as "(Dry)" or "v2" are ignored.
+  as "(Dry)" or "v2" are ignored. A track that is in both a sweeper pool and a jingle
+  playlist is linked with itself automatically: its plays in either role count for
+  the other, without a group.
 - **Other sweepers before a repeat:** if no other sweeper fits, the song gets none.
   With a single sweeper, repeats are always allowed.
 - **Prefer the longest fitting sweepers:** at 20% tolerance, bodies filling 80–100%

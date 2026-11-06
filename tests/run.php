@@ -256,6 +256,32 @@ check(
     ($linkedStart['history'][2] ?? null) === 1000.0 && !isset($unlinkedStart['history'][8]),
     'Only linked tracks record their start in the shared rotation history.'
 );
+$shared = $links->withShared([2, 7]);
+check(
+    $shared->members(2) === [1, 3, 2] && $shared->members(7) === [7] && $shared->linked(7)
+        && !$shared->linked(8) && $shared->toArray() === $links->toArray(),
+    'A track that is a sweeper and a jingle is linked with itself, without changing the saved groups.'
+);
+check(
+    $shared->recent([7 => 1000], 7, 1001) && !$links->recent([1 => 1000], 1, 1001),
+    'The window keeps a shared track apart from its own plays in the other role.'
+);
+$sharedStart = Planner::apply(['settings' => $linked->toArray()], [
+    'event' => 'start', 'token' => '702', 'detail' => 'jingle', 'media_id' => '8', 'at' => 1000.0,
+], [8]);
+check(
+    ($sharedStart['history'][8] ?? null) === 1000.0,
+    'A shared track playing as a jingle counts as a play in the sweeper rotation.'
+);
+$sharedRotation = new JingleRotation((new Links())->withShared([31]), [31 => 900.0], [], 32, 800.0, 1000.0, false);
+check(
+    $sharedRotation->tier(31) === JingleRotation::HELD
+        && (new JingleRotation((new Links())->withShared([31]), [], [31], 32, 800.0, 1000.0, false))->tier(31)
+            === JingleRotation::HELD
+        && (new JingleRotation(new Links(), [31 => 900.0], [31], 32, 800.0, 1000.0, false))->tier(31)
+            === JingleRotation::FREE,
+    'A shared track waits as a jingle while it is planned or was heard as a sweeper since the last jingle.'
+);
 $jingleLinks = new Links([
     ['name' => 'Dropin 1', 'media_ids' => [21, 11]],
     ['name' => 'Dropin 2', 'media_ids' => [22, 12]],

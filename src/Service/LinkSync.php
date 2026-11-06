@@ -11,6 +11,7 @@ use App\Entity\StationPlaylistMedia;
 use App\Lock\LockFactory;
 use Doctrine\ORM\EntityManagerInterface;
 use Plugin\AzuracastSweepers\ValueObject\JingleRotation;
+use Plugin\AzuracastSweepers\ValueObject\Links;
 use Plugin\AzuracastSweepers\ValueObject\Settings;
 
 // Linked sweepers and jingles share one rotation: the least recently heard link group plays next.
@@ -28,7 +29,7 @@ final readonly class LinkSync
      * Runs right before AzuraCast sends its next queue entry to Liquidsoap. A jingle gives way to a better
      * one from its playlist's current round; AzuraCast's choice stands when none is better.
      */
-    public function beforeSend(Station $station, Settings $settings, int $deadline): void
+    public function beforeSend(Station $station, Settings $settings, Links $links, int $deadline): void
     {
         $next = $this->nextEntry($station);
         if (
@@ -45,11 +46,11 @@ final readonly class LinkSync
             return;
         }
         $entries = $this->entries($playlist);
-        if (array_filter(array_keys($entries), $settings->links->linked(...)) === []) {
+        if (array_filter(array_keys($entries), $links->linked(...)) === []) {
             return;
         }
         $random = $playlist->order === PlaylistOrders::Random;
-        $rotation = $this->rotation($station, $settings, $playlist, $next['id']);
+        $rotation = $this->rotation($station, $links, $playlist, $next['id']);
         $keys = [];
         foreach ($entries as $mediaId => $entry) {
             $keys[$mediaId] = $rotation->key($mediaId, $random || $entry['queued'], $entry['last_played']);
@@ -130,7 +131,7 @@ final readonly class LinkSync
 
     private function rotation(
         Station $station,
-        Settings $settings,
+        Links $links,
         StationPlaylist $playlist,
         int $nextId
     ): JingleRotation {
@@ -159,7 +160,7 @@ final readonly class LinkSync
             ->getArrayResult()[0] ?? null;
 
         return new JingleRotation(
-            $settings->links,
+            $links,
             $data['history'] ?? [],
             $reserved,
             isset($previous['media_id']) ? (int)$previous['media_id'] : null,
