@@ -174,15 +174,6 @@
     margin-right: 1rem;
 }
 
-.sweepers-page .sweepers-settings .form-text {
-    max-width: 80ch;
-    line-height: 1.45;
-}
-
-.sweepers-page .sweepers-settings .form-text.sweepers-section-text {
-    max-width: none;
-}
-
 .sweepers-page:not(.embedded) .sweepers-settings .form-text {
     margin-top: .25rem;
     font-size: .875em;

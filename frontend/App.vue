@@ -52,7 +52,7 @@
                     <div class="row g-4 mt-0">
                     <fieldset class="form-group col-12" aria-describedby="sweepers-pool-help">
                         <legend>Sweeper Pool</legend>
-                        <p id="sweepers-pool-help" class="form-text sweepers-section-text">Sweepers for all songs. Listener requests and songs from playlists with their own rule can use other sweepers on the Sweeper Rules tab. Schedules still apply; playlists in the same pool share one rotation.</p>
+                        <p id="sweepers-pool-help" class="form-text">Sweepers for all songs. Listener requests and songs from playlists with their own rule can use other sweepers on the Sweeper Rules tab. Schedules still apply; playlists in the same pool share one rotation.</p>
                         <SweeperRoute v-if="defaultRoute" :route="defaultRoute" title="Default" :playlists="playlists" :label="playlistLabel" />
                     </fieldset>
 
@@ -73,13 +73,13 @@
                     <div class="row g-4">
                     <fieldset v-if="requestRoute" class="form-group col-12" data-route-key="listener_request">
                         <legend>Listener Requests</legend>
-                        <p class="form-text sweepers-section-text">Sweepers for songs that listeners requested, for example one that announces the request.</p>
+                        <p class="form-text">Sweepers for songs that listeners requested, for example one that announces the request.</p>
                         <SweeperRoute :route="requestRoute" title="Listener Request" :playlists="playlists" :label="playlistLabel" />
                     </fieldset>
 
                     <fieldset class="form-group col-12">
                         <legend>Song Playlist Rules</legend>
-                        <p class="form-text sweepers-section-text">Give songs from one playlist their own sweepers, for example a Christmas playlist. Rules are collapsed; open one to edit it.</p>
+                        <p class="form-text">Give songs from one playlist their own sweepers, for example a Christmas playlist. Rules are collapsed; open one to edit it.</p>
                         <div v-if="playlistRoutes.length" class="accordion sweepers-playlist-rules mb-3">
                             <div v-for="route in playlistRoutes" :key="route.key" class="accordion-item" :data-route-key="route.key">
                                 <h3 class="accordion-header">
@@ -149,7 +149,7 @@
 
                     <fieldset class="form-group col-12">
                         <legend>Linked Sweepers &amp; Jingles</legend>
-                        <p class="form-text sweepers-section-text">Link sweepers and jingles that say the same, for example differently produced versions. When any track of a group plays, the whole group counts as just played: sweepers and jingles both prefer the group heard longest ago, a jingle waits while its linked sweeper was just heard or is coming up, and a sweeper waits after its linked jingle.</p>
+                        <p class="form-text">Link sweepers and jingles that say the same, for example differently produced versions. When any track of a group plays, the whole group counts as just played: sweepers and jingles both prefer the group heard longest ago, a jingle waits while its linked sweeper was just heard or is coming up, and a sweeper waits after its linked jingle.</p>
                         <LinkGroups v-if="settings.link_groups" v-model:window="settings.link_window" :groups="settings.link_groups" :candidates="linkCandidates" :error="linkCandidatesError" />
                     </fieldset>
                     </div>
