@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Plugin\AzuracastSweepers\EventHandler;
 
 use App\Enums\StationPermissions;
+use App\Event\BuildConsoleCommands;
 use App\Event\BuildRoutes;
 use App\Event\Radio\WriteLiquidsoapConfiguration;
 use App\Middleware;
+use Plugin\AzuracastSweepers\Console\DetectorAccountCommand;
 use Plugin\AzuracastSweepers\Controller\InternalController;
 use Plugin\AzuracastSweepers\Controller\PanelController;
 use Plugin\AzuracastSweepers\Controller\ReleaseController;
@@ -34,6 +36,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
     public static function getSubscribedEvents(): array
     {
         return [
+            BuildConsoleCommands::class => 'commands',
             BuildRoutes::class => 'routes',
             WriteLiquidsoapConfiguration::class => [
                 ['header', 32],
@@ -41,6 +44,11 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
                 ['verify', -100],
             ],
         ];
+    }
+
+    public function commands(BuildConsoleCommands $event): void
+    {
+        $event->addAliases([DetectorAccountCommand::NAME => DetectorAccountCommand::class]);
     }
 
     public function routes(BuildRoutes $event): void
