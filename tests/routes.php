@@ -15,13 +15,21 @@ namespace App\Enums {
         case Media;
         case Broadcasting;
     }
+
+    enum GlobalPermissions
+    {
+        case Settings;
+    }
 }
 
 namespace App\Middleware {
     final class Permissions
     {
+        public static array $created = [];
+
         public function __construct(mixed ...$args)
         {
+            self::$created[] = $args;
         }
     }
 }
@@ -92,8 +100,21 @@ namespace {
         ->newInstanceWithoutConstructor();
     $subscriber->routes(new \App\Event\BuildRoutes($app));
 
-    if ($app->groups !== 2 || count($app->routes) !== 16) {
+    if ($app->groups !== 2 || count($app->routes) !== 23) {
         throw new \RuntimeException('Sweeper routes were not registered.');
     }
-    echo '2 route groups bound; 16 routes registered.' . PHP_EOL;
+    $paths = array_map(static fn(array $route): string => $route[0] . ' ' . $route[1], $app->routes);
+    foreach (['GET /detector', 'POST /detector/settings', 'POST /detector/key', 'GET /detector/instance'] as $route) {
+        if (!in_array($route, $paths, true)) {
+            throw new \RuntimeException("Missing route $route.");
+        }
+    }
+    $global = array_filter(
+        \App\Middleware\Permissions::$created,
+        static fn(array $args): bool => $args === [\App\Enums\GlobalPermissions::Settings]
+    );
+    if (count($global) !== 2) {
+        throw new \RuntimeException('Instance-wide detector routes must require Administer Settings.');
+    }
+    echo '2 route groups bound; 23 routes registered.' . PHP_EOL;
 }

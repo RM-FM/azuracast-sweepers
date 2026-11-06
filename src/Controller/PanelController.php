@@ -6,6 +6,7 @@ namespace Plugin\AzuracastSweepers\Controller;
 
 use App\Entity\Station;
 use App\Entity\StationMedia;
+use App\Enums\GlobalPermissions;
 use App\Enums\StationPermissions;
 use App\Http\Response;
 use App\Http\RouterInterface;
@@ -13,6 +14,7 @@ use App\Http\ServerRequest;
 use App\Middleware\Auth\ApiAuth;
 use InvalidArgumentException;
 use Plugin\AzuracastSweepers\Service\Arranger;
+use Plugin\AzuracastSweepers\Service\DetectorClient;
 use Plugin\AzuracastSweepers\Service\History;
 use Plugin\AzuracastSweepers\Service\Media;
 use Plugin\AzuracastSweepers\Service\Module;
@@ -26,7 +28,8 @@ final readonly class PanelController
 {
     public function __construct(
         private Media $media,
-        private State $state
+        private State $state,
+        private DetectorClient $detector
     ) {
     }
 
@@ -77,6 +80,7 @@ final readonly class PanelController
         $station = $request->getStation();
         $data = $this->state->read($station->getRadioConfigDir());
         $canRestart = $request->getAcl()->isAllowed(StationPermissions::Broadcasting, $station);
+        $detectorInstalled = $this->detector->installed();
 
         return $response->withHeader('Cache-Control', 'no-store')->withJson([
             'csrf' => $request->getCsrf()->generate('sweepers'),
@@ -86,6 +90,8 @@ final readonly class PanelController
                 'timezone' => $station->timezone,
                 'needs_restart' => $station->needs_restart,
             ],
+            // Without an installation only administrators see the page, with the install instructions.
+            'detector' => $detectorInstalled || $request->getAcl()->isAllowed(GlobalPermissions::Settings),
             'restart' => $canRestart ? [
                 'url' => $request->getRouter()->named('api:stations:backend', [
                     'station_id' => $station->id,

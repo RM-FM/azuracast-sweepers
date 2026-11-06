@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Plugin\AzuracastSweepers\EventHandler;
 
+use App\Enums\GlobalPermissions;
 use App\Enums\StationPermissions;
 use App\Event\BuildConsoleCommands;
 use App\Event\BuildRoutes;
 use App\Event\Radio\WriteLiquidsoapConfiguration;
 use App\Middleware;
 use Plugin\AzuracastSweepers\Console\DetectorAccountCommand;
+use Plugin\AzuracastSweepers\Controller\DetectorController;
 use Plugin\AzuracastSweepers\Controller\InternalController;
 use Plugin\AzuracastSweepers\Controller\PanelController;
 use Plugin\AzuracastSweepers\Controller\ReleaseController;
@@ -68,6 +70,22 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
             $group->post('/intro/{id:[0-9]+}', PanelController::class . ':introAction');
             $group->post('/settings', PanelController::class . ':settingsAction')
                 ->add(new Middleware\Permissions(StationPermissions::Broadcasting, true));
+            $group->get('/detector', DetectorController::class . ':statusAction');
+            $group->get('/detector/preview', DetectorController::class . ':previewAction');
+            $group->post('/detector/settings', DetectorController::class . ':settingsAction')
+                ->add(new Middleware\Permissions(StationPermissions::Broadcasting, true));
+            $group->post('/detector/key', DetectorController::class . ':keyAction')
+                ->add(new Middleware\Permissions(StationPermissions::Broadcasting, true));
+            $group->post(
+                '/detector/{action:process|retry|backfill|publish|worker}',
+                DetectorController::class . ':actionAction'
+            )->add(new Middleware\Permissions(StationPermissions::Broadcasting, true));
+            $group->get('/detector/instance', DetectorController::class . ':instanceAction')
+                ->add(new Middleware\Permissions(GlobalPermissions::Settings));
+            $group->post(
+                '/detector/instance/{part:settings|key|station|worker}',
+                DetectorController::class . ':instanceUpdateAction'
+            )->add(new Middleware\Permissions(GlobalPermissions::Settings));
         })
             ->add(new Middleware\Permissions(StationPermissions::Media, true))
             ->add(Middleware\RequireStation::class)
