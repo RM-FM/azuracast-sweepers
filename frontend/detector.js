@@ -3,7 +3,7 @@ export const MODES = [
     ["publish", "Publish: write intros to AzuraCast"],
 ];
 
-const STATION_FIELDS = ["enabled", "mode", "auto_process", "min_song_seconds", "exclude_playlists", "budget_usd"];
+const STATION_FIELDS = ["enabled", "mode", "auto_process", "min_song_seconds", "max_song_seconds", "exclude_playlists", "budget_usd"];
 
 const BLOCKED = {
     "no Runpod key": "Add a Runpod API key to start analyzing songs.",

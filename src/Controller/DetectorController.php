@@ -21,7 +21,7 @@ use Psr\Http\Message\ResponseInterface;
 final readonly class DetectorController
 {
     private const array STATION_FIELDS = [
-        'enabled', 'mode', 'auto_process', 'min_song_seconds', 'exclude_playlists', 'budget_usd',
+        'enabled', 'mode', 'auto_process', 'min_song_seconds', 'max_song_seconds', 'exclude_playlists', 'budget_usd',
     ];
 
     public function __construct(

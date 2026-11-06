@@ -177,9 +177,17 @@
                                         <div class="form-text">Intros entered by hand are never overwritten.</div>
                                     </div>
                                     <div class="form-group col-md-6">
-                                        <label class="form-label" for="detector-min-length">Minimum song length (seconds)</label>
-                                        <input id="detector-min-length" v-model.number="form.min_song_seconds" class="form-control" type="number" min="0" max="3600" step="1" required>
-                                        <div class="form-text">Shorter files, such as station IDs, are skipped. Jingle Mode playlists are always skipped.</div>
+                                        <div class="row g-3">
+                                            <div class="col-6">
+                                                <label class="form-label" for="detector-min-length">Minimum song length (seconds)</label>
+                                                <input id="detector-min-length" v-model.number="form.min_song_seconds" class="form-control" type="number" min="0" max="3600" step="1" required>
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label" for="detector-max-length">Maximum song length (seconds)</label>
+                                                <input id="detector-max-length" v-model.number="form.max_song_seconds" class="form-control" type="number" min="0" max="86400" step="1" required>
+                                            </div>
+                                        </div>
+                                        <div class="form-text">Shorter files, such as station IDs, and longer files, such as DJ mixes, are skipped; 0 means no maximum. Jingle Mode playlists are always skipped.</div>
                                     </div>
                                 </div>
                             </fieldset>

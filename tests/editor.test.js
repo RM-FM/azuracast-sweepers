@@ -170,7 +170,7 @@ let detectorSettings = {};
 let detectorActivity = null;
 let detectorKey = { stations: 1, spend_month_usd: 0.42, balance_usd: 12.3, balance_checked_at: 1900 };
 const detectorStation = (overrides = {}) => ({
-    settings: { id: 1, enabled: true, mode: "shadow", auto_process: true, min_song_seconds: 60, exclude_playlists: [],
+    settings: { id: 1, enabled: true, mode: "shadow", auto_process: true, min_song_seconds: 60, max_song_seconds: 900, exclude_playlists: [],
         budget_usd: 10, ...overrides },
     queue: { done: 120, pending: 4, failed: 1, known: 300 },
     publications: { planned: overrides.mode === "publish" ? 3 : 0, written: 0 },
@@ -1254,8 +1254,13 @@ test("intro detector page saves only changed station fields, offers publishing a
         length.value = "90";
         length.dispatchEvent(new Event("input", { bubbles: true }));
         await settle();
+        const maximum = document.querySelector("#detector-max-length");
+        assert.equal(maximum.value, "900");
+        maximum.value = "1200";
+        maximum.dispatchEvent(new Event("input", { bubbles: true }));
+        await settle();
         await submitForm("#detector-enabled");
-        assert.deepEqual(detectorRequests.at(-1), { path: "/detector/settings", body: { min_song_seconds: 90 } });
+        assert.deepEqual(detectorRequests.at(-1), { path: "/detector/settings", body: { min_song_seconds: 90, max_song_seconds: 1200 } });
         assert.equal(document.querySelector("[data-detector-planned]"), null, "Shadow mode offers no publishing");
         detectorSettings = { mode: "publish" };
         await click("Refresh");
