@@ -34,7 +34,13 @@ cleanup() {
 trap cleanup EXIT
 status 'Checking installation...\n'
 
-[[ $# == 0 ]] || fail "Usage: bash bin/setup.sh (run after cloning or pulling the plugin)."
+ask_detector=false
+case "${1:-}" in
+    '') ;;
+    --detector) ask_detector=true ;;
+    *) fail "Usage: bash bin/setup.sh [--detector] (run after cloning or pulling the plugin)." ;;
+esac
+[[ $# -le 1 ]] || fail "Usage: bash bin/setup.sh [--detector] (run after cloning or pulling the plugin)."
 [[ "$plugin_dir" == "$azuracast_dir/plugins/azuracast-sweepers" ]] ||
     fail "Keep this checkout at AZURACAST_DIR/plugins/azuracast-sweepers."
 [[ -f "$azuracast_dir/docker-compose.yml" ]] || fail "AzuraCast docker-compose.yml not found."
@@ -150,3 +156,63 @@ fi
 docker compose exec -T web rm -f /var/azuracast/www_tmp/app_routes.cache.php
 status '\nPlugin installed/updated. Station settings and intro values were not changed.\n'
 status 'Open Sweepers > Settings to check module status and any required broadcasting restart.\n'
+
+# Optional Intro Detector: offered once on installation, then updated together with the plugin.
+detector_dir=${SWEEPERS_DETECTOR_DIR:-/opt/azuracast-intro-detector}
+detector_repo=${SWEEPERS_DETECTOR_REPO:-https://github.com/RM-FM/azuracast-intro-detector.git}
+detector_version=$(tr -d '[:space:]' < "$plugin_dir/detector.version")
+[[ "$detector_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail 'detector.version is invalid.'
+declined="$plugin_dir/.detector-declined"
+detector_account() {
+    docker compose exec -T web azuracast_cli sweepers:detector-account "$@"
+}
+detector_input() {
+    local input
+    input=$(detector_account --new-key)
+    [[ "$input" != $'\n'* ]] || fail 'Set the Site Base URL in AzuraCast > Administration > System Settings first.'
+    [[ $(printf '%s\n' "$input" | wc -l) == 2 && "$input" =~ $'\n'[0-9a-f]+:[0-9a-f]+$ ]] ||
+        fail 'Could not create the Intro Detector account.'
+    printf '%s\n' "$input"
+}
+detector_linked() {
+    detector_account --sync > /dev/null ||
+        fail 'The Intro Detector runs, but station access could not be granted. Run setup again.'
+}
+if $ask_detector; then rm -f "$declined"; fi
+if [[ -d "$detector_dir/.git" ]]; then
+    [[ -w "$detector_dir" ]] || { status '\nThe Intro Detector was not updated: run this setup with sudo.\n'; exit 0; }
+    status '\nUpdating the Intro Detector to %s...\n' "$detector_version"
+    # A detector installed before the plugin managed it switches to the plugin's account once.
+    input=""
+    if [[ ! -f "$plugin_dir/.detector.json" ]]; then input=$(detector_input); fi
+    { [[ -z "$input" ]] || printf '%s\n' "$input"; } | bash "$detector_dir/bin/update.sh" \
+        --version "$detector_version" --azuracast-dir "$azuracast_dir" >&3 2>&4 ||
+        fail 'The Intro Detector update failed; the previous version keeps running.'
+    detector_linked
+elif [[ ! -e "$declined" ]]; then
+    status '\nOptional: Intro Detector\n'
+    status 'It finds where the vocals start in each song so sweepers fit automatically. Songs are analyzed on\n'
+    status 'rented GPUs at Runpod (paid, about US$4 per 1,000 songs). Each station enables it and enters its own\n'
+    status 'Runpod key and budget in Sweepers > Intro Detector. More: https://github.com/RM-FM/azuracast-intro-detector\n'
+    if [[ ! -t 0 ]]; then
+        status 'To install it later, run: sudo bash bin/setup.sh --detector\n'
+        exit 0
+    fi
+    status 'Install the Intro Detector? [y/N] '
+    read -r answer || answer=""
+    if [[ "$answer" != y && "$answer" != Y && "$answer" != yes ]]; then
+        : > "$declined"
+        status 'Not installed. To install it later, run: sudo bash bin/setup.sh --detector\n'
+        exit 0
+    fi
+    [[ -w "$(dirname "$detector_dir")" ]] ||
+        fail 'Installing the Intro Detector needs root: run sudo bash bin/setup.sh --detector'
+    command -v git >/dev/null || fail 'Git is required to install the Intro Detector.'
+    status 'Installing the Intro Detector %s into %s...\n' "$detector_version" "$detector_dir"
+    git clone --quiet "$detector_repo" "$detector_dir"
+    git -C "$detector_dir" -c advice.detachedHead=false checkout --quiet --detach "refs/tags/$detector_version"
+    detector_input | bash "$detector_dir/bin/setup.sh" --azuracast-dir "$azuracast_dir" --unattended >&3 2>&4 ||
+        fail "The Intro Detector could not be installed. Fix the reported problem, then run: sudo bash bin/setup.sh --detector"
+    detector_linked
+    status 'Intro Detector installed. Enable it per station in Sweepers > Intro Detector.\n'
+fi

@@ -83,6 +83,26 @@ final readonly class DetectorAccess
         )->setParameter('role', $role)->setParameter('station', $station)->execute();
     }
 
+    /**
+     * Grant the detector exactly the stations it has enabled.
+     *
+     * @param list<int> $enabled
+     */
+    public function sync(array $enabled): int
+    {
+        $granted = 0;
+        foreach ($this->em->getRepository(Station::class)->findAll() as $station) {
+            if (in_array($station->id, $enabled, true)) {
+                $this->grant($station);
+                ++$granted;
+            } else {
+                $this->revoke($station);
+            }
+        }
+
+        return $granted;
+    }
+
     public function granted(Station $station): bool
     {
         $user = $this->user();
