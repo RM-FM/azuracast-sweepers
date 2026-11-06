@@ -97,6 +97,7 @@ test("station paths respect the installation prefix and reject unrelated pages",
             settings: "/radio/station/12/sweepers/settings",
             intros: "/radio/station/12/sweepers/intros",
             history: "/radio/station/12/sweepers/history",
+            detector: "/radio/station/12/sweepers/detector",
         },
         apiBase: "/radio/sweepers/12",
     });
@@ -123,6 +124,7 @@ test("adds one top-level Sweepers group after Media and does not loop on its own
         ["Settings", "/station/1/sweepers/settings", "nav-link ps-4 py-2"],
         ["Intro Manager", "/station/1/sweepers/intros", "nav-link ps-4 py-2"],
         ["Playback Timeline", "/station/1/sweepers/history", "nav-link ps-4 py-2"],
+        ["Intro Detector", "/station/1/sweepers/detector", "nav-link ps-4 py-2"],
     ]);
     assert.equal(f.item().parentElement.id, "station-menu");
     assert.equal(f.item().previousElementSibling.id, "media-item");

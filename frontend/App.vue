@@ -533,6 +533,7 @@
                 </div>
             </div>
         </section>
+        <IntroDetector v-if="!loading && stateLoaded && current === 'detector'" :api="api" :playlists="jinglePlaylists" :timezone="station?.timezone" />
     </div>
 </template>
 
@@ -541,6 +542,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { VueDatePicker } from "@vuepic/vue-datepicker";
 import DataToolbar from "./DataToolbar.vue";
 import Icon from "./Icon.vue";
+import IntroDetector from "./IntroDetector.vue";
 import LinkGroups from "./LinkGroups.vue";
 import Pagination from "./Pagination.vue";
 import PlaylistPicker from "./PlaylistPicker.vue";
@@ -555,7 +557,7 @@ const props = defineProps({
     view: { type: String, default: "settings" },
     standalone: { type: Boolean, default: false },
 });
-const views = [["settings", "Settings"], ["intros", "Intro Manager"], ["history", "Playback Timeline"]];
+const views = [["settings", "Settings"], ["intros", "Intro Manager"], ["history", "Playback Timeline"], ["detector", "Intro Detector"]];
 const current = ref(views.some(([key]) => key === props.view) ? props.view : "settings");
 const settingsTabs = [["general", "General"], ["rules", "Sweeper Rules"], ["spacing", "Spacing & Jingles"], ["selection", "Selection & Timing"], ["audio", "Audio & Preview"]];
 const settingsTab = ref("general");

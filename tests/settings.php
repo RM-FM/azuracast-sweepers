@@ -213,7 +213,6 @@ namespace {
     use App\Radio\Backend\Liquidsoap;
     use Plugin\AzuracastSweepers\Controller\PanelController;
     use Plugin\AzuracastSweepers\EventHandler\PluginSubscriber;
-    use Plugin\AzuracastSweepers\Service\DetectorClient;
     use Plugin\AzuracastSweepers\Service\Media;
     use Plugin\AzuracastSweepers\Service\Module;
     use Plugin\AzuracastSweepers\Service\State;
@@ -235,7 +234,7 @@ namespace {
     $station = new Station($directory);
     $state = new State();
     $media = new Media();
-    $controller = new PanelController($media, $state, new DetectorClient($directory . '/no-detector.json'));
+    $controller = new PanelController($media, $state);
     $subscriber = new PluginSubscriber($media, $state, new Verifier(new Liquidsoap()));
     $save = static function (array $settings) use ($controller, $station): array {
         $response = $controller->settingsAction(new ServerRequest($station, $settings), new Response(), []);

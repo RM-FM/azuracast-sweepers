@@ -64,6 +64,19 @@ globalThis.fetch = async (url, options) => {
     let data;
     if (url.endsWith("/release")) {
         data = releaseInfo;
+    } else if (url.includes("/detector")) {
+        const body = options?.body ? JSON.parse(options.body) : undefined;
+        detectorRequests.push({ path: url.slice(url.indexOf("/detector")), body });
+        if (url.endsWith("/detector/settings")) {
+            detectorSettings = { ...detectorSettings, ...body };
+            data = { station: detectorStation(detectorSettings) };
+        } else if (url.endsWith("/detector/key")) {
+            data = { station: detectorStation(detectorSettings) };
+        } else if (url.endsWith("/detector/publish")) {
+            data = detectorStation(detectorSettings);
+        } else {
+            data = detectorInfo.installed ? { ...detectorInfo, station: detectorStation(detectorSettings) } : { ...detectorInfo };
+        }
     } else if (url === "/api/station/1/backend/restart") {
         restarts.push(options);
         data = { success: true, message: "Station restarted." };
@@ -151,6 +164,19 @@ const previewRequests = [];
 const mediaLookups = [];
 const linkRequests = [];
 const historyRequests = [];
+const detectorRequests = [];
+let detectorInfo = { installed: true, can_manage: true, can_admin: false };
+let detectorSettings = {};
+const detectorStation = (overrides = {}) => ({
+    settings: { id: 1, enabled: true, mode: "shadow", auto_process: true, min_song_seconds: 60, exclude_playlists: [],
+        billing: "own", budget_usd: 10, shared_allowed: false, shared_cap_usd: 0, account: "station-1", ...overrides },
+    queue: { done: 120, pending: 4, failed: 1, known: 300 },
+    publications: { planned: overrides.mode === "publish" ? 3 : 0, written: 0 },
+    library_without_intro: 300, process_requested: false, jobs: [], blocked: null, key: true, shared_key_available: false,
+    spend_month_usd: 0.42, limit_usd: 10, worker: null, recovery: null,
+    runs: [{ id: "r1", status: "complete", songs: 4, started_at: 1792948000, finished_at: 1792948600, error: null }],
+    failures: [{ media_id: 9, path: "broken.mp3", attempts: 2, error: "HTTP 404", updated_at: 1792948000 }],
+});
 const activePage = () => document.querySelector(".datatable-toolbar-top .page-item.active")?.textContent.trim();
 const goToPage = async (number) => {
     const link = [...document.querySelectorAll(".datatable-toolbar-top .page-link")].find((node) => node.textContent.trim() === String(number));
@@ -1199,4 +1225,74 @@ test("reverb preview plays the selected sweeper and follows the reverb settings 
         app.unmount();
         delete window.AudioContext;
     }
+});
+const submitForm = async (field) => {
+    document.querySelector(field).closest("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    await settle();
+};
+
+const mountDetector = async () => {
+    const app = createApp(App, { base: "/sweepers/1", csrf: "session-token", view: "detector" });
+    app.mount(document.querySelector("#app"));
+    await settle();
+    await settle();
+    return app;
+};
+
+test("intro detector page saves only changed station fields, offers publishing and keeps the key write-only", async () => {
+    detectorRequests.length = 0;
+    detectorSettings = {};
+    detectorInfo = { installed: true, can_manage: true, can_admin: false };
+    const app = await mountDetector();
+    try {
+        assert.equal(document.querySelector("#detector-heading").textContent, "Intro Detector");
+        assert.match(document.querySelector("#app").textContent, /US\$0\.42 of US\$10\.00 this month/);
+        assert.equal(document.querySelector("#detector-instance-heading"), null, "Server-wide settings are for administrators");
+        const length = document.querySelector("#detector-min-length");
+        length.value = "90";
+        length.dispatchEvent(new Event("input", { bubbles: true }));
+        await settle();
+        await submitForm("#detector-enabled");
+        assert.deepEqual(detectorRequests.at(-1), { path: "/detector/settings", body: { min_song_seconds: 90 } });
+        assert.equal(document.querySelector("[data-detector-planned]"), null, "Shadow mode offers no publishing");
+        detectorSettings = { mode: "publish" };
+        await click("Refresh");
+        assert.match(document.querySelector("[data-detector-planned]").textContent, /3 intros were found/);
+        await click("Write them to AzuraCast");
+        assert.equal(detectorRequests.at(-1).path, "/detector/publish");
+        const key = document.querySelector("#detector-key");
+        assert.equal(key.type, "password");
+        key.value = " rpa_NEWKEY12345678 ";
+        key.dispatchEvent(new Event("input", { bubbles: true }));
+        await settle();
+        await submitForm("#detector-key");
+        assert.deepEqual(detectorRequests.at(-1), { path: "/detector/key", body: { key: "rpa_NEWKEY12345678" } });
+        assert.equal(document.querySelector("#detector-key").value, "", "The key is not kept in the page");
+    } finally {
+        app.unmount();
+    }
+});
+
+test("intro detector page is read-only without Broadcasting and explains a missing installation", async () => {
+    detectorSettings = {};
+    detectorInfo = { installed: true, can_manage: false, can_admin: false };
+    let app = await mountDetector();
+    try {
+        assert.ok(document.querySelector("#detector-enabled").closest("fieldset").hasAttribute("disabled"));
+        assert.equal([...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Analyze now"), undefined);
+        assert.equal(document.querySelector("#detector-key"), null);
+    } finally {
+        app.unmount();
+    }
+    for (const [admin, text] of [[true, /sudo bash bin\/setup\.sh --detector/], [false, /Ask the server administrator/]]) {
+        detectorInfo = { installed: false, can_manage: true, can_admin: admin };
+        app = await mountDetector();
+        try {
+            assert.match(document.querySelector("#app").textContent, text);
+            assert.equal(document.querySelector("#detector-heading"), null);
+        } finally {
+            app.unmount();
+        }
+    }
+    detectorInfo = { installed: true, can_manage: true, can_admin: false };
 });
