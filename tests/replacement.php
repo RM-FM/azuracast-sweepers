@@ -208,9 +208,11 @@ namespace {
     $schema->dropSchema($metadata);
     $schema->createSchema($metadata);
 
-    $queue = new StationQueueRepository(new StationPlaylistRepository());
+    $playlists = new StationPlaylistRepository();
+    $queue = new StationQueueRepository($playlists);
     $queue->em = $em;
-    $playlistMedia = new StationPlaylistMediaRepository($queue);
+    // Older AzuraCast releases take only the queue repository and ignore the extra argument.
+    $playlistMedia = new StationPlaylistMediaRepository($queue, $playlists);
     $playlistMedia->em = $em;
     $duplicates = new DuplicatePrevention();
     $duplicates->setLogger(new \Monolog\Logger('replacement-test'));
