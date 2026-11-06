@@ -421,8 +421,9 @@ The optional [Intro Detector](https://github.com/RM-FM/azuracast-intro-detector)
 a separate service; detection, its models and analysis data stay in it. The plugin
 installs, updates and connects it and provides its station page.
 
-- **Installation:** `bin/setup.sh` asks once on the first installation; a refusal is
-  remembered in `.detector-declined`. `sudo bash bin/setup.sh --detector` asks again.
+- **Installation:** `bin/setup.sh` offers it once when no detector is installed, also on
+  an update from an older plugin version; a refusal is remembered in `.detector-declined`.
+  `sudo bash bin/setup.sh --detector` asks again.
   The detector release pinned in `detector.version` is cloned to
   `/opt/azuracast-intro-detector` (override with `SWEEPERS_DETECTOR_DIR`) and set
   up unattended. Every later plugin setup moves it to the pinned release and keeps

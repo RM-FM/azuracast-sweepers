@@ -45,8 +45,9 @@ bash bin/setup.sh
 ```
 
 Settings and intro values are kept. If an interruption is needed, the script asks first.
-An installed Intro Detector is updated to the matching release at the same time; this
-needs `sudo bash bin/setup.sh`.
+If no Intro Detector is installed, setup offers it once, also on an update. An installed
+Intro Detector is updated to the matching release at the same time; this needs
+`sudo bash bin/setup.sh`.
 
 **Sweepers → Settings** shows the installed version and available updates.
 After updating, check whether Settings asks you to **Restart Broadcasting**.

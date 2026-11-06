@@ -4,8 +4,8 @@
 
 ### Features
 
-- **Intro Detector integration:** setup offers to install the optional Intro Detector
-  and updates it together with the plugin. A new **Sweepers → Intro Detector** page
+- **Intro Detector integration:** setup offers to install the optional Intro Detector,
+  also when updating to this version, and updates it together with the plugin. A new **Sweepers → Intro Detector** page
   manages it per station: on/off, shadow or publish mode, automatic processing,
   skipped playlists, the station's own Runpod key and monthly budget, status, costs,
   failed songs and analyzing the existing library. Station broadcasting permission is

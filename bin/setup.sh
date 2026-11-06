@@ -157,7 +157,7 @@ docker compose exec -T web rm -f /var/azuracast/www_tmp/app_routes.cache.php
 status '\nPlugin installed/updated. Station settings and intro values were not changed.\n'
 status 'Open Sweepers > Settings to check module status and any required broadcasting restart.\n'
 
-# Optional Intro Detector: offered once on installation, then updated together with the plugin.
+# Optional Intro Detector: offered while none is installed until declined, then updated with the plugin.
 detector_dir=${SWEEPERS_DETECTOR_DIR:-/opt/azuracast-intro-detector}
 detector_repo=${SWEEPERS_DETECTOR_REPO:-https://github.com/RM-FM/azuracast-intro-detector.git}
 detector_version=$(tr -d '[:space:]' < "$plugin_dir/detector.version")
