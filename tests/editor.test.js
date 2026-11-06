@@ -53,6 +53,7 @@ let releaseSave;
 let needsRestart = false;
 let mediaResponse = null;
 let stateResponse = null;
+let settingsOverride = {};
 const mediaRequests = [];
 let moduleState = { state: "active", message: "The sweeper module is loaded and active on this station." };
 let restartInfo = null;
@@ -74,7 +75,7 @@ globalThis.fetch = async (url, options) => {
             count_jingle_mode: true, jingle_playlist_ids: [], longest_fit: false, length_tolerance: 20, swap_for_intro: false,
             reverb: false, reverb_intensity: 25, swap_sequential: false, swap_from_playlist: false,
             replacement_limit: 2,
-            excluded_playlist_ids: [], sweeper_gap: 1,
+            excluded_playlist_ids: [], sweeper_gap: 1, ...settingsOverride,
         }, playlists: [
             { id: 10, name: "Sweepers", enabled: true, scheduled: false, source: "songs" },
             { id: 11, name: "Christmas", enabled: true, scheduled: true, source: "songs" },
@@ -242,6 +243,7 @@ test("intro editor uses native-style controls and saves only marker, playhead or
         assert.deepEqual(writes.at(-1).body, { intro_end: 12.5 });
         assert.equal(writes.at(-1).url, "/sweepers/1/intro/1");
         assert.equal(writes.at(-1).options.headers["X-CSRF-Token"], "session-token");
+        assert.equal(writes.at(-1).options.headers.Accept, "application/json", "Server errors are returned as JSON messages");
         assert.equal(writes.at(-1).options.credentials, "same-origin");
         await click("Move marker");
         assert.equal(document.querySelector("#marker").textContent, "14.75");
@@ -790,6 +792,30 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(writes.at(-1).url, "/sweepers/1/settings");
     } finally {
         app.unmount();
+    }
+});
+
+test("saved playlists that are no longer available can be removed", async () => {
+    settingsOverride = { playlist_ids: [10, 99], excluded_playlist_ids: [98] };
+    const app = createApp(App, { base: "/sweepers/1", csrf: "session-token" });
+    app.mount(document.querySelector("#app"));
+    try {
+        await settle();
+        const remove = document.querySelector('[aria-label="Remove Unavailable playlist (ID 99)"]');
+        assert.ok(remove, "An unavailable sweeper playlist is shown");
+        assert.ok(document.querySelector('[aria-label="Remove Unavailable playlist (ID 98)"]'), "An unavailable excluded playlist is shown");
+        remove.click();
+        document.querySelector('[aria-label="Remove Unavailable playlist (ID 98)"]').click();
+        await settle();
+        document.querySelector("section.card form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        await settle();
+        const body = writes.at(-1).body;
+        assert.deepEqual(body.playlist_ids, [10]);
+        assert.deepEqual(body.sweeper_routes.find((route) => route.key === "default").playlist_ids, [10]);
+        assert.deepEqual(body.excluded_playlist_ids, []);
+    } finally {
+        app.unmount();
+        settingsOverride = {};
     }
 });
 

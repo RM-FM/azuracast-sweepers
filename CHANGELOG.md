@@ -2,15 +2,18 @@
 
 ## 1.3.2 - 2026-11-06
 
-### Improvements
+### Fixes
 
-- Keep the compatibility checks working with the current AzuraCast rolling release
-  after a change to its playlist media repository. The plugin code is unchanged.
+- **Settings:** a rejected save now shows the actual reason instead of "The session
+  expired or the server could not complete the request".
+- Saved playlists that were deleted or can no longer be used, for example a sweeper
+  playlist that is no longer Advanced, appear as removable "Unavailable playlist"
+  tags instead of silently blocking every save.
 
 ### Update notes
 
 - **AzuraCast Broadcast (Liquidsoap) restart: Not required**; the Liquidsoap module
-  is unchanged. No frontend rebuild or PHP/worker reload is needed.
+  is unchanged. Run `bash bin/setup.sh` to rebuild the frontend.
 
 ## 1.3.1 - 2026-11-05
 

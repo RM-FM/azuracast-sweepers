@@ -1,10 +1,14 @@
 <template>
     <div ref="picker" class="sweepers-playlist-picker" @keydown.esc.stop.prevent="close">
-        <div v-if="tags && selected.length" class="sweepers-playlist-selected d-flex flex-wrap align-items-center gap-2 mb-2">
+        <div v-if="tags && (selected.length || unavailable.length)" class="sweepers-playlist-selected d-flex flex-wrap align-items-center gap-2 mb-2">
             <span v-for="playlist in selected" :key="playlist.id" class="playlist-source-badge badge text-bg-secondary d-inline-flex align-items-center gap-1">
                 <Icon v-if="sourceIcon(playlist)" :name="sourceIcon(playlist)" class="sm" />
                 <span class="text-truncate">{{ label(playlist) }}</span>
                 <button class="btn-close btn-close-white" type="button" :aria-label="'Remove ' + label(playlist)" @click="remove(playlist.id)" />
+            </span>
+            <span v-for="playlistId in unavailable" :key="'unavailable-' + playlistId" class="playlist-source-badge badge text-bg-danger d-inline-flex align-items-center gap-1" title="Deleted, or no longer usable here. Remove it to save.">
+                <span class="text-truncate">{{ unavailableLabel(playlistId) }}</span>
+                <button class="btn-close btn-close-white" type="button" :aria-label="'Remove ' + unavailableLabel(playlistId)" @click="remove(playlistId)" />
             </span>
         </div>
         <div class="dropdown">
@@ -54,6 +58,9 @@ const open = ref(false);
 const picker = ref(null);
 const toggle = ref(null);
 const selected = computed(() => props.playlists.filter((playlist) => props.modelValue.includes(playlist.id)));
+// Saved IDs of deleted or no longer eligible playlists would otherwise be invisible and block saving.
+const unavailable = computed(() => props.modelValue.filter((id) => !props.playlists.some((playlist) => playlist.id === id)));
+const unavailableLabel = (id) => `Unavailable playlist (ID ${id})`;
 watch(open, async (value) => {
     if (value) {
         await nextTick();
