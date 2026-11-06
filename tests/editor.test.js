@@ -1316,7 +1316,7 @@ test("intro detector page shows administrators this station's server access and 
     detectorInfo = { installed: true, can_manage: true, can_admin: true };
     const app = await mountDetector();
     try {
-        assert.equal(document.querySelector("#detector-instance-heading").textContent, "Server Account");
+        assert.equal(document.querySelector("#detector-instance-heading").textContent, "Shared Account");
         assert.doesNotMatch(document.querySelector("#app").textContent, /Other station/, "Other stations stay hidden");
         assert.equal(document.querySelector("#detector-shared-key"), null);
         const allow = document.querySelector("#detector-allow");
@@ -1326,7 +1326,7 @@ test("intro detector page shows administrators this station's server access and 
         await click("Save Station Access");
         assert.deepEqual(detectorRequests.find((request) => request.path === "/detector/instance/station").body,
             { station_id: 1, shared_allowed: true, shared_cap_usd: 0 }, "Only this station's access is changed");
-        await click("Server account settings for all stations…");
+        await click("Shared account settings for all stations…");
         assert.match(document.querySelector("#detector-server-all").textContent, /Other station/);
         assert.ok(document.querySelector("#detector-shared-key"));
     } finally {

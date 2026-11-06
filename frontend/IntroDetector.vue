@@ -200,7 +200,7 @@
                                         </div>
                                         <div class="form-check">
                                             <input id="detector-billing-shared" v-model="form.billing" class="form-check-input" type="radio" value="shared" :disabled="!status.shared_key_available">
-                                            <label class="form-check-label" for="detector-billing-shared">The server's Runpod account{{ status.shared_key_available ? "" : " (not offered to this station)" }}</label>
+                                            <label class="form-check-label" for="detector-billing-shared">Provided by the server administrator{{ status.shared_key_available ? "" : " (not offered to this station)" }}</label>
                                         </div>
                                     </div>
                                     <div v-if="form.billing === 'own'" class="form-group col-md-6">
@@ -230,7 +230,7 @@
 
                     <form v-if="info.can_admin && instance" class="form sweepers-settings mt-4" data-detector-admin @submit.prevent>
                     <fieldset class="form-group">
-                        <legend id="detector-instance-heading">Server Account</legend>
+                        <legend id="detector-instance-heading">Shared Account</legend>
                         <p class="form-text">Only system administrators see this section.</p>
                         <div class="row g-3 mb-3">
                             <div class="col-md-6" data-detector-shared-spend>
@@ -242,24 +242,24 @@
                             <div class="form-group col-12">
                                 <div class="form-check form-switch">
                                     <input id="detector-allow" v-model="allowance.shared_allowed" class="form-check-input" type="checkbox" role="switch">
-                                    <label class="form-check-label" for="detector-allow">This station may use the server account</label>
+                                    <label class="form-check-label" for="detector-allow">This station may use the shared account</label>
                                 </div>
                             </div>
                             <div class="form-group col-md-6">
                                 <label class="form-label" for="detector-cap">Monthly limit for this station (US$)</label>
                                 <input id="detector-cap" v-model.number="allowance.shared_cap_usd" class="form-control" type="number" min="0" step="1" :disabled="!allowance.shared_allowed">
-                                <div class="form-text">0 means only the server account's budget applies.</div>
+                                <div class="form-text">0 means only the shared account's budget applies.</div>
                             </div>
                         </div>
                         <div class="buttons mt-2">
                             <button type="button" class="btn btn-sm btn-primary" :disabled="busy" @click="saveAllowance(status.settings.id)">Save Station Access</button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" :aria-expanded="showServer" aria-controls="detector-server-all" @click="showServer = !showServer">{{ showServer ? "Hide server account settings" : "Server account settings for all stations…" }}</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" :aria-expanded="showServer" aria-controls="detector-server-all" @click="showServer = !showServer">{{ showServer ? "Hide shared account settings" : "Shared account settings for all stations…" }}</button>
                         </div>
 
                         <div v-if="showServer" id="detector-server-all" class="border-top pt-3 mt-3">
                             <p class="form-text">Intro Detector {{ instance.version }} · {{ instance.analyses }} analyzed songs<span v-if="instance.cost_per_1000_songs_usd !== null"> · {{ money(instance.cost_per_1000_songs_usd) }} per 1,000 songs so far</span>.</p>
                             <div v-if="instance.shared_recovery" class="alert alert-warning" role="alert">
-                                <p class="mb-2">A stopped GPU worker of the server's Runpod account may still hold results. Analysis on that account is paused until it is removed.</p>
+                                <p class="mb-2">A stopped GPU worker of the shared account may still hold results. Analysis on that account is paused until it is removed.</p>
                                 <button type="button" class="btn btn-sm btn-warning" :disabled="busy" @click="retireWorker('instance/worker')">Delete the worker and analyze its songs again</button>
                             </div>
                             <div class="row g-3">
@@ -268,7 +268,7 @@
                                     <input id="detector-price" v-model.number="instanceForm.max_price_per_hour" class="form-control" type="number" min="0.05" max="20" step="0.01" required>
                                 </div>
                                 <div class="form-group col-md-4">
-                                    <label class="form-label" for="detector-shared-budget">Monthly budget of the server account (US$)</label>
+                                    <label class="form-label" for="detector-shared-budget">Monthly budget of the shared account (US$)</label>
                                     <input id="detector-shared-budget" v-model.number="instanceForm.shared_budget_usd" class="form-control" type="number" min="0" step="1" required>
                                 </div>
                                 <div class="form-group col-md-4">
@@ -283,8 +283,8 @@
                                 <button type="button" class="btn btn-sm btn-primary" :disabled="busy" @click="saveInstance">Save Server Settings</button>
                             </div>
                             <div class="form-group">
-                                <label class="form-label" for="detector-shared-key">Server Runpod API key <span class="badge" :class="instance.shared_key ? 'text-bg-success' : 'text-bg-secondary'">{{ instance.shared_key ? "Stored" : "Missing" }}</span></label>
-                                <input id="detector-shared-key" v-model="sharedKey" class="form-control" type="password" autocomplete="off" placeholder="Paste a Runpod API key to offer to stations">
+                                <label class="form-label" for="detector-shared-key">Shared Runpod API key <span class="badge" :class="instance.shared_key ? 'text-bg-success' : 'text-bg-secondary'">{{ instance.shared_key ? "Stored" : "Missing" }}</span></label>
+                                <input id="detector-shared-key" v-model="sharedKey" class="form-control" type="password" autocomplete="off" placeholder="Paste the Runpod API key to offer to stations">
                                 <div class="buttons mt-2">
                                     <button type="button" class="btn btn-sm btn-primary" :disabled="busy || !sharedKey" @click="saveKey('instance/key', sharedKey)">Save Key</button>
                                     <button v-if="instance.shared_key" type="button" class="btn btn-sm btn-outline-danger" :disabled="busy" @click="removeKey('instance/key')">Remove Key</button>
@@ -292,12 +292,12 @@
                             </div>
                             <div class="table-responsive mt-3">
                                 <table class="table table-sm table-striped mb-0">
-                                    <thead><tr><th>Station</th><th>Intro Detector</th><th>Server account</th><th>Monthly limit</th><th>Spent this month</th></tr></thead>
+                                    <thead><tr><th>Station</th><th>Intro Detector</th><th>Shared account</th><th>Monthly limit</th><th>Spent this month</th></tr></thead>
                                     <tbody>
                                         <tr v-if="!instance.stations.length"><td colspan="5" class="text-muted">No station has used the Intro Detector yet.</td></tr>
                                         <tr v-for="row in instance.stations" :key="row.id">
                                             <td>{{ row.name ?? `Station ${row.id}` }}</td>
-                                            <td>{{ row.enabled ? (row.billing === "shared" ? "On, server account" : "On, own account") : "Off" }}</td>
+                                            <td>{{ row.enabled ? (row.billing === "shared" ? "On, shared account" : "On, own account") : "Off" }}</td>
                                             <td>{{ row.shared_allowed ? "Allowed" : "Not allowed" }}</td>
                                             <td>{{ row.shared_cap_usd ? money(row.shared_cap_usd) : "Budget only" }}</td>
                                             <td>{{ money(row.shared_spend_month_usd) }}</td>

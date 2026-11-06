@@ -175,7 +175,7 @@ about US$4 per 1,000 songs, and each song only once.
   Intros entered by hand are never overwritten.
 - **Permissions:** anyone who may change the station's broadcasting settings manages
   the station's detector settings; others see them read-only. System administrators
-  can also offer the server's own Runpod account to stations, each with a monthly limit.
+  can also offer a shared Runpod account to stations, each with a monthly limit; stations see it as provided by the server administrator.
 
 New uploads are analyzed automatically; **Analyze existing library** queues the
 rest after showing an estimate. Details: [Intro Detector integration](docs/ADVANCED.md#intro-detector).

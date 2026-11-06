@@ -8,7 +8,7 @@ const STATION_FIELDS = ["enabled", "mode", "auto_process", "min_song_seconds", "
 const BLOCKED = {
     "no Runpod key": "Add a Runpod API key to start analyzing songs.",
     "monthly budget reached": "This month's GPU budget is used up. Analysis continues next month or after raising the budget.",
-    "station limit on the instance key reached": "This station's monthly limit on the instance key is used up.",
+    "station limit on the instance key reached": "This station's monthly limit on the account provided by the server administrator is used up.",
     "waiting for GPU retry": "The last GPU batch could not start. It is retried automatically in a few minutes.",
 };
 
@@ -31,8 +31,8 @@ export function money(value) {
 
 export function spendNote(status) {
     if (status.settings.account === "shared") {
-        return status.limit_usd ? "Monthly limit for this station on the server's account."
-            : "No limit for this station; the monthly budget of the server's account applies.";
+        return status.limit_usd ? "Monthly limit for this station, set by the server administrator."
+            : "Paid by the server administrator's account within its monthly budget.";
     }
     return status.limit_usd ? "" : "No monthly budget is set for this station.";
 }

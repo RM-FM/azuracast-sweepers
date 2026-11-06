@@ -9,7 +9,7 @@
   manages it per station: on/off, shadow or publish mode, automatic processing,
   skipped playlists, the station's own Runpod key and monthly budget, status, costs,
   failed songs and analyzing the existing library. Station broadcasting permission is
-  enough; system administrators can also offer the server's Runpod account to stations.
+  enough; system administrators can also offer a shared Runpod account to stations.
 
 ### Update notes
 

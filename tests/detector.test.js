@@ -32,7 +32,7 @@ test("spending notes name the budget that applies", () => {
     const status = (account, limit) => ({ settings: { account }, spend_month_usd: 1, limit_usd: limit });
     assert.equal(spendNote(status("station-1", 10)), "");
     assert.match(spendNote(status("station-1", 0)), /No monthly budget/);
-    assert.match(spendNote(status("shared", 0)), /budget of the server's account applies/);
+    assert.match(spendNote(status("shared", 0)), /server administrator's account within its monthly budget/);
     assert.match(spendNote(status("shared", 5)), /Monthly limit for this station/);
 });
 test("analysis texts say what is waiting and what happens next", () => {
