@@ -61,7 +61,32 @@ export function queueCounts(queue = {}) {
 }
 
 export function estimateText(songs, usd) {
-    if (!songs) return "Every song of the library already has an intro or a result.";
-    const cost = usd === null || usd === undefined ? "" : `, about ${money(usd)} of GPU time`;
-    return `${songs} songs without an intro${cost}. Songs analyzed for another station are reused at no cost.`;
+    if (!songs) return "Every older song already has an intro or a result.";
+    const cost = usd === null || usd === undefined ? "" : ` and costs about ${money(usd)} of GPU time`;
+    return `Analyzing ${songs} older songs takes a while${cost}. Songs analyzed for another station are reused at no cost; new uploads go first.`;
+}
+
+export function waitingText(count, automatic, requested) {
+    if (requested) return "The analysis starts shortly.";
+    if (!count) return `No songs are waiting. ${automatic ? "New uploads are analyzed automatically." : "New uploads wait here until you start the analysis."}`;
+    return automatic
+        ? `${count} songs are waiting. They are analyzed automatically within a few minutes, or right away with Analyze now.`
+        : `${count} songs are waiting until you start the analysis.`;
+}
+
+export function libraryText(count) {
+    return count
+        ? `${count} songs that were already in the library have no intro yet. They are only analyzed if you start it.`
+        : "Every song that was already in the library has an intro or a result.";
+}
+
+const JOBS = { sync: "Reading the station's library…", republish: "Writing intros to AzuraCast…" };
+const RESULTS = { complete: "Done", partial: "Partly done", failed: "Failed", running: "Running" };
+
+export function jobText(job) {
+    return JOBS[job] ?? job;
+}
+
+export function runResult(status) {
+    return RESULTS[status] ?? status;
 }

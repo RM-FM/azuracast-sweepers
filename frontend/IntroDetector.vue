@@ -57,38 +57,62 @@
                         <p class="card-text">The Intro Detector is off for this station. Switch it on in the Settings tab.</p>
                     </fieldset>
                     <template v-else>
-                        <fieldset class="form-group">
-                            <legend>Analysis</legend>
-                            <div v-if="planned && status.settings.mode === 'publish'" class="alert alert-info" role="status" data-detector-planned>
-                                <p class="mb-2">{{ planned }} intros were found while this station was in shadow mode and are not in AzuraCast yet.</p>
-                                <button v-if="info.can_manage" type="button" class="btn btn-sm btn-primary" :disabled="busy || status.jobs.includes('republish')" @click="publish">Write them to AzuraCast</button>
-                            </div>
-                            <p v-if="status.jobs.length" class="card-text">Working on it: {{ status.jobs.join(", ") }}.</p>
-                            <div v-if="info.can_manage" class="buttons">
-                                <button type="button" class="btn btn-primary" :disabled="busy || status.process_requested" @click="action('process', {})">{{ status.process_requested ? "Analysis requested" : "Analyze now" }}</button>
-                                <button type="button" class="btn btn-secondary" :disabled="busy" @click="estimateLibrary">Analyze existing library…</button>
-                                <button v-if="counts.failed" type="button" class="btn btn-outline-secondary" :disabled="busy" @click="action('retry', {})">Retry all failed</button>
-                            </div>
-                            <div v-if="estimate" class="alert alert-secondary mt-3 mb-0" role="status" data-detector-estimate>
-                                <p class="mb-2">{{ estimateText(estimate.songs, estimate.estimated_usd) }}</p>
-                                <div class="buttons">
-                                    <button v-if="estimate.songs" type="button" class="btn btn-sm btn-primary" :disabled="busy" @click="startLibrary">Queue them</button>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" @click="estimate = null">Cancel</button>
-                                </div>
-                            </div>
+                        <fieldset class="form-group" data-detector-analysis>
+                            <legend>Analyze Songs</legend>
+                            <p class="form-text">Songs are analyzed on a rented GPU. This costs money, unless the same file was already analyzed for any station.</p>
+                            <p v-for="job in status.jobs" :key="job" class="card-text">{{ jobText(job) }}</p>
+                            <ul class="list-group mb-0">
+                                <li class="list-group-item d-flex flex-wrap align-items-center gap-2" data-detector-task="waiting">
+                                    <div class="flex-fill">
+                                        <div class="fw-semibold">Waiting songs</div>
+                                        <div class="small">{{ waitingText(counts.waiting, status.settings.auto_process, status.process_requested) }}</div>
+                                    </div>
+                                    <button v-if="info.can_manage && counts.waiting && !status.process_requested" type="button" class="btn btn-sm btn-primary" :disabled="busy" @click="action('process', {})">Analyze now</button>
+                                </li>
+                                <li class="list-group-item" data-detector-task="library">
+                                    <div class="d-flex flex-wrap align-items-center gap-2">
+                                        <div class="flex-fill">
+                                            <div class="fw-semibold">Older songs</div>
+                                            <div class="small">{{ libraryText(status.library_without_intro) }}</div>
+                                        </div>
+                                        <button v-if="info.can_manage && status.library_without_intro && !estimate" type="button" class="btn btn-sm btn-secondary" :disabled="busy" @click="estimateLibrary">Show cost…</button>
+                                    </div>
+                                    <div v-if="estimate" class="mt-2" data-detector-estimate>
+                                        <p class="small mb-2">{{ estimateText(estimate.songs, estimate.estimated_usd) }}</p>
+                                        <div class="buttons">
+                                            <button v-if="estimate.songs" type="button" class="btn btn-sm btn-primary" :disabled="busy" @click="startLibrary">Analyze them</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" @click="estimate = null">Cancel</button>
+                                        </div>
+                                    </div>
+                                </li>
+                                <li v-if="counts.failed" class="list-group-item d-flex flex-wrap align-items-center gap-2" data-detector-task="failed">
+                                    <div class="flex-fill">
+                                        <div class="fw-semibold">Failed songs</div>
+                                        <div class="small">{{ counts.failed }} songs could not be analyzed; the reasons are listed below.</div>
+                                    </div>
+                                    <button v-if="info.can_manage" type="button" class="btn btn-sm btn-outline-secondary" :disabled="busy" @click="action('retry', {})">Try again</button>
+                                </li>
+                                <li v-if="planned && status.settings.mode === 'publish'" class="list-group-item d-flex flex-wrap align-items-center gap-2" data-detector-planned>
+                                    <div class="flex-fill">
+                                        <div class="fw-semibold">Results from shadow mode</div>
+                                        <div class="small">{{ planned }} intros were found in shadow mode and are not in AzuraCast yet. Writing them needs no GPU.</div>
+                                    </div>
+                                    <button v-if="info.can_manage" type="button" class="btn btn-sm btn-primary" :disabled="busy || status.jobs.includes('republish')" @click="publish">Write them to AzuraCast</button>
+                                </li>
+                            </ul>
                         </fieldset>
 
                         <fieldset class="form-group">
-                            <legend>Recent batches</legend>
+                            <legend>Recent Analysis Runs</legend>
                             <div class="table-responsive">
                                 <table class="table table-sm table-striped mb-0">
                                     <thead><tr><th>Started</th><th>Songs</th><th>Result</th></tr></thead>
                                     <tbody>
-                                        <tr v-if="!status.runs.length"><td colspan="3" class="text-muted">No batch yet.</td></tr>
+                                        <tr v-if="!status.runs.length"><td colspan="3" class="text-muted">No analysis run yet.</td></tr>
                                         <tr v-for="run in status.runs" :key="run.id">
                                             <td class="text-nowrap">{{ time(run.started_at) }}</td>
                                             <td>{{ run.songs }}</td>
-                                            <td>{{ run.status }}<span v-if="run.error" class="small text-muted"> · {{ run.error }}</span></td>
+                                            <td>{{ runResult(run.status) }}<span v-if="run.error" class="small text-muted"> · {{ run.error }}</span></td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -276,7 +300,10 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import Icon from "./Icon.vue";
 import PlaylistPicker from "./PlaylistPicker.vue";
-import { MODES, blockedText, changedFields, estimateText, money, queueCounts, spendLine, stationCost, stationForm, workerText } from "./detector.js";
+import {
+    MODES, blockedText, changedFields, estimateText, jobText, libraryText, money, queueCounts, runResult, spendLine, stationCost,
+    stationForm, waitingText, workerText,
+} from "./detector.js";
 import { formatStationTime } from "./dates.js";
 
 const props = defineProps({
