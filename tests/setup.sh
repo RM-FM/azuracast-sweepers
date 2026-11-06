@@ -30,6 +30,8 @@ elif [[ "$*" == *'sweepers:detector-account --new-key'* ]]; then
     printf 'https://radio.example\n0123abcd:4567ef89\n'
 elif [[ "$*" == *'sweepers:detector-account --sync'* ]]; then
     printf 'synced\n' >> "$TEST_ROOT/detector-sync"
+elif [[ "$1" == ps && "$*" == *ancestor=azuracast-intro-detector* ]]; then
+    [[ -z "${TEST_DETECTOR_RUNNING:-}" ]] || printf '%s\n' "$TEST_DETECTOR_RUNNING"
 elif [[ "$1" == inspect && "$*" == *Mounts* ]]; then
     [[ "${TEST_STALE:-false}" == true ]] ||
         printf '%s /var/azuracast/www/plugins/azuracast-sweepers false\n' "$TEST_ROOT/plugins/azuracast-sweepers"
@@ -126,22 +128,53 @@ grep -q 'Custom COMPOSE_FILE' "$work/result"
 
 plugin="$TEST_ROOT/plugins/azuracast-sweepers"
 detector_source="$work/detector-source"
+release=$(cat "$source_dir/detector.version")
 mkdir -p "$detector_source/bin"
-for script_name in setup update; do
-    cat > "$detector_source/bin/$script_name.sh" <<SH
+git_test() { git -C "$1" -c user.name=test -c user.email=test@example.invalid "${@:2}"; }
+fake_script() {
+    cat > "$detector_source/bin/$1.sh" <<SH
 #!/usr/bin/env bash
-printf '%s\n' "\$*" > "\$TEST_ROOT/detector-$script_name-args"
-cat > "\$TEST_ROOT/detector-$script_name-input"
+printf '%s\n' "\$*" > "\$TEST_ROOT/detector-$1-args"
+cat > "\$TEST_ROOT/detector-$1-input"
 SH
-done
+}
+# The first release has no update script, like detector installations before 1.0.
+fake_script setup
 git -C "$detector_source" init -q
 git -C "$detector_source" add -A
-git -C "$detector_source" -c user.name=test -c user.email=test@example.invalid commit -qm release
-git -C "$detector_source" tag "$(cat "$source_dir/detector.version")"
+git_test "$detector_source" commit -qm legacy
+git -C "$detector_source" tag v0.1.0
+fake_script update
+git -C "$detector_source" add -A
+git_test "$detector_source" commit -qm release
+git -C "$detector_source" tag "$release"
 export SWEEPERS_DETECTOR_REPO="$detector_source"
+
+legacy="$work/legacy-detector"
+git clone -q "$detector_source" "$legacy"
+git -C "$legacy" -c advice.detachedHead=false checkout -q v0.1.0
+SWEEPERS_DETECTOR_DIR="" TEST_DETECTOR_RUNNING="$legacy" bash "$setup" < /dev/null > "$work/result"
+grep -q "Updating the Intro Detector in $legacy" "$work/result"
+[[ $(git -C "$legacy" describe --tags) == "$release" ]]
+grep -qx -- "--azuracast-dir $TEST_ROOT --unattended" "$TEST_ROOT/detector-setup-args"
+grep -qx '0123abcd:4567ef89' "$TEST_ROOT/detector-setup-input"
+[[ ! -e "$TEST_ROOT/detector-update-args" ]]
+git -C "$legacy" -c advice.detachedHead=false checkout -q v0.1.0
+if SWEEPERS_DETECTOR_DIR="" TEST_DETECTOR_RUNNING="$legacy" SWEEPERS_DETECTOR_VERSION=v9.9.9 \
+    bash "$setup" < /dev/null > "$work/result" 2>&1; then
+    echo 'Missing detector release unexpectedly accepted' >&2; exit 1
+fi
+[[ $(git -C "$legacy" describe --tags) == v0.1.0 ]]
+if SWEEPERS_DETECTOR_DIR="" TEST_DETECTOR_RUNNING=$'/srv/one\n/srv/two' bash "$setup" < /dev/null > "$work/result" 2>&1; then
+    echo 'Several detector installations unexpectedly accepted' >&2; exit 1
+fi
+grep -q 'Several Intro Detector installations' "$work/result"
+rm -f "$TEST_ROOT"/detector-*-args "$TEST_ROOT"/detector-*-input "$TEST_ROOT/detector-sync"
+
 rm -f "$plugin/.detector-declined"
 bash "$setup" < /dev/null > "$work/result"
 grep -q 'sudo bash bin/setup.sh --detector' "$work/result"
+grep -q 'already runs on another server, answer N' "$work/result"
 [[ ! -e "$plugin/.detector-declined" && ! -e "$SWEEPERS_DETECTOR_DIR" ]]
 printf 'n\n' | script -qec "bash '$setup'" /dev/null > "$work/result"
 [[ -e "$plugin/.detector-declined" && ! -e "$SWEEPERS_DETECTOR_DIR" ]]

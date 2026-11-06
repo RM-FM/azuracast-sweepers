@@ -158,10 +158,18 @@ status '\nPlugin installed/updated. Station settings and intro values were not c
 status 'Open Sweepers > Settings to check module status and any required broadcasting restart.\n'
 
 # Optional Intro Detector: offered while none is installed until declined, then updated with the plugin.
-detector_dir=${SWEEPERS_DETECTOR_DIR:-/opt/azuracast-intro-detector}
 detector_repo=${SWEEPERS_DETECTOR_REPO:-https://github.com/RM-FM/azuracast-intro-detector.git}
-detector_version=$(tr -d '[:space:]' < "$plugin_dir/detector.version")
-[[ "$detector_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail 'detector.version is invalid.'
+# SWEEPERS_DETECTOR_VERSION pins a release candidate for testing; detector.version is the release.
+detector_version=${SWEEPERS_DETECTOR_VERSION:-$(tr -d '[:space:]' < "$plugin_dir/detector.version")}
+[[ "$detector_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]] || fail 'detector.version is invalid.'
+# A detector installed by hand elsewhere on this server is found through its Compose project.
+detector_dir=${SWEEPERS_DETECTOR_DIR:-}
+if [[ -z "$detector_dir" ]]; then
+    mapfile -t running_dirs < <(docker ps -a --filter ancestor=azuracast-intro-detector:local \
+        --format '{{index .Labels "com.docker.compose.project.working_dir"}}' | sort -u | sed '/^$/d')
+    ((${#running_dirs[@]} <= 1)) || fail "Several Intro Detector installations found: ${running_dirs[*]}"
+    detector_dir=${running_dirs[0]:-/opt/azuracast-intro-detector}
+fi
 declined="$plugin_dir/.detector-declined"
 detector_account() {
     docker compose exec -T web azuracast_cli sweepers:detector-account "$@"
@@ -181,19 +189,33 @@ detector_linked() {
 if $ask_detector; then rm -f "$declined"; fi
 if [[ -d "$detector_dir/.git" ]]; then
     [[ -w "$detector_dir" ]] || { status '\nThe Intro Detector was not updated: run this setup with sudo.\n'; exit 0; }
-    status '\nUpdating the Intro Detector to %s...\n' "$detector_version"
+    status '\nUpdating the Intro Detector in %s to %s...\n' "$detector_dir" "$detector_version"
     # A detector installed before the plugin managed it switches to the plugin's account once.
     input=""
     if [[ ! -f "$plugin_dir/.detector.json" ]]; then input=$(detector_input); fi
-    { [[ -z "$input" ]] || printf '%s\n' "$input"; } | bash "$detector_dir/bin/update.sh" \
-        --version "$detector_version" --azuracast-dir "$azuracast_dir" >&3 2>&4 ||
-        fail 'The Intro Detector update failed; the previous version keeps running.'
+    if [[ -f "$detector_dir/bin/update.sh" ]]; then
+        { [[ -z "$input" ]] || printf '%s\n' "$input"; } | bash "$detector_dir/bin/update.sh" \
+            --version "$detector_version" --azuracast-dir "$azuracast_dir" >&3 2>&4 ||
+            fail 'The Intro Detector update failed; the previous version keeps running.'
+    else
+        # Releases before 1.0 have no update script; the new release's setup takes over.
+        previous=$(git -C "$detector_dir" rev-parse HEAD)
+        git -C "$detector_dir" fetch --quiet --tags origin
+        git -C "$detector_dir" -c advice.detachedHead=false checkout --quiet --detach "refs/tags/$detector_version" ||
+            fail "Intro Detector release $detector_version could not be checked out; the previous version keeps running."
+        if ! printf '%s\n' "$input" | bash "$detector_dir/bin/setup.sh" --azuracast-dir "$azuracast_dir" \
+            --unattended >&3 2>&4; then
+            git -C "$detector_dir" -c advice.detachedHead=false checkout --quiet --detach "$previous"
+            fail "The Intro Detector update failed. To run the previous version again: cd $detector_dir && sudo bash bin/setup.sh"
+        fi
+    fi
     detector_linked
 elif [[ ! -e "$declined" ]]; then
     status '\nOptional: Intro Detector\n'
     status 'It finds where the vocals start in each song so sweepers fit automatically. Songs are analyzed on\n'
     status 'rented GPUs at Runpod (paid, about US$4 per 1,000 songs). Each station enables it and enters its own\n'
     status 'Runpod key and budget in Sweepers > Intro Detector. More: https://github.com/RM-FM/azuracast-intro-detector\n'
+    status 'If it already runs on another server, answer N: it must run on this server to be managed here.\n'
     if [[ ! -t 0 ]]; then
         status 'To install it later, run: sudo bash bin/setup.sh --detector\n'
         exit 0

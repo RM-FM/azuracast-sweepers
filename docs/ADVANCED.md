@@ -423,7 +423,10 @@ installs, updates and connects it and provides its station page.
 
 - **Installation:** `bin/setup.sh` offers it once when no detector is installed, also on
   an update from an older plugin version; a refusal is remembered in `.detector-declined`.
-  `sudo bash bin/setup.sh --detector` asks again.
+  `sudo bash bin/setup.sh --detector` asks again. A detector already running on this
+  server is found through its Compose project, wherever it was installed, and updated
+  instead, also releases from before 1.0. A detector on another server cannot be managed
+  from the plugin: answer **N** and move it to the AzuraCast server first.
   The detector release pinned in `detector.version` is cloned to
   `/opt/azuracast-intro-detector` (override with `SWEEPERS_DETECTOR_DIR`) and set
   up unattended. Every later plugin setup moves it to the pinned release and keeps
