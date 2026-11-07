@@ -12,10 +12,6 @@
   with live progress, costs, the Runpod balance, the GPU worker and failed songs, and
   analyzes the existing library on request. Viewing needs the station's Media
   permission, changes need Broadcasting.
-- **Shared Runpod accounts:** stations on the same Runpod account share one GPU worker,
-  and a song file is analyzed only once for all stations.
-- **Automatic disk housekeeping:** the detector keeps about 0.1 MB per song, deletes the
-  data of removed songs after a day and pauses analysis below 1 GB of free disk space.
 
 ### Improvements
 
@@ -31,9 +27,6 @@
   its stations; each gets the Runpod key used so far, and settings are then managed on
   the new page. Its shadow mode is gone: enabled stations write intros right away, and
   intros recorded in shadow mode are written once after the update.
-- An existing Intro Detector compresses its stored analyses once in the background
-  (about 0.6 MB to 0.1 MB per song, without losing data) and then shrinks its database
-  file. This uses one CPU core on and off for a few hours while no songs are analyzed.
 
 ## 1.3.3 - 2026-11-06
 
