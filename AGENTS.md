@@ -22,8 +22,10 @@
   plugin-owned database tables. The Intro Detector page manages the detector only through its management API
   and the detector role's AzuraCast station permissions; it never stores detector data or Runpod keys.
 - Intro Detector access mirrors the sweeper settings: viewing needs station Media, changes need station
-  Broadcasting, server-wide detector settings need Administer Settings. Its API stays on AzuraCast's Docker
-  network without a published port. Setup installs and updates the release pinned in `detector.version`.
+  Broadcasting. All detector settings belong to a station. Its API stays on AzuraCast's Docker network
+  without a published port. Setup installs and updates the release pinned in `detector.version`.
+- The read-only media route streams original files only as the detector's fallback when AzuraCast's
+  play route fails; it needs station Media and never changes media.
 - Before pushing, run the fast checks locally: PHP tests/lint, Node tests, the frontend build and the native
   Liquidsoap type and spacing checks. The playback scenarios and the MariaDB replacement test are slow;
   CI runs them when their inputs change, on release PRs and in the daily compatibility workflow.

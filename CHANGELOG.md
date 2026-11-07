@@ -12,13 +12,20 @@
   worker; the page shows how many stations use the account, their combined cost and its
   balance. Station broadcasting permission is enough.
 
+### Improvements
+
+- Success and error messages on all Sweepers pages appear as AzuraCast-style
+  notifications at the top right and close on their own.
+
 ### Update notes
 
 - **AzuraCast Broadcast (Liquidsoap) restart: Not required**; the Liquidsoap module
   is unchanged. Run `sudo bash bin/setup.sh` to rebuild the frontend, reload PHP/worker
   processes and install or update the Intro Detector.
 - An Intro Detector installed before this release is linked automatically and keeps
-  its stations; stations, keys and budgets are then managed on the new page.
+  its stations; each gets the Runpod key used so far, and settings are then managed on
+  the new page. Its shadow mode is gone: enabled stations write intros right away, and
+  intros recorded in shadow mode are written once after the update.
 
 ## 1.3.3 - 2026-11-06
 
