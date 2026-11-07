@@ -452,6 +452,10 @@ installs, updates and connects it and provides its station page.
   spending this month and the account's Runpod balance. Runpod offers no monthly budget of
   its own. Without a key a station's songs wait; stored analyses of identical files are
   still reused at no cost.
+- **Downloads:** the detector downloads songs through AzuraCast's play route. AzuraCast
+  cannot serve file names containing `%` there, so for those the detector uses the
+  plugin's read-only route `/api/station/{station}/sweepers/file/{media}`, which needs the
+  same station Media permission.
 
 A detector installed before the plugin managed it is linked on the next plugin setup:
 it switches to the plugin's AzuraCast account, keeps its stations enabled, gives each of

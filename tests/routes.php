@@ -100,11 +100,12 @@ namespace {
         ->newInstanceWithoutConstructor();
     $subscriber->routes(new \App\Event\BuildRoutes($app));
 
-    if ($app->groups !== 2 || count($app->routes) !== 20) {
+    if ($app->groups !== 2 || count($app->routes) !== 21) {
         throw new \RuntimeException('Sweeper routes were not registered.');
     }
     $paths = array_map(static fn(array $route): string => $route[0] . ' ' . $route[1], $app->routes);
-    foreach (['GET /detector', 'POST /detector/settings', 'POST /detector/key'] as $route) {
+    foreach (['GET /detector', 'POST /detector/settings', 'POST /detector/key',
+        'GET /api/station/{station_id}/sweepers/file/{id:[0-9]+}'] as $route) {
         if (!in_array($route, $paths, true)) {
             throw new \RuntimeException("Missing route $route.");
         }
@@ -112,5 +113,5 @@ namespace {
     if (in_array('GET /detector/instance', $paths, true)) {
         throw new \RuntimeException('Detector settings belong to stations; there is no instance route.');
     }
-    echo '2 route groups bound; 20 routes registered.' . PHP_EOL;
+    echo '2 route groups bound; 21 routes registered.' . PHP_EOL;
 }
