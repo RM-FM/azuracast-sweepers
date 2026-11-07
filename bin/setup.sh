@@ -70,13 +70,14 @@ fi
 status 'Preparing plugin files...\n'
 docker run --rm --user "$(id -u):$(id -g)" -e npm_config_cache=/tmp/npm-cache \
     -v "$plugin_dir:/plugin" -w /plugin node:24-alpine \
-    sh -c 'npm ci --include=dev --ignore-scripts && npm run build && rm -rf node_modules'
+    sh -c 'npm ci --include=dev --ignore-scripts && npm run build'
 [[ -s "$plugin_dir/dist/app.js" ]] || fail "The frontend bundle is missing."
 
 status 'Checking plugin configuration...\n'
 docker run --rm --user "$(id -u):$(id -g)" \
     -v "$plugin_dir:/plugin:ro" -v "$azuracast_dir:$azuracast_dir" -w /plugin \
     node:24-alpine node bin/setup-compose.mjs "$azuracast_dir" "$work/docker-compose.override.yml"
+rm -rf "$plugin_dir/node_modules"
 docker compose --project-directory "$azuracast_dir" -f "$azuracast_dir/docker-compose.yml" \
     -f "$work/docker-compose.override.yml" config --quiet
 

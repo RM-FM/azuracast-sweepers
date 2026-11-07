@@ -26,6 +26,7 @@ if [[ "$1" == run && "$*" == *setup-compose.mjs* ]]; then
 elif [[ "$1" == run ]]; then
     mkdir -p "$TEST_ROOT/plugins/azuracast-sweepers/dist"
     printf 'bundle\n' > "$TEST_ROOT/plugins/azuracast-sweepers/dist/app.js"
+    ln -sfn "$TEST_SOURCE/node_modules" "$TEST_ROOT/plugins/azuracast-sweepers/node_modules"
 elif [[ "$*" == *'sweepers:detector-account --new-key'* ]]; then
     printf 'https://radio.example\n0123abcd:4567ef89\n'
 elif [[ "$*" == *'sweepers:detector-account --sync'* ]]; then
@@ -68,6 +69,7 @@ grep -q "service 'web' not found" "$work/result"
 bash "$setup" > "$work/result"
 grep -q 'Plugin installed/updated' "$work/result"
 grep -q 'Preparing plugin files' "$work/result"
+[[ ! -e "$TEST_ROOT/plugins/azuracast-sweepers/node_modules" ]]
 grep -q 'Applying plugin update' "$work/result"
 ! grep -q 'TECHNICAL_' "$work/result"
 grep -q 'supervisorctl restart php-worker-fast php-worker-slow php-nowplaying' "$TEST_ROOT/commands"
