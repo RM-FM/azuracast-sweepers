@@ -204,7 +204,7 @@
                                 <dl class="row g-3 mt-2 mb-0 detector-summary" data-detector-costs>
                                     <div class="col-6 col-lg-3" data-detector-spend>
                                         <dt class="small text-muted fw-normal">This station this month</dt>
-                                        <dd class="fw-semibold mb-1">{{ money(status.spend_month_usd) }}<span v-if="status.limit_usd" class="fw-normal text-muted"> of {{ money(status.limit_usd) }}</span></dd>
+                                        <dd class="fw-semibold mb-1">{{ money(status.spend_month_usd) }}<span v-if="status.limit_usd" class="fw-normal text-muted"> of {{ Number(status.limit_usd).toFixed(2) }}</span></dd>
                                         <div v-if="status.limit_usd" class="progress detector-meter" role="progressbar" aria-label="This station this month" :aria-valuenow="spendPercent" aria-valuemin="0" aria-valuemax="100">
                                             <div class="progress-bar" :class="meterClass(spendPercent)" :style="{ width: spendPercent + '%' }"></div>
                                         </div>
