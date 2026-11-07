@@ -1364,8 +1364,8 @@ test("intro detector page shows how many stations use the key, their spend and t
     let app = await mountDetector();
     try {
         const card = document.querySelector("[data-detector-activity]");
-        assert.match(card.textContent, /Analyzing songs: 3 of 6 parts done/);
-        assert.equal(card.querySelector("[data-detector-detail]").textContent, "Now: transcribing lyrics.");
+        assert.match(card.textContent, /Analyzing 40 songs: 50% done/);
+        assert.equal(card.querySelector("[data-detector-detail]").textContent, "Transcribing lyrics.");
         assert.match(card.textContent, /Running for 10 min · about 5 min left in this step/);
         assert.match(card.textContent, /12 of the 40 songs/);
         assert.equal(card.querySelector(".progress-bar").getAttribute("style").replace(/\s|;/g, ""), "width:50%");

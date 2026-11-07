@@ -116,8 +116,9 @@ export function runResult(status, step = null) {
 export function stepText(activity) {
     const name = STEPS[activity.step] ?? activity.step;
     if (!activity.total) return activity.step === "worker" ? `${name} (usually about 5 minutes)` : name;
-    const unit = activity.step === "analyze" ? " parts done" : "";
-    return `${name}: ${Math.floor(activity.done)} of ${activity.total}${unit}`;
+    // Parts run in parallel lanes, so the share done says more than a part number.
+    if (activity.step === "analyze") return `Analyzing ${activity.songs ? `${activity.songs} ` : ""}songs: ${progressPercent(activity)}% done`;
+    return `${name}: ${Math.floor(activity.done)} of ${activity.total}`;
 }
 
 // Pipeline stages of the GPU worker, in their order.
@@ -157,11 +158,11 @@ export function detailText(activity) {
     case "worker:search": return `Renting ${rented()}…`;
     case "worker:no_stock": return `No suitable GPU is free at up to ${money(detail.max_price)}/hour right now; checking again (attempt ${detail.attempt}).`;
     case "worker:boot": return `${rented()} is starting and loading the analysis software.`;
-    case "analyze:prepare": return `Checking the GPU and loading the models for ${detail.lanes ?? 1} parallel lanes.`;
+    case "analyze:prepare": return "Checking the GPU and loading the models.";
     case "analyze:run": {
-        const now = (detail.stages ?? []).map((stage) => STAGES[stage] ?? stage);
-        const failed = detail.failed ? ` ${detail.failed} parts failed; their songs are retried later.` : "";
-        return (now.length ? `Now: ${now.join(", ")}.` : "") + failed;
+        const now = (detail.stages ?? []).map((stage) => STAGES[stage] ?? stage).join(", ");
+        return [now && `${now[0].toUpperCase()}${now.slice(1)}.`, detail.failed && "Some songs failed and are retried later."]
+            .filter(Boolean).join(" ");
     }
     default:
         return activity.step === "upload" && detail.songs ? `${detail.songs} songs, ${detail.megabytes} MB.` : "";

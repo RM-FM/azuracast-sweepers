@@ -58,8 +58,9 @@ test("analysis texts say what is waiting and what happens next", () => {
 
 test("batch progress names the step, its share done and the time left", () => {
     const analyze = { step: "analyze", done: 2, total: 8, started_at: 1000, step_started_at: 1300 };
-    assert.equal(stepText(analyze), "Analyzing songs: 2 of 8 parts done");
-    assert.equal(stepText({ ...analyze, done: 2.6 }), "Analyzing songs: 2 of 8 parts done");
+    assert.equal(stepText({ ...analyze, songs: 40 }), "Analyzing 40 songs: 25% done");
+    assert.equal(stepText({ ...analyze, songs: 4, done: 0, total: 2 }), "Analyzing 4 songs: 0% done");
+    assert.equal(stepText(analyze), "Analyzing songs: 25% done");
     assert.equal(progressPercent({ ...analyze, done: 2.6 }), 33, "Stages within a part move the bar");
     assert.equal(stepText({ step: "worker", done: 0, total: 0 }), "Starting a GPU worker (usually about 5 minutes)");
     assert.equal(stepText({ step: "copy", done: 0, total: 0 }), "Copying results back");
@@ -86,8 +87,9 @@ test("progress details name the GPU, its location and the pipeline stage", () =>
     assert.match(detailText({ step: "worker", detail: { phase: "no_stock", attempt: 3, max_price: 0.9 } }), /up to US\$0\.90\/hour.*attempt 3/);
     assert.equal(detailText({ step: "worker", detail: { phase: "reuse" } }), "Using the GPU worker that is already running.");
     assert.equal(detailText({ step: "upload", detail: { songs: 18, megabytes: 160 } }), "18 songs, 160 MB.");
-    assert.match(detailText({ step: "analyze", detail: { phase: "prepare", lanes: 3 } }), /loading the models for 3 parallel lanes/);
+    assert.equal(detailText({ step: "analyze", detail: { phase: "prepare", lanes: 3 } }), "Checking the GPU and loading the models.");
     assert.equal(detailText({ step: "analyze", detail: { phase: "run", stages: ["matrix", "qwen"], failed: 0 } }),
-        "Now: comparing vocal detectors, transcribing lyrics.");
+        "Comparing vocal detectors, transcribing lyrics.");
+    assert.equal(detailText({ step: "analyze", detail: { phase: "run", stages: [], failed: 1 } }), "Some songs failed and are retried later.");
     assert.equal(detailText({ step: "copy", detail: null }), "");
 });
