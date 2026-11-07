@@ -561,3 +561,7 @@
 .sweepers-page .sweepers-detector fieldset.form-group + fieldset.form-group {
     margin-top: 2rem;
 }
+
+.sweepers-detector .detector-meter {
+    height: .375rem;
+}

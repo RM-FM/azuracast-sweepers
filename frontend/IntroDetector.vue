@@ -190,28 +190,43 @@
                                     <div class="form-group col-md-6">
                                         <label class="form-label" for="detector-key">Runpod API key <span class="badge" :class="status.key ? 'text-bg-success' : 'text-bg-secondary'">{{ status.key ? "Stored" : "Missing" }}</span></label>
                                         <input v-if="info.can_manage" id="detector-key" v-model="stationKey" class="form-control" type="password" autocomplete="off" :placeholder="status.key ? 'Enter a new key to replace the stored one' : 'Paste the Runpod API key'">
-                                        <div class="form-text">
-                                            Create a key with read/write access in the <a href="https://console.runpod.io/user/credentials" target="_blank" rel="noopener">Runpod console</a>. Use one key for several stations or a separate key per station. It is checked with Runpod when you save, stored on the server and never shown again.
-                                            <button v-if="info.can_manage && status.key" type="button" class="btn btn-link btn-sm p-0 align-baseline text-danger" data-detector-remove-key @click="removeKey">Remove the stored key</button>
-                                        </div>
+                                        <div class="form-text">Create a key with read/write access in the <a href="https://console.runpod.io/user/credentials" target="_blank" rel="noopener">Runpod console</a>. Several stations may use the same key. It is checked when you save and never shown again.</div>
+                                        <button v-if="info.can_manage && status.key" type="button" class="btn btn-sm btn-danger mt-2" :disabled="busy" data-detector-remove-key @click="removeKey">Remove Key</button>
                                     </div>
                                     <div class="form-group col-md-6">
                                         <label class="form-label" for="detector-budget">Monthly GPU budget of this station (US$)</label>
                                         <input id="detector-budget" v-model.number="form.budget_usd" class="form-control" type="number" min="0" step="1" required>
-                                        <div class="form-text">No GPU work starts for this station once its estimated spend this month reaches the budget. 0 means no limit.</div>
-                                    </div>
-                                    <div class="form-group col-md-6" data-detector-spend>
-                                        <SpendMeter label="This station this month" :spend="status.spend_month_usd" :limit="status.limit_usd" :note="spendNote(status)" />
-                                    </div>
-                                    <div v-if="status.key" class="form-group col-md-6" data-detector-key-use>
-                                        <SpendMeter v-if="status.key.stations > 1" :label="`All ${status.key.stations} stations on this Runpod account this month`" :spend="status.key.spend_month_usd" />
-                                        <div class="form-text">{{ keyStationsText(status.key.stations) }}</div>
-                                        <div class="form-text" :class="{ 'text-warning fw-semibold': lowBalance }" data-detector-balance>
-                                            {{ balanceText(status.key.balance_usd) }}
-                                            <a v-if="lowBalance" href="https://console.runpod.io/user/billing" target="_blank" rel="noopener">Add funds</a>
-                                        </div>
+                                        <div class="form-text">Analysis pauses for this station once its spending this month reaches the budget. 0 means no limit.</div>
                                     </div>
                                 </div>
+                                <dl class="row g-3 mt-2 mb-0 detector-summary" data-detector-costs>
+                                    <div class="col-6 col-lg-3" data-detector-spend>
+                                        <dt class="small text-muted fw-normal">This station this month</dt>
+                                        <dd class="fs-5 mb-1">{{ money(status.spend_month_usd) }}<span v-if="status.limit_usd" class="fs-6 text-muted"> of {{ money(status.limit_usd) }}</span></dd>
+                                        <div v-if="status.limit_usd" class="progress detector-meter" role="progressbar" aria-label="This station this month" :aria-valuenow="spendPercent" aria-valuemin="0" aria-valuemax="100">
+                                            <div class="progress-bar" :class="meterClass(spendPercent)" :style="{ width: spendPercent + '%' }"></div>
+                                        </div>
+                                        <div v-else class="small text-muted">No monthly budget</div>
+                                    </div>
+                                    <template v-if="status.key">
+                                        <div class="col-6 col-lg-3" data-detector-key-use>
+                                            <dt class="small text-muted fw-normal">Runpod account this month</dt>
+                                            <dd class="fs-5 mb-1">{{ money(status.key.spend_month_usd) }}</dd>
+                                            <div class="small text-muted">{{ accountStationsText(status.key.stations) }}</div>
+                                        </div>
+                                        <div class="col-6 col-lg-3" data-detector-balance>
+                                            <dt class="small text-muted fw-normal">Runpod balance</dt>
+                                            <dd class="fs-5 mb-1" :class="{ 'text-warning': lowBalance }">{{ money(status.key.balance_usd) }}</dd>
+                                            <a class="small" href="https://console.runpod.io/user/billing" target="_blank" rel="noopener">Add funds</a>
+                                        </div>
+                                        <div class="col-6 col-lg-3" data-detector-worker>
+                                            <dt class="small text-muted fw-normal">GPU worker</dt>
+                                            <dd class="fs-5 mb-1">{{ worker[0] }}</dd>
+                                            <div class="small text-muted">{{ worker[1] }}</div>
+                                        </div>
+                                    </template>
+                                </dl>
+                                <div v-if="lowBalance" class="alert alert-warning py-2 small mt-3 mb-0" role="status" data-detector-low-balance>The Runpod balance is low. Runpod stops GPU work when it is used up.</div>
                             </fieldset>
                         </fieldset>
                         <div v-if="info.can_manage" class="buttons">
@@ -226,12 +241,11 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import PlaylistPicker from "./PlaylistPicker.vue";
-import SpendMeter from "./SpendMeter.vue";
 import {
-    LOW_BALANCE_USD, activityLine, balanceText, blockedText, changedFields, detailText, estimateFigures, jobText, keyStationsText, libraryText,
-    overBudget, progressPercent, queueCounts, runResult, spendNote, stationForm, stepText, waitingText,
+    LOW_BALANCE_USD, accountStationsText, activityLine, blockedText, changedFields, detailText, meterClass, money, workerState, estimateFigures, jobText, libraryText,
+    overBudget, progressPercent, queueCounts, runResult, stationForm, stepText, waitingText,
 } from "./detector.js";
 import { formatStationTime } from "./dates.js";
 import { notifyError, notifySuccess } from "./toasts.js";
@@ -267,6 +281,14 @@ const libraryEstimate = computed(() => ({ songs: status.value.library_without_in
 // A run is going or about to start; refresh often so its progress appears promptly.
 const activeSoon = computed(() => Boolean(status.value?.activity)
     || (counts.value.waiting > 0 && (status.value?.process_requested || status.value?.settings.auto_process) && !status.value?.blocked));
+// Server time now, from the time of the last status and the local clock since, for the shutdown countdown.
+const clock = ref(Date.now());
+let statusReceivedAt = Date.now();
+const serverNow = computed(() => (status.value?.now ?? 0) + (clock.value - statusReceivedAt) / 1000);
+watch(() => status.value?.now, () => { statusReceivedAt = clock.value = Date.now(); });
+const worker = computed(() => workerState(status.value?.worker, serverNow.value));
+const spendPercent = computed(() => status.value?.limit_usd
+    ? Math.min(100, Math.round(status.value.spend_month_usd / status.value.limit_usd * 100)) : 0);
 const lowBalance = computed(() => (status.value?.key?.balance_usd ?? Infinity) < LOW_BALANCE_USD);
 const summary = computed(() => [
     ["Detector", status.value.settings.enabled ? "On" : "Off"],
@@ -361,6 +383,7 @@ onMounted(async () => {
     await load();
     lastRefresh = Date.now();
     timer = setInterval(() => {
+        clock.value = Date.now();
         const due = Date.now() - lastRefresh >= (activeSoon.value ? REFRESH_ACTIVE_MS : REFRESH_MS);
         if (due && !busy.value && !refreshing && info.value.installed && document.visibilityState === "visible") {
             lastRefresh = Date.now();

@@ -168,6 +168,7 @@ let detectorInfo = { installed: true, can_manage: true, can_admin: false };
 let detectorSettings = {};
 let detectorActivity = null;
 let detectorLibrary = 300;
+let detectorWorker = null;
 let detectorKey = { stations: 1, spend_month_usd: 0.42, balance_usd: 12.3, balance_checked_at: 1900 };
 const detectorStation = (overrides = {}) => ({
     settings: { id: 1, enabled: true, auto_process: true, min_song_seconds: 60, max_song_seconds: 900, exclude_playlists: [],
@@ -175,7 +176,7 @@ const detectorStation = (overrides = {}) => ({
     queue: { done: 120, pending: 4, failed: 1, known: 300 },
     publications: { written: 5667, unresolved: 34 },
     library_without_intro: detectorLibrary, library_estimate_usd: 1.2, process_requested: false, jobs: [], blocked: null, key: detectorKey,
-    spend_month_usd: 0.42, limit_usd: 10, worker: null, recovery: null, activity: detectorActivity, now: 2000,
+    spend_month_usd: 0.42, limit_usd: 10, worker: detectorWorker, recovery: null, activity: detectorActivity, now: 2000,
     runs: [{ id: "r1", status: "complete", songs: 4, started_at: 1792948000, finished_at: 1792948600, error: null }],
     failures: [{ media_id: 9, path: "broken.mp3", attempts: 2, error: "HTTP 404", updated_at: 1792948000 }],
 });
@@ -1332,21 +1333,23 @@ test("intro detector page shows how many stations use the key, their spend and t
     detectorInfo = { installed: true, can_manage: true, can_admin: true };
     let app = await mountDetector();
     try {
-        const use = document.querySelector("[data-detector-key-use]").textContent;
-        assert.match(use, /Only this station uses this Runpod account/);
-        assert.doesNotMatch(use, /stations on this Runpod account this month/);
-        assert.match(document.querySelector("[data-detector-balance]").textContent, /Runpod balance: US\$12\.30\./);
-        assert.doesNotMatch(document.querySelector("[data-detector-balance]").textContent, /Add funds/);
+        const figures = [...document.querySelectorAll("[data-detector-costs] dt")].map((term) => term.textContent);
+        assert.deepEqual(figures, ["This station this month", "Runpod account this month", "Runpod balance", "GPU worker"]);
+        assert.match(document.querySelector("[data-detector-key-use]").textContent, /US\$0\.42\s*Only this station/);
+        assert.match(document.querySelector("[data-detector-balance]").textContent, /US\$12\.30/);
+        assert.equal(document.querySelector("[data-detector-low-balance]"), null);
+        assert.match(document.querySelector("[data-detector-worker]").textContent, /Off/);
     } finally {
         app.unmount();
     }
     detectorKey = { stations: 3, spend_month_usd: 2.5, balance_usd: 3.2, balance_checked_at: 1900 };
+    detectorWorker = { pod_id: "p", gpu_id: "NVIDIA GeForce RTX 4090", price: 0.89, shutdown_at: 2400 };
     app = await mountDetector();
     try {
-        const use = document.querySelector("[data-detector-key-use]").textContent;
-        assert.match(use, /All 3 stations on this Runpod account this month\s*US\$2\.50/);
-        assert.match(use, /3 stations use this Runpod account/);
-        assert.match(document.querySelector("[data-detector-balance]").textContent, /US\$3\.20\. Add funds soon[\s\S]*Add funds/);
+        assert.match(document.querySelector("[data-detector-key-use]").textContent, /US\$2\.50\s*3 stations share it/);
+        assert.ok(document.querySelector("[data-detector-balance] dd").classList.contains("text-warning"));
+        assert.match(document.querySelector("[data-detector-low-balance]").textContent, /balance is low/);
+        assert.match(document.querySelector("[data-detector-worker]").textContent, /Idle\s*Shuts down in 6:40/);
         globalThis.window.confirm = () => true;
         document.querySelector("[data-detector-remove-key]").click();
         await settle();
@@ -1355,9 +1358,11 @@ test("intro detector page shows how many stations use the key, their spend and t
         delete globalThis.window.confirm;
         app.unmount();
         detectorKey = { stations: 1, spend_month_usd: 0.42, balance_usd: 12.3, balance_checked_at: 1900 };
+        detectorWorker = null;
         detectorInfo = { installed: true, can_manage: true, can_admin: false };
     }
-});test("intro detector page shows a running batch and tells a waiting station when another one runs", async () => {
+});
+test("intro detector page shows a running batch and tells a waiting station when another one runs", async () => {
     detectorSettings = {};
     detectorInfo = { installed: true, can_manage: true, can_admin: false };
     detectorActivity = { step: "analyze", done: 3, total: 6, started_at: 1400, step_started_at: 1700, own: true, songs: 40, station_songs: 12, detail: { phase: "run", stages: ["qwen"], failed: 0 } };

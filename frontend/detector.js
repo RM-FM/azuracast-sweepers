@@ -27,19 +27,26 @@ export function money(value) {
 // Runpod stops workers when the prepaid balance runs out; warn well before that.
 export const LOW_BALANCE_USD = 5;
 
-export function spendNote(status) {
-    return status.limit_usd ? "" : "No monthly budget is set for this station.";
+export function accountStationsText(stations) {
+    return stations > 1 ? `${stations} stations share it` : "Only this station";
 }
 
-export function keyStationsText(stations) {
-    return stations > 1 ? `${stations} stations use this Runpod account and share its GPU worker.` : "Only this station uses this Runpod account.";
+export function meterClass(percent) {
+    return percent >= 100 ? "bg-danger" : percent >= 80 ? "bg-warning" : "bg-success";
 }
 
-export function balanceText(balance) {
-    if (balance === null || balance === undefined) return "Runpod balance not checked yet.";
-    return balance < LOW_BALANCE_USD
-        ? `Runpod balance: ${money(balance)}. Add funds soon; Runpod stops GPU work when the balance is used up.`
-        : `Runpod balance: ${money(balance)}.`;
+export function countdown(seconds) {
+    const whole = Math.max(0, Math.ceil(seconds));
+    return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+/** [state, detail] of the account's GPU worker; an idle worker counts down to its shutdown. */
+export function workerState(worker, now) {
+    if (!worker) return ["Off", "Started when songs need analysis"];
+    const rented = [worker.gpu_id && gpuName(worker.gpu_id), `${money(worker.price)}/hour`].filter(Boolean).join(" · ");
+    if (worker.shutdown_at === null || worker.shutdown_at === undefined) return ["Working", rented];
+    const left = worker.shutdown_at - now;
+    return ["Idle", left > 0 ? `Shuts down in ${countdown(left)}` : "Shutting down…"];
 }
 
 export function blockedText(reason) {

@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-    activityLine, balanceText, blockedText, changedFields, detailText, duration, place, estimateFigures, jobText, keyStationsText, libraryText, money,
-    overBudget, progressPercent, queueCounts, runResult, spendNote, stationForm, stepRemaining, stepText, waitingText,
+    accountStationsText, activityLine, blockedText, changedFields, countdown, detailText, duration, place, estimateFigures, jobText, libraryText,
+    meterClass, money, workerState,
+    overBudget, progressPercent, queueCounts, runResult, stationForm, stepRemaining, stepText, waitingText,
 } from "../frontend/detector.js";
 
 test("detector form sends only changed station fields", () => {
@@ -32,14 +33,18 @@ test("detector texts explain money, blocks and backfill estimates", () => {
     assert.equal(overBudget({ estimated_usd: 12 }, null), false, "No budget, no limit");
 });
 
-test("spending notes describe the station budget, the key's stations and the Runpod balance", () => {
-    assert.equal(spendNote({ limit_usd: 10 }), "");
-    assert.match(spendNote({ limit_usd: 0 }), /No monthly budget/);
-    assert.equal(keyStationsText(1), "Only this station uses this Runpod account.");
-    assert.equal(keyStationsText(4), "4 stations use this Runpod account and share its GPU worker.");
-    assert.equal(balanceText(12.345), "Runpod balance: US$12.35.");
-    assert.match(balanceText(4.3), /US\$4\.30\. Add funds soon/);
-    assert.match(balanceText(null), /not checked yet/);
+test("cost figures name the account's stations and count down to an idle worker's shutdown", () => {
+    assert.equal(accountStationsText(1), "Only this station");
+    assert.equal(accountStationsText(4), "4 stations share it");
+    assert.deepEqual([meterClass(50), meterClass(80), meterClass(100)], ["bg-success", "bg-warning", "bg-danger"]);
+    assert.equal(countdown(372.2), "6:13");
+    assert.equal(countdown(-5), "0:00");
+    const worker = { gpu_id: "NVIDIA GeForce RTX 4090", price: 0.89, shutdown_at: null };
+    assert.deepEqual(workerState(null, 1000), ["Off", "Started when songs need analysis"]);
+    assert.deepEqual(workerState(worker, 1000), ["Working", "RTX 4090 · US$0.89/hour"]);
+    assert.deepEqual(workerState({ ...worker, gpu_id: null }, 1000), ["Working", "US$0.89/hour"]);
+    assert.deepEqual(workerState({ ...worker, shutdown_at: 1372 }, 1000), ["Idle", "Shuts down in 6:12"]);
+    assert.deepEqual(workerState({ ...worker, shutdown_at: 990 }, 1000), ["Idle", "Shutting down…"]);
 });
 test("analysis texts say what is waiting and what happens next", () => {
     assert.match(waitingText(3, true, false), /3 songs are waiting\. They are analyzed automatically/);
