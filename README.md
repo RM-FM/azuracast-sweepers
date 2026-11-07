@@ -212,6 +212,15 @@ per song, so a later detector update can re-evaluate songs without renting a GPU
 Data of songs removed from every library is deleted after a day. When less than 1 GB of
 disk space is free, analysis pauses and the page says so.
 
+**Data protection:** only the audio files of the songs being analyzed leave your server.
+They are copied to a GPU worker rented from Runpod with the station's key, and only the
+analysis results come back. No listener data and no AzuraCast credentials are sent. The
+worker and the files on it are deleted when it shuts down after its idle timeout; only a
+worker whose results could not be copied back is kept stopped until you delete it on the
+Intro Detector page. Runpod is a US company; with **Analyze this station's songs in the EU
+only**, the station's songs are processed only in data centers of EU member states.
+Whether that meets your obligations, for example under the GDPR, is for you to assess.
+
 ## More documentation
 
 - [Advanced guide](docs/ADVANCED.md): Compose setup and backups, settings reference,
