@@ -185,7 +185,7 @@
                                 <legend>Runpod</legend>
                                 <div class="row g-3">
                                     <div class="form-group col-md-6">
-                                        <label class="form-label" for="detector-key">Runpod API key <span class="badge" :class="status.key ? 'text-bg-success' : 'text-bg-secondary'">{{ status.key ? "Stored" : "Missing" }}</span></label>
+                                        <label class="form-label" for="detector-key">Runpod API key</label>
                                         <input v-if="info.can_manage" id="detector-key" v-model="stationKey" class="form-control" type="password" autocomplete="off" :class="{ 'detector-key-stored': status.key }" :placeholder="status.key ? '••••••••••••••••••••••••••••••••' : 'Paste the Runpod API key'" :aria-description="status.key ? 'A key is stored. Enter a new key to replace it.' : undefined">
                                         <div class="form-text">Create a key with read/write access in the <a href="https://console.runpod.io/user/credentials" target="_blank" rel="noopener">Runpod console</a>. Several stations may use the same key. It is checked when you save and never shown again; enter a new key to replace the stored one.</div>
                                         <button v-if="info.can_manage && status.key" type="button" class="btn btn-sm btn-danger mt-2" :disabled="busy" data-detector-remove-key @click="removeKey">Remove Key</button>
