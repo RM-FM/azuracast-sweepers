@@ -213,8 +213,9 @@ if [[ -d "$detector_dir/.git" ]]; then
 elif [[ ! -e "$declined" ]]; then
     status '\nOptional: Intro Detector\n'
     status 'It finds the intro end of each song (where the vocals start or the musical intro ends), so sweepers\n'
-    status 'fit automatically. Songs are analyzed on rented GPUs at Runpod (paid, about US$4 per 1,000 songs).\n'
+    status 'fit automatically. Songs are analyzed on rented GPUs at Runpod (paid, about USD 4 per 1,000 songs).\n'
     status 'Each station enables it and enters its own Runpod key and budget in Sweepers > Intro Detector.\n'
+    status 'It is a separate project under the MIT license; its models keep their own licenses.\n'
     status 'More: https://github.com/RM-FM/azuracast-intro-detector\n'
     status 'If it already runs on another server, answer N: it must run on this server to be managed here.\n'
     if [[ ! -t 0 ]]; then

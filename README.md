@@ -168,6 +168,8 @@ overwritten; correct any result in the Intro Manager.
 
 Analysis uses paid GPU time at [Runpod](https://www.runpod.io/), about USD 4 per
 1,000 songs. Each song is analyzed only once, also when several stations play it.
+The detector is a separate project under the MIT license; its models keep their own
+licenses, listed in its [third-party notices](https://github.com/RM-FM/azuracast-intro-detector/blob/main/THIRD_PARTY_NOTICES.md).
 
 **Install:** answer **Y** when setup offers it, or later run `sudo bash bin/setup.sh --detector`.
 
