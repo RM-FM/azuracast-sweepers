@@ -70,7 +70,7 @@ fi
 status 'Preparing plugin files...\n'
 docker run --rm --user "$(id -u):$(id -g)" -e npm_config_cache=/tmp/npm-cache \
     -v "$plugin_dir:/plugin" -w /plugin node:24-alpine \
-    sh -c 'npm ci --include=dev --ignore-scripts && npm run build'
+    sh -c 'npm ci --include=dev --ignore-scripts && npm run build && rm -rf node_modules'
 [[ -s "$plugin_dir/dist/app.js" ]] || fail "The frontend bundle is missing."
 
 status 'Checking plugin configuration...\n'
