@@ -449,7 +449,9 @@ installs, updates and connects it and provides its station page.
   back to the browser. Stations whose keys belong to the same Runpod account share one
   GPU worker, and each station's share of its cost counts against that station's budget.
   The page shows the number of stations on the account (not which ones), their combined
-  spending this month and the account's Runpod balance. Runpod offers no monthly budget of
+  spending this month, the account's Runpod balance and its GPU worker, with a countdown to
+  the shutdown of an idle worker. Each station sets an idle timeout (1 to 60 minutes, default
+  5); a shared worker waits for the longest of its stations. Runpod offers no monthly budget of
   its own. Without a key a station's songs wait; stored analyses of identical files are
   still reused at no cost.
 - **Downloads:** the detector downloads songs through AzuraCast's play route. AzuraCast

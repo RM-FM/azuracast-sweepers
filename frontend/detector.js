@@ -1,5 +1,5 @@
 
-const STATION_FIELDS = ["enabled", "auto_process", "min_song_seconds", "max_song_seconds", "exclude_playlists", "budget_usd"];
+const STATION_FIELDS = ["enabled", "auto_process", "min_song_seconds", "max_song_seconds", "exclude_playlists", "budget_usd", "idle_timeout_minutes"];
 
 const BLOCKED = {
     "no Runpod key": "Add a Runpod API key to start analyzing songs.",

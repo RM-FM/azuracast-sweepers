@@ -193,10 +193,15 @@
                                         <div class="form-text">Create a key with read/write access in the <a href="https://console.runpod.io/user/credentials" target="_blank" rel="noopener">Runpod console</a>. Several stations may use the same key. It is checked when you save and never shown again.</div>
                                         <button v-if="info.can_manage && status.key" type="button" class="btn btn-sm btn-danger mt-2" :disabled="busy" data-detector-remove-key @click="removeKey">Remove Key</button>
                                     </div>
-                                    <div class="form-group col-md-6">
-                                        <label class="form-label" for="detector-budget">Monthly GPU budget of this station (US$)</label>
+                                    <div class="form-group col-sm-6 col-md-3">
+                                        <label class="form-label" for="detector-budget">Monthly budget (US$)</label>
                                         <input id="detector-budget" v-model.number="form.budget_usd" class="form-control" type="number" min="0" step="1" required>
-                                        <div class="form-text">Analysis pauses for this station once its spending this month reaches the budget. 0 means no limit.</div>
+                                        <div class="form-text">Analysis pauses for this station when its spending this month reaches it. 0 means no limit.</div>
+                                    </div>
+                                    <div class="form-group col-sm-6 col-md-3">
+                                        <label class="form-label" for="detector-idle">Idle timeout (minutes)</label>
+                                        <input id="detector-idle" v-model.number="form.idle_timeout_minutes" class="form-control" type="number" min="1" max="60" step="1" required>
+                                        <div class="form-text">How long the GPU worker waits for more songs before it shuts down. A shared worker uses the longest of its stations.</div>
                                     </div>
                                 </div>
                                 <dl class="row g-3 mt-2 mb-0 detector-summary" data-detector-costs>

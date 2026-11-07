@@ -7,7 +7,7 @@
 - **Intro Detector integration:** setup offers to install the optional Intro Detector,
   also when updating to this version, and updates it together with the plugin. A new **Sweepers → Intro Detector** page
   manages it per station: on/off, automatic processing,
-  skipped playlists, minimum and maximum song length, Runpod key and monthly budget, status, costs, failed songs and
+  skipped playlists, minimum and maximum song length, Runpod key, monthly budget, GPU idle timeout, status, costs, failed songs and
   analyzing the existing library. Stations on the same Runpod account share one GPU
   worker; the page shows how many stations use the account, their combined cost and its
   balance. Station broadcasting permission is enough.
