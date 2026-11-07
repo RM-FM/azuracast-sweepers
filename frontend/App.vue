@@ -549,6 +549,7 @@ import PlaylistPicker from "./PlaylistPicker.vue";
 import SweeperRoute from "./SweeperRoute.vue";
 import Waveform from "./Waveform.vue";
 import { formatStationTime, lastDay, presetRanges, startOfDay } from "./dates.js";
+import { useNotice } from "./notice.js";
 import { createReverbPreview, reverbLevel } from "./reverb.js";
 
 const props = defineProps({
@@ -657,7 +658,7 @@ const position = ref(0);
 const loading = ref(true);
 const stateLoaded = ref(false);
 const saving = ref(false);
-const notice = ref("");
+const notice = useNotice();
 const error = ref("");
 const validDraft = computed(() => draft.value === "" || (
     draft.value !== null && draft.value !== undefined

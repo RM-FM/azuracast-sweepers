@@ -76,9 +76,9 @@
                                 <li class="list-group-item d-flex flex-wrap align-items-center gap-2" data-detector-task="waiting">
                                     <div class="flex-fill">
                                         <div class="fw-semibold">Waiting songs</div>
-                                        <div class="small">{{ waitingText(counts.waiting, status.settings.auto_process, status.process_requested) }}</div>
+                                        <div class="small">{{ waitingText(counts.waiting, status.settings.auto_process, status.process_requested, status.activity) }}</div>
                                     </div>
-                                    <button v-if="info.can_manage && counts.waiting && !status.process_requested" type="button" class="btn btn-sm btn-primary" :disabled="busy" @click="action('process', {})">Analyze now</button>
+                                    <button v-if="info.can_manage && counts.waiting && !status.process_requested && !status.activity" type="button" class="btn btn-sm btn-primary" :disabled="busy" @click="action('process', {})">Analyze now</button>
                                 </li>
                                 <li class="list-group-item" data-detector-task="library">
                                     <div class="fw-semibold">Older songs</div>
@@ -93,7 +93,7 @@
                                         <div v-if="overBudget(libraryEstimate, budgetLeft)" class="alert alert-warning py-2 small mb-2" role="status" data-detector-over-budget>This is more than the budget left this month. The analysis pauses when the budget is reached and continues next month or after raising it.</div>
                                         <div class="d-flex flex-wrap align-items-center gap-2">
                                             <button v-if="info.can_manage" type="button" class="btn btn-sm btn-primary" :disabled="busy" @click="startLibrary">Analyze them</button>
-                                            <span class="small text-muted">Songs already analyzed for another station cost nothing. New uploads go first.</span>
+                                            <span class="small text-muted">Songs already analyzed for another station cost nothing.</span>
                                         </div>
                                     </div>
                                 </li>                                <li v-if="counts.failed" class="list-group-item d-flex flex-wrap align-items-center gap-2" data-detector-task="failed">
@@ -236,6 +236,7 @@ import {
     overBudget, progressPercent, queueCounts, runResult, spendNote, stationForm, stepText, waitingText,
 } from "./detector.js";
 import { formatStationTime } from "./dates.js";
+import { useNotice } from "./notice.js";
 
 const props = defineProps({
     api: { type: Function, required: true },
@@ -249,7 +250,7 @@ const tab = ref("status");
 const loading = ref(true);
 const busy = ref(false);
 const error = ref("");
-const notice = ref("");
+const notice = useNotice();
 const info = ref({});
 const status = ref(null);
 const form = ref({});
@@ -346,7 +347,7 @@ function action(name, data) {
 function startLibrary() {
     return run(async () => {
         status.value = (await props.api("detector/backfill", {})).station;
-    }, "The songs were queued. The analysis starts within a minute or two (after any new uploads); its progress appears here.");
+    }, "The songs were queued. The analysis starts within a minute or two; its progress appears here.");
 }
 
 function retireWorker() {

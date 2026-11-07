@@ -45,7 +45,10 @@ test("analysis texts say what is waiting and what happens next", () => {
     assert.match(waitingText(3, true, false), /3 songs are waiting\. They are analyzed automatically/);
     assert.match(waitingText(3, false, false), /waiting until you start/);
     assert.match(waitingText(0, true, false), /No songs are waiting\. New uploads are analyzed automatically/);
-    assert.equal(waitingText(3, true, true), "The analysis starts shortly.");
+    assert.equal(waitingText(3, true, true), "The analysis starts within a minute or two.");
+    assert.equal(waitingText(18, true, false, { own: true, station_songs: 18 }), "18 songs are being analyzed now.");
+    assert.equal(waitingText(20, true, false, { own: true, station_songs: 18 }), "18 songs are being analyzed now. 2 more follow in the next run.");
+    assert.match(waitingText(4, true, false, { own: false }), /until the current analysis of another station has finished/);
     assert.match(libraryText(120), /only analyzed if you start it/);
     assert.match(libraryText(0), /Every song/);
     assert.equal(jobText("republish"), "Writing intros to AzuraCast…");

@@ -70,8 +70,14 @@ export function overBudget(estimate, budgetLeft) {
     return budgetLeft !== null && estimate.estimated_usd !== null && estimate.estimated_usd > budgetLeft;
 }
 
-export function waitingText(count, automatic, requested) {
-    if (requested) return "The analysis starts shortly.";
+export function waitingText(count, automatic, requested, activity = null) {
+    if (activity?.own) {
+        const running = Math.min(count, activity.station_songs ?? 0);
+        const later = count - running;
+        return `${running} songs are being analyzed now.${later ? ` ${later} more follow in the next run.` : ""}`;
+    }
+    if (activity && count) return `${count} songs are waiting until the current analysis of another station has finished.`;
+    if (requested) return "The analysis starts within a minute or two.";
     if (!count) return `No songs are waiting. ${automatic ? "New uploads are analyzed automatically." : "New uploads wait here until you start the analysis."}`;
     return automatic
         ? `${count} songs are waiting. They are analyzed automatically within a few minutes, or right away with Analyze now.`

@@ -1358,6 +1358,9 @@ test("intro detector page shows how many stations use the key, their spend and t
         assert.match(card.textContent, /12 of the 40 songs/);
         assert.equal(card.querySelector(".progress-bar").getAttribute("style").replace(/\s|;/g, ""), "width:50%");
         assert.equal(document.querySelector("[data-detector-queued]"), null);
+        const buttons = () => [...document.querySelectorAll("button")].map((button) => button.textContent.trim());
+        assert.ok(!buttons().includes("Analyze now"), "A running analysis cannot be started again");
+        assert.match(document.querySelector('[data-detector-task="waiting"]').textContent, /4 songs are being analyzed now/);
     } finally {
         app.unmount();
     }
