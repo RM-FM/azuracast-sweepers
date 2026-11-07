@@ -1252,7 +1252,7 @@ test("intro detector page saves only changed station fields, has no shadow mode 
     const app = await mountDetector();
     try {
         assert.equal(document.querySelector("#detector-heading").textContent, "Intro Detector");
-        assert.match(document.querySelector("[data-detector-spend]").textContent, /US\$0\.42 of US\$10\.00/);
+        assert.match(document.querySelector("[data-detector-spend]").textContent, /USD 0\.42 of USD 10\.00/);
         const buttons = [...document.querySelectorAll("#detector-panel-status button")];
         assert.ok(!buttons.some((button) => button.textContent.trim() === "Refresh"), "The page refreshes itself");
         assert.ok(buttons.every((button) => button.classList.contains("btn-primary")), "Actions use AzuraCast's blue buttons");
@@ -1275,7 +1275,7 @@ test("intro detector page saves only changed station fields, has no shadow mode 
         const estimate = document.querySelector("[data-detector-estimate]");
         assert.deepEqual([...estimate.querySelectorAll("dt")].map((term) => term.textContent),
             ["Songs", "Estimated cost", "Budget left this month"], "The cost is shown without asking for it");
-        assert.deepEqual([...estimate.querySelectorAll("dd")].map((value) => value.textContent), ["300", "US$1.20", "US$9.58"]);
+        assert.deepEqual([...estimate.querySelectorAll("dd")].map((value) => value.textContent), ["300", "USD 1.20", "USD 9.58"]);
         assert.equal(estimate.querySelector("[data-detector-over-budget]"), null);
         detectorLibrary = 0;
         await click("Analyze them");
@@ -1339,8 +1339,8 @@ test("intro detector page shows how many stations use the key, their spend and t
     try {
         const figures = [...document.querySelectorAll("[data-detector-costs] dt")].map((term) => term.textContent);
         assert.deepEqual(figures, ["This station this month", "Runpod account this month", "Runpod balance", "GPU worker"]);
-        assert.match(document.querySelector("[data-detector-key-use]").textContent, /US\$0\.42\s*Only this station/);
-        assert.match(document.querySelector("[data-detector-balance]").textContent, /US\$12\.30/);
+        assert.match(document.querySelector("[data-detector-key-use]").textContent, /USD 0\.42\s*Only this station/);
+        assert.match(document.querySelector("[data-detector-balance]").textContent, /USD 12\.30/);
         assert.equal(document.querySelector("[data-detector-low-balance]"), null);
         assert.match(document.querySelector("[data-detector-worker]").textContent, /Off/);
     } finally {
@@ -1350,7 +1350,7 @@ test("intro detector page shows how many stations use the key, their spend and t
     detectorWorker = { pod_id: "p", gpu_id: "NVIDIA GeForce RTX 4090", price: 0.89, shutdown_at: 2400 };
     app = await mountDetector();
     try {
-        assert.match(document.querySelector("[data-detector-key-use]").textContent, /US\$2\.50\s*3 stations share it/);
+        assert.match(document.querySelector("[data-detector-key-use]").textContent, /USD 2\.50\s*3 stations share it/);
         assert.ok(document.querySelector("[data-detector-balance] dd").classList.contains("text-warning"));
         assert.match(document.querySelector("[data-detector-low-balance]").textContent, /balance is low/);
         assert.match(document.querySelector("[data-detector-worker]").textContent, /Idle\s*Shuts down in 6:40/);

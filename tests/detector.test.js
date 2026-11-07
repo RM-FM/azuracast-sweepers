@@ -20,13 +20,13 @@ test("detector form sends only changed station fields", () => {
 
 test("detector texts explain money, blocks and backfill estimates", () => {
     assert.equal(money(null), "–");
-    assert.equal(money(3.456), "US$3.46");
+    assert.equal(money(3.456), "USD 3.46");
     assert.match(blockedText("no Runpod key"), /Add a Runpod API key/);
     assert.equal(blockedText("something new"), "something new");
     assert.equal(blockedText(null), "");
     assert.deepEqual(queueCounts({ done: 2, pending: 1, known: 7 }), { done: 2, waiting: 1, failed: 0, library: 7, skipped: 0 });
     assert.deepEqual(estimateFigures({ songs: 1000, estimated_usd: 4 }, 9.5),
-        [["Songs", "1000"], ["Estimated cost", "US$4.00"], ["Budget left this month", "US$9.50"]]);
+        [["Songs", "1000"], ["Estimated cost", "USD 4.00"], ["Budget left this month", "USD 9.50"]]);
     assert.deepEqual(estimateFigures({ songs: 3, estimated_usd: null }, null), [["Songs", "3"], ["Estimated cost", "Known after the first run"]]);
     assert.equal(overBudget({ estimated_usd: 4 }, 9.5), false);
     assert.equal(overBudget({ estimated_usd: 12 }, 9.5), true);
@@ -41,8 +41,8 @@ test("cost figures name the account's stations and count down to an idle worker'
     assert.equal(countdown(-5), "0:00");
     const worker = { gpu_id: "NVIDIA GeForce RTX 4090", price: 0.89, shutdown_at: null };
     assert.deepEqual(workerState(null, 1000), ["Off", "Started when songs need analysis"]);
-    assert.deepEqual(workerState(worker, 1000), ["Working", "RTX 4090 · US$0.89/hour"]);
-    assert.deepEqual(workerState({ ...worker, gpu_id: null }, 1000), ["Working", "US$0.89/hour"]);
+    assert.deepEqual(workerState(worker, 1000), ["Working", "RTX 4090 · USD 0.89/hour"]);
+    assert.deepEqual(workerState({ ...worker, gpu_id: null }, 1000), ["Working", "USD 0.89/hour"]);
     assert.deepEqual(workerState({ ...worker, shutdown_at: 1372 }, 1000), ["Idle", "Shuts down in 6:12"]);
     assert.deepEqual(workerState({ ...worker, shutdown_at: 990 }, 1000), ["Idle", "Shutting down…"]);
 });
@@ -86,10 +86,10 @@ test("progress details name the GPU, its location and the pipeline stage", () =>
     assert.equal(place("EU-SE-1"), "EU-SE-1 (Sweden)");
     assert.equal(place("US-TX-3"), "US-TX-3 (USA)");
     assert.equal(place("XX-1"), "XX-1");
-    assert.equal(detailText({ step: "worker", detail: { phase: "search", ...gpu } }), "Renting RTX 4090 in EU-RO-1 (Romania) at US$0.89/hour…");
+    assert.equal(detailText({ step: "worker", detail: { phase: "search", ...gpu } }), "Renting RTX 4090 in EU-RO-1 (Romania) at USD 0.89/hour…");
     assert.equal(detailText({ step: "worker", detail: { phase: "boot", ...gpu } }),
-        "RTX 4090 in EU-RO-1 (Romania) at US$0.89/hour is starting and loading the analysis software.");
-    assert.match(detailText({ step: "worker", detail: { phase: "no_stock", attempt: 3, max_price: 0.9 } }), /up to US\$0\.90\/hour.*attempt 3/);
+        "RTX 4090 in EU-RO-1 (Romania) at USD 0.89/hour is starting and loading the analysis software.");
+    assert.match(detailText({ step: "worker", detail: { phase: "no_stock", attempt: 3, max_price: 0.9 } }), /up to USD 0\.90\/hour.*attempt 3/);
     assert.equal(detailText({ step: "worker", detail: { phase: "reuse" } }), "Using the GPU worker that is already running.");
     assert.equal(detailText({ step: "upload", detail: { songs: 18, megabytes: 160 } }), "18 songs, 160 MB.");
     assert.equal(detailText({ step: "analyze", detail: { phase: "prepare", lanes: 3 } }), "Checking the GPU and loading the models.");

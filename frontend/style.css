@@ -570,3 +570,10 @@
 .sweepers-detector [data-detector-costs] dd {
     font-size: 1.1em;
 }
+
+/* A stored key looks like a filled password field; the dots are only a placeholder. */
+.sweepers-detector .detector-key-stored::placeholder {
+    color: var(--bs-body-color);
+    opacity: 1;
+    letter-spacing: .1em;
+}
