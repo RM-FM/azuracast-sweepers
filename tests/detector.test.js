@@ -84,6 +84,7 @@ test("batch progress names the step, its share done and the time left", () => {
 test("progress details name the GPU, its location and the pipeline stage", () => {
     const gpu = { gpu: "NVIDIA GeForce RTX 4090", location: "EU-RO-1", price: 0.89 };
     assert.equal(place("EU-SE-1"), "EU-SE-1 (Sweden)");
+    assert.equal(place("EUR-IS-1"), "EUR-IS-1 (Iceland)");
     assert.equal(place("US-TX-3"), "US-TX-3 (USA)");
     assert.equal(place("XX-1"), "XX-1");
     assert.equal(detailText({ step: "worker", detail: { phase: "search", ...gpu } }), "Renting RTX 4090 in EU-RO-1 (Romania) at USD 0.89/hour…");

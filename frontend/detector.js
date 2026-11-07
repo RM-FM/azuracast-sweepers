@@ -148,7 +148,7 @@ const REGIONS = { US: "USA", CA: "Canada", AP: "Asia-Pacific", OC: "Oceania", SA
 /** Data center with its country, e.g. "EU-RO-1 (Romania)". */
 export function place(location) {
     const [region, country] = String(location ?? "").split("-");
-    const name = region === "EU" ? COUNTRIES[country] : REGIONS[region];
+    const name = region === "EU" || region === "EUR" ? COUNTRIES[country] : REGIONS[region];
     return name ? `${location} (${name})` : String(location ?? "");
 }
 
