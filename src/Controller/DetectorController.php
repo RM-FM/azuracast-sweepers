@@ -22,7 +22,7 @@ final readonly class DetectorController
 {
     private const array STATION_FIELDS = [
         'enabled', 'auto_process', 'min_song_seconds', 'max_song_seconds', 'exclude_playlists', 'budget_usd',
-        'idle_timeout_minutes',
+        'idle_timeout_minutes', 'eu_only',
     ];
 
     public function __construct(

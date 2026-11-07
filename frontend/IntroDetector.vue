@@ -199,6 +199,13 @@
                                         <input id="detector-idle" v-model.number="form.idle_timeout_minutes" class="form-control" type="number" min="1" max="60" step="1" required>
                                         <div class="form-text">How long the GPU worker waits for more songs before it shuts down. A shared worker uses the longest of its stations.</div>
                                     </div>
+                                    <div class="form-group col-12">
+                                        <div class="form-check form-switch">
+                                            <input id="detector-eu-only" v-model="form.eu_only" class="form-check-input" type="checkbox" role="switch">
+                                            <label class="form-check-label" for="detector-eu-only">Analyze this station's songs in the EU only</label>
+                                        </div>
+                                        <div class="form-text">Uses GPU workers in EU data centers only. Fewer GPUs are available there, so songs may wait longer. Stations sharing a Runpod key keep their own choice; a running worker outside the EU is replaced when this station's songs need it.</div>
+                                    </div>
                                 </div>
                                 <dl class="row g-3 mt-2 mb-0 detector-summary" data-detector-costs>
                                     <div class="col-6 col-lg-3" data-detector-spend>

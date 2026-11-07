@@ -198,6 +198,7 @@ while an analysis runs, recent runs and failed songs with **Retry**.
 | Runpod API key | Stored securely and never shown again |
 | Monthly budget | Analysis pauses for the station when its spending reaches it |
 | Idle timeout | How long the GPU waits for more songs before it shuts down (default 5 minutes) |
+| Analyze this station's songs in the EU only | Uses GPU workers in EU data centers only; fewer GPUs are available there, so songs may wait longer. Each station sharing a Runpod key keeps its own choice |
 
 Below the settings, the page shows the station's spending this month, the spending of
 the whole Runpod account and how many stations use it, the Runpod balance and whether a

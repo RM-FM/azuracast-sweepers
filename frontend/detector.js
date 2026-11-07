@@ -1,5 +1,5 @@
 
-const STATION_FIELDS = ["enabled", "auto_process", "min_song_seconds", "max_song_seconds", "exclude_playlists", "budget_usd", "idle_timeout_minutes"];
+const STATION_FIELDS = ["enabled", "auto_process", "min_song_seconds", "max_song_seconds", "exclude_playlists", "budget_usd", "idle_timeout_minutes", "eu_only"];
 
 const BLOCKED = {
     "no Runpod key": "Add a Runpod API key to start analyzing songs.",
@@ -44,7 +44,9 @@ export function countdown(seconds) {
 /** [state, detail] of the account's GPU worker; an idle worker counts down to its shutdown. */
 export function workerState(worker, now) {
     if (!worker) return ["Down", "Started when songs need analysis"];
-    const rented = [worker.gpu_id && gpuName(worker.gpu_id), `${money(worker.price)}/hour`].filter(Boolean).join(" · ");
+    const gpu = worker.gpu_id && gpuName(worker.gpu_id);
+    const where = worker.location && place(worker.location);
+    const rented = [[gpu, where].filter(Boolean).join(" in "), `${money(worker.price)}/hour`].filter(Boolean).join(" · ");
     if (worker.shutdown_at === null || worker.shutdown_at === undefined) return ["Up", rented];
     const left = worker.shutdown_at - now;
     return ["Idle", left > 0 ? `Shuts down in ${countdown(left)}` : "Shutting down…"];

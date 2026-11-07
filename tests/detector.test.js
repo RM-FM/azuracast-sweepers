@@ -43,6 +43,7 @@ test("cost figures name the account's stations and count down to an idle worker'
     const worker = { gpu_id: "NVIDIA GeForce RTX 4090", price: 0.89, shutdown_at: null };
     assert.deepEqual(workerState(null, 1000), ["Down", "Started when songs need analysis"]);
     assert.deepEqual(workerState(worker, 1000), ["Up", "RTX 4090 · USD 0.89/hour"]);
+    assert.deepEqual(workerState({ ...worker, location: "EU-RO-1" }, 1000), ["Up", "RTX 4090 in EU-RO-1 (Romania) · USD 0.89/hour"]);
     assert.deepEqual(workerState({ ...worker, gpu_id: null }, 1000), ["Up", "USD 0.89/hour"]);
     assert.deepEqual(workerState({ ...worker, shutdown_at: 1372 }, 1000), ["Idle", "Shuts down in 6:12"]);
     assert.deepEqual(workerState({ ...worker, shutdown_at: 990 }, 1000), ["Idle", "Shutting down…"]);

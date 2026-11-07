@@ -172,7 +172,7 @@ let detectorWorker = null;
 let detectorKey = { stations: 1, spend_month_usd: 0.42, balance_usd: 12.3, balance_checked_at: 1900 };
 const detectorStation = (overrides = {}) => ({
     settings: { id: 1, enabled: true, auto_process: true, min_song_seconds: 60, max_song_seconds: 900, exclude_playlists: [],
-        budget_usd: 10, idle_timeout_minutes: 5, ...overrides },
+        budget_usd: 10, idle_timeout_minutes: 5, eu_only: false, ...overrides },
     queue: { done: 120, pending: 4, failed: 1, known: 300 },
     publications: { written: 5667, unresolved: 34 },
     library_without_intro: detectorLibrary, library_estimate_usd: 1.2, process_requested: false, jobs: [], blocked: null, key: detectorKey,
@@ -1294,12 +1294,16 @@ test("intro detector page saves only changed station fields, has no shadow mode 
         assert.deepEqual([idle.value, idle.getAttribute("min"), idle.getAttribute("max")], ["5", "1", "60"]);
         idle.value = "15";
         idle.dispatchEvent(new Event("input", { bubbles: true }));
+        const euOnly = document.querySelector("#detector-eu-only");
+        assert.equal(euOnly.checked, false);
+        euOnly.checked = true;
+        euOnly.dispatchEvent(new Event("change", { bubbles: true }));
         await settle();
         const count = detectorRequests.length;
         await submitForm("#detector-budget");
         assert.deepEqual(detectorRequests.slice(count), [
             { path: "/detector/key", body: { key: "rpa_NEWKEY12345678" } },
-            { path: "/detector/settings", body: { budget_usd: 20, idle_timeout_minutes: 15 } },
+            { path: "/detector/settings", body: { budget_usd: 20, idle_timeout_minutes: 15, eu_only: true } },
         ], "One save stores the checked key first, then the settings");
         assert.equal(document.querySelector("#detector-key").value, "", "The key is not kept in the page");
         assert.equal([...document.querySelectorAll("button")].filter((b) => /^Save/.test(b.textContent.trim())).length, 1);
