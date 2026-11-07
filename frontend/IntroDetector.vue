@@ -81,10 +81,10 @@
                                     </div>
                                     <button v-if="info.can_manage && counts.waiting && !status.process_requested && !status.activity" type="button" class="btn btn-sm btn-primary" :disabled="busy" @click="action('process', {})">Analyze now</button>
                                 </li>
-                                <li class="list-group-item" data-detector-task="library">
+                                <li v-if="status.library_without_intro" class="list-group-item" data-detector-task="library">
                                     <div class="fw-semibold">Older songs</div>
                                     <div class="small">{{ libraryText(status.library_without_intro) }}</div>
-                                    <div v-if="status.library_without_intro" class="mt-2" data-detector-estimate>
+                                    <div class="mt-2" data-detector-estimate>
                                         <dl class="row g-3 mb-2 detector-summary">
                                             <div v-for="[label, value] in estimateFigures(libraryEstimate, budgetLeft)" :key="label" class="col-6 col-md-4 col-xl-3">
                                                 <dt class="small text-muted fw-normal">{{ label }}</dt>
@@ -206,7 +206,7 @@
                                         <SpendMeter label="This station this month" :spend="status.spend_month_usd" :limit="status.limit_usd" :note="spendNote(status)" />
                                     </div>
                                     <div v-if="status.key" class="form-group col-md-6" data-detector-key-use>
-                                        <SpendMeter v-if="status.key.stations > 1" :label="`All ${status.key.stations} stations with this key this month`" :spend="status.key.spend_month_usd" />
+                                        <SpendMeter v-if="status.key.stations > 1" :label="`All ${status.key.stations} stations on this Runpod account this month`" :spend="status.key.spend_month_usd" />
                                         <div class="form-text">{{ keyStationsText(status.key.stations) }}</div>
                                         <div class="form-text" :class="{ 'text-warning fw-semibold': lowBalance }" data-detector-balance>
                                             {{ balanceText(status.key.balance_usd) }}
@@ -274,7 +274,7 @@ const summary = computed(() => [
     ["Analyzed", counts.value.done],
     ["Waiting", counts.value.waiting],
     ["Failed", counts.value.failed],
-    ["Older songs without intro", status.value.library_without_intro],
+    ...(status.value.library_without_intro ? [["Older songs without intro", status.value.library_without_intro]] : []),
 ]);
 
 function time(seconds) {

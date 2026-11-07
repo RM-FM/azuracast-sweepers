@@ -174,9 +174,10 @@ about US$4 per 1,000 songs, and each song only once.
   AzuraCast right away; intros entered by hand are never overwritten. Correct any
   intro in the Intro Manager; a corrected value is kept.
 - **Runpod keys:** use one key for several stations or a separate key per station,
-  whichever suits how you pay for them. Stations with the same key share one GPU
-  worker; each keeps its own budget. The page shows the station's spending, how many
-  stations use its key, their combined spending and the key's Runpod balance.
+  whichever suits how you pay for them. Stations whose keys belong to the same Runpod
+  account share one GPU worker; each keeps its own budget. The page shows the station's
+  spending, how many stations use its Runpod account, their combined spending and the
+  account's balance.
 - **Permissions:** anyone who may change the station's broadcasting settings manages
   the station's detector settings; others see them read-only.
 

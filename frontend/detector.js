@@ -32,7 +32,7 @@ export function spendNote(status) {
 }
 
 export function keyStationsText(stations) {
-    return stations > 1 ? `This key is used by ${stations} stations.` : "This key is used by this station only.";
+    return stations > 1 ? `${stations} stations use this Runpod account and share its GPU worker.` : "Only this station uses this Runpod account.";
 }
 
 export function balanceText(balance) {

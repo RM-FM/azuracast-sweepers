@@ -167,13 +167,14 @@ const detectorRequests = [];
 let detectorInfo = { installed: true, can_manage: true, can_admin: false };
 let detectorSettings = {};
 let detectorActivity = null;
+let detectorLibrary = 300;
 let detectorKey = { stations: 1, spend_month_usd: 0.42, balance_usd: 12.3, balance_checked_at: 1900 };
 const detectorStation = (overrides = {}) => ({
     settings: { id: 1, enabled: true, auto_process: true, min_song_seconds: 60, max_song_seconds: 900, exclude_playlists: [],
         budget_usd: 10, ...overrides },
     queue: { done: 120, pending: 4, failed: 1, known: 300 },
     publications: { written: 5667, unresolved: 34 },
-    library_without_intro: 300, library_estimate_usd: 1.2, process_requested: false, jobs: [], blocked: null, key: detectorKey,
+    library_without_intro: detectorLibrary, library_estimate_usd: 1.2, process_requested: false, jobs: [], blocked: null, key: detectorKey,
     spend_month_usd: 0.42, limit_usd: 10, worker: null, recovery: null, activity: detectorActivity, now: 2000,
     runs: [{ id: "r1", status: "complete", songs: 4, started_at: 1792948000, finished_at: 1792948600, error: null }],
     failures: [{ media_id: 9, path: "broken.mp3", attempts: 2, error: "HTTP 404", updated_at: 1792948000 }],
@@ -1271,6 +1272,11 @@ test("intro detector page saves only changed station fields, has no shadow mode 
         assert.equal(estimate.querySelector("[data-detector-over-budget]"), null);
         await click("Analyze them");
         assert.deepEqual(detectorRequests.at(-1), { path: "/detector/backfill", body: {} });
+        detectorLibrary = 0;
+        await click("Refresh");
+        assert.equal(document.querySelector('[data-detector-task="library"]'), null, "No older songs, no task");
+        assert.doesNotMatch(document.querySelector(".detector-summary").textContent, /Older songs/);
+        detectorLibrary = 300;
         const key = document.querySelector("#detector-key");
         assert.equal(key.type, "password");
         key.value = " rpa_NEWKEY12345678 ";
@@ -1322,8 +1328,8 @@ test("intro detector page shows how many stations use the key, their spend and t
     let app = await mountDetector();
     try {
         const use = document.querySelector("[data-detector-key-use]").textContent;
-        assert.match(use, /used by this station only/);
-        assert.doesNotMatch(use, /stations with this key/);
+        assert.match(use, /Only this station uses this Runpod account/);
+        assert.doesNotMatch(use, /stations on this Runpod account this month/);
         assert.match(document.querySelector("[data-detector-balance]").textContent, /Runpod balance: US\$12\.30\./);
         assert.doesNotMatch(document.querySelector("[data-detector-balance]").textContent, /Add funds/);
     } finally {
@@ -1333,8 +1339,8 @@ test("intro detector page shows how many stations use the key, their spend and t
     app = await mountDetector();
     try {
         const use = document.querySelector("[data-detector-key-use]").textContent;
-        assert.match(use, /All 3 stations with this key this month\s*US\$2\.50/);
-        assert.match(use, /used by 3 stations/);
+        assert.match(use, /All 3 stations on this Runpod account this month\s*US\$2\.50/);
+        assert.match(use, /3 stations use this Runpod account/);
         assert.match(document.querySelector("[data-detector-balance]").textContent, /US\$3\.20\. Add funds soon[\s\S]*Add funds/);
         globalThis.window.confirm = () => true;
         document.querySelector("[data-detector-remove-key]").click();

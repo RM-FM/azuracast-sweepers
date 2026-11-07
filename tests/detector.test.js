@@ -35,8 +35,8 @@ test("detector texts explain money, blocks and backfill estimates", () => {
 test("spending notes describe the station budget, the key's stations and the Runpod balance", () => {
     assert.equal(spendNote({ limit_usd: 10 }), "");
     assert.match(spendNote({ limit_usd: 0 }), /No monthly budget/);
-    assert.equal(keyStationsText(1), "This key is used by this station only.");
-    assert.equal(keyStationsText(4), "This key is used by 4 stations.");
+    assert.equal(keyStationsText(1), "Only this station uses this Runpod account.");
+    assert.equal(keyStationsText(4), "4 stations use this Runpod account and share its GPU worker.");
     assert.equal(balanceText(12.345), "Runpod balance: US$12.35.");
     assert.match(balanceText(4.3), /US\$4\.30\. Add funds soon/);
     assert.match(balanceText(null), /not checked yet/);
