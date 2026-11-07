@@ -10,7 +10,7 @@
                 <h2 id="detector-missing-heading" class="card-title my-0">Intro Detector</h2>
             </div>
             <div class="card-body">
-                <p class="card-text">The Intro Detector finds the intro end of each song, so sweepers fit automatically: where the vocals start or, in songs that open without vocals, where the musical intro ends. Songs are analyzed on rented GPUs at Runpod; each station enables it with a Runpod key and its own monthly budget (about US$4 per 1,000 songs).</p>
+                <p class="card-text">The Intro Detector finds the intro end of each song, so sweepers fit automatically: where the vocals start or, in songs that open without vocals, where the musical intro ends. Songs are analyzed on rented GPUs at Runpod; each station enables it with a Runpod key and its own monthly budget (about USD 4 per 1,000 songs).</p>
                 <template v-if="info.can_admin">
                     <p class="card-text">It is not installed on this server. To install it, run this in the plugin directory on the server:</p>
                     <pre class="mb-2"><code>sudo bash bin/setup.sh --detector</code></pre>
@@ -152,7 +152,7 @@
                                             <input id="detector-enabled" v-model="form.enabled" class="form-check-input" type="checkbox" role="switch">
                                             <label class="form-check-label" for="detector-enabled">Use the Intro Detector for this station</label>
                                         </div>
-                                        <div class="form-text">Intros it finds are written to AzuraCast; intros entered by hand are never overwritten. Existing songs are analyzed only when you start that on the Status tab.</div>
+                                        <div class="form-text">Detects song intros and stores them in the Intro Manager.</div>
                                     </div>
                                     <div class="form-group col-md-6">
                                         <div class="form-check form-switch">
@@ -163,17 +163,14 @@
                                     </div>
 
                                     <div class="form-group col-md-6">
-                                        <div class="row g-3">
-                                            <div class="col-6">
-                                                <label class="form-label" for="detector-min-length">Minimum song length (seconds)</label>
-                                                <input id="detector-min-length" v-model.number="form.min_song_seconds" class="form-control" type="number" min="0" max="3600" step="1" required>
-                                            </div>
-                                            <div class="col-6">
-                                                <label class="form-label" for="detector-max-length">Maximum song length (seconds)</label>
-                                                <input id="detector-max-length" v-model.number="form.max_song_seconds" class="form-control" type="number" min="0" max="86400" step="1" required>
-                                            </div>
-                                        </div>
-                                        <div class="form-text">Shorter files, such as station IDs, and longer files, such as DJ mixes, are skipped; 0 means no maximum. Jingle Mode playlists are always skipped.</div>
+                                        <label class="form-label" for="detector-min-length">Minimum song length (seconds)</label>
+                                        <input id="detector-min-length" v-model.number="form.min_song_seconds" class="form-control" type="number" min="0" max="3600" step="1" required>
+                                        <div class="form-text">Shorter files, such as station IDs, are skipped. Jingle Mode playlists are always skipped.</div>
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        <label class="form-label" for="detector-max-length">Maximum song length (seconds)</label>
+                                        <input id="detector-max-length" v-model.number="form.max_song_seconds" class="form-control" type="number" min="0" max="86400" step="1" required>
+                                        <div class="form-text">Longer files, such as DJ mixes, are skipped. 0 means no maximum.</div>
                                     </div>
                                 </div>
                             </fieldset>
@@ -194,7 +191,7 @@
                                         <button v-if="info.can_manage && status.key" type="button" class="btn btn-sm btn-danger mt-2" :disabled="busy" data-detector-remove-key @click="removeKey">Remove Key</button>
                                     </div>
                                     <div class="form-group col-sm-6 col-md-3">
-                                        <label class="form-label" for="detector-budget">Monthly budget (US$)</label>
+                                        <label class="form-label" for="detector-budget">Monthly budget (USD)</label>
                                         <input id="detector-budget" v-model.number="form.budget_usd" class="form-control" type="number" min="0" step="1" required>
                                         <div class="form-text">Analysis pauses for this station when its spending this month reaches it. 0 means no limit.</div>
                                     </div>

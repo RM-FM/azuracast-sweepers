@@ -21,7 +21,7 @@ export function changedFields(form, saved) {
 }
 
 export function money(value) {
-    return value === null || value === undefined ? "–" : `US$${Number(value).toFixed(2)}`;
+    return value === null || value === undefined ? "–" : `USD ${Number(value).toFixed(2)}`;
 }
 
 // Runpod stops workers when the prepaid balance runs out; warn well before that.
