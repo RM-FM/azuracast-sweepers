@@ -161,29 +161,48 @@ seven days. Times use the station's time zone.
 
 ## Intro Detector (optional)
 
-The [Intro Detector](https://github.com/RM-FM/azuracast-intro-detector) finds the
-intro end of each song and fills it in, so sweepers fit automatically: where the
-vocals start or, in songs that open without vocals, where the musical intro ends.
-Songs are analyzed on rented GPUs at [Runpod](https://www.runpod.io/):
-about US$4 per 1,000 songs, and each song only once.
+The [Intro Detector](https://github.com/RM-FM/azuracast-intro-detector) fills in the
+intro end of your songs for you. It detects both vocal intros (where the singing starts)
+and musical intros (in songs that open without vocals). Intros entered by hand are never
+overwritten; correct any result in the Intro Manager.
 
-- **Install:** answer **Y** when setup offers it, or run `sudo bash bin/setup.sh --detector`
-  later. It runs next to AzuraCast and needs no open port.
-- **Use:** open **Sweepers → Intro Detector** for a station, switch it on, enter a
-  Runpod API key and the station's monthly budget. Intros it finds are written to
-  AzuraCast right away; intros entered by hand are never overwritten. Correct any
-  intro in the Intro Manager; a corrected value is kept.
-- **Runpod keys:** use one key for several stations or a separate key per station,
-  whichever suits how you pay for them. Stations whose keys belong to the same Runpod
-  account share one GPU worker; each keeps its own budget. The page shows the station's
-  spending, how many stations use its Runpod account, their combined spending and the
-  account's balance.
-- **Permissions:** anyone who may change the station's broadcasting settings manages
-  the station's detector settings; others see them read-only.
+Analysis uses paid GPU time at [Runpod](https://www.runpod.io/), about USD 4 per
+1,000 songs. Each song is analyzed only once, also when several stations play it.
 
-New uploads are analyzed automatically. For older songs the Status tab shows the number,
-the estimated cost and the budget left; **Analyze them** queues them. Details: [Intro Detector integration](docs/ADVANCED.md#intro-detector).
+**Install:** answer **Y** when setup offers it, or later run `sudo bash bin/setup.sh --detector`.
 
+**Switch it on for a station:**
+
+1. Create a Runpod API key with read/write access in the
+   [Runpod console](https://console.runpod.io/user/credentials) and add funds to the
+   account. Several stations may use the same key.
+2. Open **Sweepers → Intro Detector**, tab **Settings**. Switch the detector on, enter
+   the key and save. New uploads are analyzed automatically from now on.
+3. On the **Status** tab, **Older songs** shows how many songs in the library still
+   have no intro, what analyzing them would cost and the budget left. **Analyze them**
+   starts it.
+
+**Status tab:** the number of analyzed, waiting and failed songs, a live progress card
+while an analysis runs, recent runs and failed songs with **Retry**.
+
+**Settings tab:**
+
+| Setting | Meaning |
+| --- | --- |
+| Use the Intro Detector for this station | Switches detection on or off |
+| Analyze new uploads automatically | Otherwise new songs wait for **Analyze now** |
+| Minimum / maximum song length | Shorter files (station IDs) and longer files (DJ mixes) are skipped |
+| Skip playlists | Songs in these playlists are not analyzed; Jingle Mode playlists are always skipped |
+| Runpod API key | Stored securely and never shown again |
+| Monthly budget | Analysis pauses for the station when its spending reaches it |
+| Idle timeout | How long the GPU waits for more songs before it shuts down (default 5 minutes) |
+
+Below the settings, the page shows the station's spending this month, the spending of
+the whole Runpod account and how many stations use it, the Runpod balance and whether a
+GPU is running, with a countdown to its shutdown.
+
+Viewing the page needs the station's Media permission; changing settings or starting an
+analysis needs Broadcasting, like the sweeper settings.
 ## More documentation
 
 - [Advanced guide](docs/ADVANCED.md): Compose setup and backups, settings reference,
