@@ -68,8 +68,7 @@
                     </fieldset>
                     <template v-else>
                         <fieldset class="form-group" data-detector-analysis>
-                            <legend>Analyze Songs</legend>
-                            <p class="form-text">Songs are analyzed on a rented GPU. This costs money, unless the same file was already analyzed for any station.</p>
+
                             <p v-for="job in status.jobs" :key="job" class="card-text">{{ jobText(job) }}</p>
                             <ul class="list-group mb-0">
                                 <li class="list-group-item d-flex flex-wrap align-items-center gap-2" data-detector-task="waiting">
