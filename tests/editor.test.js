@@ -1252,7 +1252,7 @@ test("intro detector page saves only changed station fields, has no shadow mode 
     const app = await mountDetector();
     try {
         assert.equal(document.querySelector("#detector-heading").textContent, "Intro Detector");
-        assert.match(document.querySelector("[data-detector-spend]").textContent, /USD 0\.42 of USD 10\.00/);
+        assert.match(document.querySelector("[data-detector-spend]").textContent, /USD 0\.42 of 10\.00/);
         const buttons = [...document.querySelectorAll("#detector-panel-status button")];
         assert.ok(!buttons.some((button) => button.textContent.trim() === "Refresh"), "The page refreshes itself");
         assert.ok(buttons.every((button) => button.classList.contains("btn-primary")), "Actions use AzuraCast's blue buttons");
@@ -1271,7 +1271,7 @@ test("intro detector page saves only changed station fields, has no shadow mode 
         assert.equal(document.querySelector("#detector-mode"), null, "Intros are always written");
         assert.doesNotMatch(document.querySelector("#app").textContent, /Shadow|Write them to AzuraCast|Written to AzuraCast/);
         const summary = [...document.querySelectorAll("#detector-panel-status > fieldset:not([data-detector-analysis]) .detector-summary dt")].map((term) => term.textContent);
-        assert.deepEqual(summary, ["Detector", "Analyzed", "Waiting", "Failed", "Older songs without intro"]);
+        assert.deepEqual(summary, ["Detector", "GPU worker", "Analyzed", "Waiting", "Failed", "Older songs without intro"]);
         const estimate = document.querySelector("[data-detector-estimate]");
         assert.deepEqual([...estimate.querySelectorAll("dt")].map((term) => term.textContent),
             ["Songs", "Estimated cost", "Budget left this month"], "The cost is shown without asking for it");
@@ -1342,7 +1342,7 @@ test("intro detector page shows how many stations use the key, their spend and t
         assert.match(document.querySelector("[data-detector-key-use]").textContent, /USD 0\.42\s*Only this station/);
         assert.match(document.querySelector("[data-detector-balance]").textContent, /USD 12\.30/);
         assert.equal(document.querySelector("[data-detector-low-balance]"), null);
-        assert.match(document.querySelector("[data-detector-worker]").textContent, /Off/);
+        assert.match(document.querySelector("[data-detector-worker]").textContent, /Down/);
     } finally {
         app.unmount();
     }

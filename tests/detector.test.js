@@ -40,16 +40,16 @@ test("cost figures name the account's stations and count down to an idle worker'
     assert.equal(countdown(372.2), "6:13");
     assert.equal(countdown(-5), "0:00");
     const worker = { gpu_id: "NVIDIA GeForce RTX 4090", price: 0.89, shutdown_at: null };
-    assert.deepEqual(workerState(null, 1000), ["Off", "Started when songs need analysis"]);
-    assert.deepEqual(workerState(worker, 1000), ["Working", "RTX 4090 · USD 0.89/hour"]);
-    assert.deepEqual(workerState({ ...worker, gpu_id: null }, 1000), ["Working", "USD 0.89/hour"]);
+    assert.deepEqual(workerState(null, 1000), ["Down", "Started when songs need analysis"]);
+    assert.deepEqual(workerState(worker, 1000), ["Up", "RTX 4090 · USD 0.89/hour"]);
+    assert.deepEqual(workerState({ ...worker, gpu_id: null }, 1000), ["Up", "USD 0.89/hour"]);
     assert.deepEqual(workerState({ ...worker, shutdown_at: 1372 }, 1000), ["Idle", "Shuts down in 6:12"]);
     assert.deepEqual(workerState({ ...worker, shutdown_at: 990 }, 1000), ["Idle", "Shutting down…"]);
 });
 test("analysis texts say what is waiting and what happens next", () => {
     assert.match(waitingText(3, true, false), /3 songs are waiting\. They are analyzed automatically/);
     assert.match(waitingText(3, false, false), /waiting until you start/);
-    assert.match(waitingText(0, true, false), /No songs are waiting\. New uploads are analyzed automatically/);
+    assert.match(waitingText(0, true, false), /All songs are analyzed\. New uploads are analyzed automatically/);
     assert.equal(waitingText(3, true, true), "The analysis starts within a minute or two.");
     assert.equal(waitingText(18, true, false, { own: true, station_songs: 18 }), "18 songs are being analyzed now.");
     assert.equal(waitingText(20, true, false, { own: true, station_songs: 18 }), "18 songs are being analyzed now. 2 more follow in the next run.");
