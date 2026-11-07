@@ -22,6 +22,7 @@ test("detector texts explain money, blocks and backfill estimates", () => {
     assert.equal(money(null), "–");
     assert.equal(money(3.456), "USD 3.46");
     assert.match(blockedText("no Runpod key"), /Add a Runpod API key/);
+    assert.match(blockedText("disk almost full"), /at least 1 GB is free/);
     assert.equal(blockedText("something new"), "something new");
     assert.equal(blockedText(null), "");
     assert.deepEqual(queueCounts({ done: 2, pending: 1, known: 7 }), { done: 2, waiting: 1, failed: 0, library: 7, skipped: 0 });

@@ -5,6 +5,7 @@ const BLOCKED = {
     "no Runpod key": "Add a Runpod API key to start analyzing songs.",
     "monthly budget reached": "This month's GPU budget is used up. Analysis continues next month or after raising the budget.",
     "waiting for GPU retry": "The last GPU batch could not start. It is retried automatically in a few minutes.",
+    "disk almost full": "The server's disk is almost full. Analysis pauses until at least 1 GB is free again.",
 };
 
 export function stationForm(settings) {

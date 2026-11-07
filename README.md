@@ -205,6 +205,12 @@ GPU is running, with a countdown to its shutdown.
 
 Viewing the page needs the station's Media permission; changing settings or starting an
 analysis needs Broadcasting, like the sweeper settings.
+
+The detector manages its disk space on its own. It keeps about 0.1 MB of analysis data
+per song, so a later detector update can re-evaluate songs without renting a GPU again.
+Data of songs removed from every library is deleted after a day. When less than 1 GB of
+disk space is free, analysis pauses and the page says so.
+
 ## More documentation
 
 - [Advanced guide](docs/ADVANCED.md): Compose setup and backups, settings reference,
