@@ -1349,11 +1349,12 @@ test("intro detector page shows how many stations use the key, their spend and t
 });test("intro detector page shows a running batch and tells a waiting station when another one runs", async () => {
     detectorSettings = {};
     detectorInfo = { installed: true, can_manage: true, can_admin: false };
-    detectorActivity = { step: "analyze", done: 3, total: 6, started_at: 1400, step_started_at: 1700, own: true, songs: 40, station_songs: 12 };
+    detectorActivity = { step: "analyze", done: 3, total: 6, started_at: 1400, step_started_at: 1700, own: true, songs: 40, station_songs: 12, detail: { phase: "run", stages: ["qwen"], failed: 0 } };
     let app = await mountDetector();
     try {
         const card = document.querySelector("[data-detector-activity]");
-        assert.match(card.textContent, /Analyzing songs: 3 of 6 parts/);
+        assert.match(card.textContent, /Analyzing songs: 3 of 6 parts done/);
+        assert.equal(card.querySelector("[data-detector-detail]").textContent, "Now: transcribing lyrics.");
         assert.match(card.textContent, /Running for 10 min · about 5 min left in this step/);
         assert.match(card.textContent, /12 of the 40 songs/);
         assert.equal(card.querySelector(".progress-bar").getAttribute("style").replace(/\s|;/g, ""), "width:50%");

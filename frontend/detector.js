@@ -116,8 +116,56 @@ export function runResult(status, step = null) {
 export function stepText(activity) {
     const name = STEPS[activity.step] ?? activity.step;
     if (!activity.total) return activity.step === "worker" ? `${name} (usually about 5 minutes)` : name;
-    const unit = activity.step === "analyze" ? " parts" : "";
-    return `${name}: ${activity.done} of ${activity.total}${unit}`;
+    const unit = activity.step === "analyze" ? " parts done" : "";
+    return `${name}: ${Math.floor(activity.done)} of ${activity.total}${unit}`;
+}
+
+// Pipeline stages of the GPU worker, in their order.
+const STAGES = {
+    "demucs-melband-whisper": "separating vocals",
+    matrix: "comparing vocal detectors",
+    "musical-timing": "measuring the musical intro",
+    "panns-levels": "measuring sound levels",
+    qwen: "transcribing lyrics",
+    "whisper-auto-language": "detecting the language",
+    "smad-singing-classifier": "detecting singing",
+    evaluate: "deciding the intro ends",
+};
+const COUNTRIES = {
+    AT: "Austria", BE: "Belgium", CZ: "Czechia", DE: "Germany", ES: "Spain", FI: "Finland", FR: "France",
+    IS: "Iceland", IT: "Italy", NL: "Netherlands", NO: "Norway", PL: "Poland", RO: "Romania", SE: "Sweden",
+};
+const REGIONS = { US: "USA", CA: "Canada", AP: "Asia-Pacific", OC: "Oceania", SA: "South America" };
+
+/** Data center with its country, e.g. "EU-RO-1 (Romania)". */
+export function place(location) {
+    const [region, country] = String(location ?? "").split("-");
+    const name = region === "EU" ? COUNTRIES[country] : REGIONS[region];
+    return name ? `${location} (${name})` : String(location ?? "");
+}
+
+function gpuName(gpu) {
+    return String(gpu ?? "a GPU").replace(/^NVIDIA (GeForce )?/, "");
+}
+
+/** What the current step is doing right now, or "" when there is nothing to add. */
+export function detailText(activity) {
+    const detail = activity.detail ?? {};
+    const rented = () => `${gpuName(detail.gpu)} in ${place(detail.location)} at ${money(detail.price)}/hour`;
+    switch (`${activity.step}:${detail.phase ?? ""}`) {
+    case "worker:reuse": return "Using the GPU worker that is already running.";
+    case "worker:search": return `Renting ${rented()}…`;
+    case "worker:no_stock": return `No suitable GPU is free at up to ${money(detail.max_price)}/hour right now; checking again (attempt ${detail.attempt}).`;
+    case "worker:boot": return `${rented()} is starting and loading the analysis software.`;
+    case "analyze:prepare": return `Checking the GPU and loading the models for ${detail.lanes ?? 1} parallel lanes.`;
+    case "analyze:run": {
+        const now = (detail.stages ?? []).map((stage) => STAGES[stage] ?? stage);
+        const failed = detail.failed ? ` ${detail.failed} parts failed; their songs are retried later.` : "";
+        return (now.length ? `Now: ${now.join(", ")}.` : "") + failed;
+    }
+    default:
+        return activity.step === "upload" && detail.songs ? `${detail.songs} songs, ${detail.megabytes} MB.` : "";
+    }
 }
 
 export function progressPercent(activity) {

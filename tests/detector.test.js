@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-    activityLine, balanceText, blockedText, changedFields, duration, estimateFigures, jobText, keyStationsText, libraryText, money,
+    activityLine, balanceText, blockedText, changedFields, detailText, duration, place, estimateFigures, jobText, keyStationsText, libraryText, money,
     overBudget, progressPercent, queueCounts, runResult, spendNote, stationForm, stepRemaining, stepText, waitingText,
 } from "../frontend/detector.js";
 
@@ -58,7 +58,9 @@ test("analysis texts say what is waiting and what happens next", () => {
 
 test("batch progress names the step, its share done and the time left", () => {
     const analyze = { step: "analyze", done: 2, total: 8, started_at: 1000, step_started_at: 1300 };
-    assert.equal(stepText(analyze), "Analyzing songs: 2 of 8 parts");
+    assert.equal(stepText(analyze), "Analyzing songs: 2 of 8 parts done");
+    assert.equal(stepText({ ...analyze, done: 2.6 }), "Analyzing songs: 2 of 8 parts done");
+    assert.equal(progressPercent({ ...analyze, done: 2.6 }), 33, "Stages within a part move the bar");
     assert.equal(stepText({ step: "worker", done: 0, total: 0 }), "Starting a GPU worker (usually about 5 minutes)");
     assert.equal(stepText({ step: "copy", done: 0, total: 0 }), "Copying results back");
     assert.equal(progressPercent(analyze), 25);
@@ -71,4 +73,21 @@ test("batch progress names the step, its share done and the time left", () => {
     assert.equal(duration(3900), "1 h 5 min");
     assert.equal(runResult("failed", "worker"), "Failed while starting a GPU worker");
     assert.equal(runResult("interrupted"), "Interrupted");
+});
+
+test("progress details name the GPU, its location and the pipeline stage", () => {
+    const gpu = { gpu: "NVIDIA GeForce RTX 4090", location: "EU-RO-1", price: 0.89 };
+    assert.equal(place("EU-SE-1"), "EU-SE-1 (Sweden)");
+    assert.equal(place("US-TX-3"), "US-TX-3 (USA)");
+    assert.equal(place("XX-1"), "XX-1");
+    assert.equal(detailText({ step: "worker", detail: { phase: "search", ...gpu } }), "Renting RTX 4090 in EU-RO-1 (Romania) at US$0.89/hour…");
+    assert.equal(detailText({ step: "worker", detail: { phase: "boot", ...gpu } }),
+        "RTX 4090 in EU-RO-1 (Romania) at US$0.89/hour is starting and loading the analysis software.");
+    assert.match(detailText({ step: "worker", detail: { phase: "no_stock", attempt: 3, max_price: 0.9 } }), /up to US\$0\.90\/hour.*attempt 3/);
+    assert.equal(detailText({ step: "worker", detail: { phase: "reuse" } }), "Using the GPU worker that is already running.");
+    assert.equal(detailText({ step: "upload", detail: { songs: 18, megabytes: 160 } }), "18 songs, 160 MB.");
+    assert.match(detailText({ step: "analyze", detail: { phase: "prepare", lanes: 3 } }), /loading the models for 3 parallel lanes/);
+    assert.equal(detailText({ step: "analyze", detail: { phase: "run", stages: ["matrix", "qwen"], failed: 0 } }),
+        "Now: comparing vocal detectors, transcribing lyrics.");
+    assert.equal(detailText({ step: "copy", detail: null }), "");
 });

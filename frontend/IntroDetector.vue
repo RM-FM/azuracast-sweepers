@@ -42,8 +42,9 @@
                     <div v-if="status.activity?.own" class="alert alert-info" role="status" data-detector-activity>
                         <div class="fw-semibold mb-1">Analysis running</div>
                         <div>{{ stepText(status.activity) }}</div>
+                        <div v-if="detailText(status.activity)" class="small" data-detector-detail>{{ detailText(status.activity) }}</div>
                         <div class="progress my-2" role="progressbar" aria-label="Progress of this step" :aria-valuenow="progressPercent(status.activity) ?? undefined" aria-valuemin="0" aria-valuemax="100">
-                            <div class="progress-bar" :class="{ 'progress-bar-striped progress-bar-animated': progressPercent(status.activity) === null }" :style="{ width: (progressPercent(status.activity) ?? 100) + '%' }"></div>
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" :style="{ width: Math.max(progressPercent(status.activity) ?? 100, 3) + '%' }"></div>
                         </div>
                         <div class="small">{{ activityLine(status.activity, status.now) }} This station has {{ status.activity.station_songs }} of the {{ status.activity.songs }} songs in this run.</div>
                     </div>
@@ -232,7 +233,7 @@ import Icon from "./Icon.vue";
 import PlaylistPicker from "./PlaylistPicker.vue";
 import SpendMeter from "./SpendMeter.vue";
 import {
-    LOW_BALANCE_USD, activityLine, balanceText, blockedText, changedFields, estimateFigures, jobText, keyStationsText, libraryText,
+    LOW_BALANCE_USD, activityLine, balanceText, blockedText, changedFields, detailText, estimateFigures, jobText, keyStationsText, libraryText,
     overBudget, progressPercent, queueCounts, runResult, spendNote, stationForm, stepText, waitingText,
 } from "./detector.js";
 import { formatStationTime } from "./dates.js";
