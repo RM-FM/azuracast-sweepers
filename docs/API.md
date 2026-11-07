@@ -93,6 +93,13 @@ This behavior is verified against AzuraCast's
 [FilesController](https://github.com/AzuraCast/AzuraCast/blob/19d68c47b1e4d569885ca7cf4c40609cbabefda7/backend/src/Controller/Api/Stations/FilesController.php)
 and [CustomFieldRepository](https://github.com/AzuraCast/AzuraCast/blob/19d68c47b1e4d569885ca7cf4c40609cbabefda7/backend/src/Entity/Repository/CustomFieldRepository.php).
 
+## Original media download
+
+`GET /api/station/{station_id}/sweepers/file/{media_id}` returns the original audio file.
+It requires station Media permission and changes nothing. The Intro Detector uses it
+only when AzuraCast's own play route cannot serve a file, which happens for file names
+containing `%`.
+
 ## Internal playback endpoints
 
 The Liquidsoap module uses `/api/internal/{station_id}/liquidsoap/sweepers/`:

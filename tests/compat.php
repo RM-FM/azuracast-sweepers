@@ -18,6 +18,8 @@ $frontendContracts = [
         'class="navdrawer-nav"',
     ],
     'frontend/components/Layout/DashboardWithSidebar.vue' => ['id="content"'],
+    'frontend/components/Common/Toasts/ToastContainer.vue' => ['toast-container position-fixed top-0 end-0 p-3'],
+    'frontend/components/Common/Toasts/Toast.vue' => ['toast align-items-center toast-notification mb-3'],
     'frontend/components/Stations/menu.ts' => ['key: "media"'],
     'backend/config/routes/dashboard.php' => ["\$group->get('/{routes:.+}', DashboardAction::class);"],
 ];
@@ -106,10 +108,15 @@ $methods = [
     'App\Radio\Backend\Liquidsoap' => ['verifyConfig', 'getBinary'],
     'App\Lock\LockFactory' => ['createLock'],
     'App\Http\ServerRequest' => ['getStation', 'getRouter', 'getCsrf', 'getAcl', 'getQueryParam'],
-    'App\Http\Response' => ['withJson'],
+    'App\Http\Response' => ['withJson', 'streamFilesystemFile'],
+    'App\Flysystem\StationFilesystems' => ['getMediaFilesystem'],
     'App\Http\RouterInterface' => ['named', 'fromHere'],
     'App\Session\Csrf' => ['generate', 'verify'],
     'App\Acl' => ['isAllowed'],
+    'App\Event\BuildConsoleCommands' => ['addAliases'],
+    'App\Entity\Repository\SettingsRepository' => ['readSettings'],
+    'App\Entity\User' => ['setNewPassword'],
+    'App\Security\SplitToken' => ['generate', '__toString'],
 ];
 foreach ($methods as $class => $names) {
     foreach ($names as $name) {
@@ -133,6 +140,10 @@ $properties = [
     ],
     'App\Entity\StationMediaCustomField' => ['field', 'media', 'value'],
     'App\Entity\CustomField' => ['short_name'],
+    'App\Entity\Settings' => ['base_url'],
+    'App\Entity\User' => ['email', 'name', 'roles'],
+    'App\Entity\Role' => ['name', 'users', 'permissions'],
+    'App\Entity\RolePermission' => ['role', 'station', 'action_name'],
 ];
 foreach ($properties as $class => $names) {
     foreach ($names as $name) {
@@ -145,6 +156,8 @@ foreach ($properties as $class => $names) {
 $constants = [
     'App\Enums\StationPermissions::Broadcasting',
     'App\Enums\StationPermissions::Media',
+    'App\Enums\StationPermissions::View',
+    'App\Enums\GlobalPermissions::Settings',
     'App\Entity\Enums\PlaylistTypes::Advanced',
     'App\Entity\Enums\PlaylistSources::Songs',
     'App\Entity\Enums\PlaylistOrders::Sequential',

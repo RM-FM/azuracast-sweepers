@@ -24,7 +24,8 @@
       "php tests/arranger.php",
       "php tests/reservations.php",
       "php tests/settings.php",
-      "php tests/release.php"
+      "php tests/release.php",
+      "php tests/detector.php"
     ]
   },
   "require-dev": {

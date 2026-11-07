@@ -5,8 +5,8 @@
                 <button class="nav-link" :class="{ active: current === key }" type="button" role="tab" :aria-selected="current === key" @click="show(key)">{{ label }}</button>
             </li>
         </ul>
-        <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
-        <div v-if="notice" class="alert alert-info" role="status">{{ notice }}</div>
+        <div v-if="loadError" class="alert alert-danger" role="alert">{{ loadError }}</div>
+        <Toasts />
         <div v-if="loading" class="d-flex justify-content-center py-3">
             <div class="spinner-border" role="status"><span class="visually-hidden">Loading…</span></div>
         </div>
@@ -52,7 +52,7 @@
                     <div class="row g-4 mt-0">
                     <fieldset class="form-group col-12" aria-describedby="sweepers-pool-help">
                         <legend>Sweeper Pool</legend>
-                        <p id="sweepers-pool-help" class="form-text sweepers-section-text">Sweepers for all songs. Listener requests and songs from playlists with their own rule can use other sweepers on the Sweeper Rules tab. Schedules still apply; playlists in the same pool share one rotation.</p>
+                        <p id="sweepers-pool-help" class="form-text">Sweepers for all songs. Listener requests and songs from playlists with their own rule can use other sweepers on the Sweeper Rules tab. Schedules still apply; playlists in the same pool share one rotation.</p>
                         <SweeperRoute v-if="defaultRoute" :route="defaultRoute" title="Default" :playlists="playlists" :label="playlistLabel" />
                     </fieldset>
 
@@ -73,13 +73,13 @@
                     <div class="row g-4">
                     <fieldset v-if="requestRoute" class="form-group col-12" data-route-key="listener_request">
                         <legend>Listener Requests</legend>
-                        <p class="form-text sweepers-section-text">Sweepers for songs that listeners requested, for example one that announces the request.</p>
+                        <p class="form-text">Sweepers for songs that listeners requested, for example one that announces the request.</p>
                         <SweeperRoute :route="requestRoute" title="Listener Request" :playlists="playlists" :label="playlistLabel" />
                     </fieldset>
 
                     <fieldset class="form-group col-12">
                         <legend>Song Playlist Rules</legend>
-                        <p class="form-text sweepers-section-text">Give songs from one playlist their own sweepers, for example a Christmas playlist. Rules are collapsed; open one to edit it.</p>
+                        <p class="form-text">Give songs from one playlist their own sweepers, for example a Christmas playlist. Rules are collapsed; open one to edit it.</p>
                         <div v-if="playlistRoutes.length" class="accordion sweepers-playlist-rules mb-3">
                             <div v-for="route in playlistRoutes" :key="route.key" class="accordion-item" :data-route-key="route.key">
                                 <h3 class="accordion-header">
@@ -149,7 +149,7 @@
 
                     <fieldset class="form-group col-12">
                         <legend>Linked Sweepers &amp; Jingles</legend>
-                        <p class="form-text sweepers-section-text">Link sweepers and jingles that say the same, for example differently produced versions. When any track of a group plays, the whole group counts as just played: sweepers and jingles both prefer the group heard longest ago, a jingle waits while its linked sweeper was just heard or is coming up, and a sweeper waits after its linked jingle.</p>
+                        <p class="form-text">Link sweepers and jingles that say the same, for example differently produced versions. When any track of a group plays, the whole group counts as just played: sweepers and jingles both prefer the group heard longest ago, a jingle waits while its linked sweeper was just heard or is coming up, and a sweeper waits after its linked jingle.</p>
                         <LinkGroups v-if="settings.link_groups" v-model:window="settings.link_window" :groups="settings.link_groups" :candidates="linkCandidates" :error="linkCandidatesError" />
                     </fieldset>
                     </div>
@@ -533,6 +533,7 @@
                 </div>
             </div>
         </section>
+        <IntroDetector v-if="!loading && stateLoaded && current === 'detector'" :api="api" :playlists="jinglePlaylists" :timezone="station?.timezone" />
     </div>
 </template>
 
@@ -541,12 +542,15 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { VueDatePicker } from "@vuepic/vue-datepicker";
 import DataToolbar from "./DataToolbar.vue";
 import Icon from "./Icon.vue";
+import IntroDetector from "./IntroDetector.vue";
 import LinkGroups from "./LinkGroups.vue";
 import Pagination from "./Pagination.vue";
 import PlaylistPicker from "./PlaylistPicker.vue";
 import SweeperRoute from "./SweeperRoute.vue";
 import Waveform from "./Waveform.vue";
 import { formatStationTime, lastDay, presetRanges, startOfDay } from "./dates.js";
+import Toasts from "./Toasts.vue";
+import { notifyError, notifySuccess } from "./toasts.js";
 import { createReverbPreview, reverbLevel } from "./reverb.js";
 
 const props = defineProps({
@@ -555,7 +559,7 @@ const props = defineProps({
     view: { type: String, default: "settings" },
     standalone: { type: Boolean, default: false },
 });
-const views = [["settings", "Settings"], ["intros", "Intro Manager"], ["history", "Playback Timeline"]];
+const views = [["settings", "Settings"], ["intros", "Intro Manager"], ["history", "Playback Timeline"], ["detector", "Intro Detector"]];
 const current = ref(views.some(([key]) => key === props.view) ? props.view : "settings");
 const settingsTabs = [["general", "General"], ["rules", "Sweeper Rules"], ["spacing", "Spacing & Jingles"], ["selection", "Selection & Timing"], ["audio", "Audio & Preview"]];
 const settingsTab = ref("general");
@@ -655,8 +659,7 @@ const position = ref(0);
 const loading = ref(true);
 const stateLoaded = ref(false);
 const saving = ref(false);
-const notice = ref("");
-const error = ref("");
+const loadError = ref("");
 const validDraft = computed(() => draft.value === "" || (
     draft.value !== null && draft.value !== undefined
     && Number.isFinite(Number(draft.value))
@@ -817,7 +820,6 @@ async function loadHistory(target = 1) {
     clearTimeout(historyTimer);
     const request = ++historyRequest;
     historyLoading.value = true;
-    error.value = "";
     const [start, end] = historyRange.value;
     const query = new URLSearchParams({
         start: start.toISOString(),
@@ -835,7 +837,7 @@ async function loadHistory(target = 1) {
         historyPage.value = result.page;
         retentionDays.value = result.retention_days ?? retentionDays.value;
     } catch (exception) {
-        if (request === historyRequest) error.value = exception.message;
+        if (request === historyRequest) notifyError(exception.message);
     } finally {
         if (request === historyRequest) historyLoading.value = false;
     }
@@ -871,7 +873,6 @@ onUnmounted(() => {
 
 async function show(view) {
     current.value = view;
-    notice.value = "";
     if (view === "intros" && !mediaLoaded.value) await loadMedia();
     if (view === "history") {
         if (rollingRange) historyRange.value = lastDay();
@@ -1087,7 +1088,7 @@ function stopListening() {
 function listeningError(exception, run) {
     if (run !== listeningRun) return;
     stopListening();
-    error.value = exception.message || "The intro could not be played.";
+    notifyError(exception.message || "The intro could not be played.");
 }
 
 function playIntro(row, run, next) {
@@ -1125,7 +1126,6 @@ function playIntro(row, run, next) {
 
 function listenOne(row) {
     stopListening();
-    error.value = "";
     playIntro(row, listeningRun, stopListening);
 }
 
@@ -1139,7 +1139,7 @@ async function scanNext(index, run) {
             }
             if (page.value >= pageCount.value) {
                 stopListening();
-                notice.value = "Finished listening to all matching intros.";
+                notifySuccess("All intros played.");
                 return;
             }
             if (!await loadMedia(page.value + 1) || run !== listeningRun) return;
@@ -1152,8 +1152,6 @@ async function scanNext(index, run) {
 
 function startListening() {
     stopListening();
-    error.value = "";
-    notice.value = "";
     scanning.value = true;
     void scanNext(0, listeningRun);
 }
@@ -1199,7 +1197,6 @@ onUnmounted(() => {
 async function loadMedia(target = 1) {
     const request = ++mediaRequest;
     mediaLoading.value = true;
-    error.value = "";
     try {
         const result = await api(`media?search=${encodeURIComponent(search.value)}${unknownOnly.value ? "&unknown=1" : ""}&page=${target}&per_page=${mediaPerPage.value}`);
         if (request !== mediaRequest) return false;
@@ -1214,7 +1211,7 @@ async function loadMedia(target = 1) {
     } catch (exception) {
         if (request === mediaRequest) {
             stopListening();
-            error.value = exception.message;
+            notifyError(exception.message);
         }
         return false;
     } finally {
@@ -1225,7 +1222,6 @@ async function loadMedia(target = 1) {
 async function editIntro(id) {
     stopListening();
     current.value = "intros";
-    notice.value = "";
     clearTimeout(searchTimer);
     const request = ++mediaRequest;
     mediaLoading.value = true;
@@ -1242,7 +1238,7 @@ async function editIntro(id) {
         page.value = 1;
         select(row);
     } catch (exception) {
-        if (request === mediaRequest) error.value = exception.message;
+        if (request === mediaRequest) notifyError(exception.message);
     } finally {
         if (request === mediaRequest) mediaLoading.value = false;
     }
@@ -1266,7 +1262,7 @@ async function saveIntro() {
             selected.value = { ...selected.value, intro_end: result.intro_end };
             if (marker.value === value) draft.value = result.intro_end ?? "";
         }
-        notice.value = "Intro end saved.";
+        notifySuccess("Intro end saved.");
         if (unknownOnly.value) {
             const target = rows.value.length === 1 && page.value > 1 && result.intro_end !== null
                 ? page.value - 1 : page.value;
@@ -1284,21 +1280,17 @@ async function saveSettings() {
         syncDefaultPool();
         const result = await api("settings", settings.value);
         moduleStatus.value = result.module ?? moduleStatus.value;
-        notice.value = (moduleStatus.value.state === "active"
-            ? "Settings saved."
-            : "Settings saved. They apply once the sweeper module runs on this station (see the status above).")
-            + (result.needs_restart ? " AzuraCast also reports other changes that need a broadcasting restart." : "");
+        notifySuccess((moduleStatus.value.state === "active" ? "Settings saved." : "Settings saved; the module is not active yet.")
+            + (result.needs_restart ? " Broadcasting restart needed." : ""));
     });
 }
 
 async function save(action) {
     saving.value = true;
-    error.value = "";
-    notice.value = "";
     try {
         await action();
     } catch (exception) {
-        error.value = exception.message;
+        notifyError(exception.message);
     } finally {
         saving.value = false;
     }
@@ -1309,8 +1301,6 @@ let moduleRefresh;
 async function restartBroadcasting() {
     if (!window.confirm("Restart Liquidsoap broadcasting only? Audio is briefly interrupted; Icecast stays running.")) return;
     restarting.value = true;
-    error.value = "";
-    notice.value = "";
     try {
         const response = await fetch(restart.value.url, {
             method: "POST",
@@ -1321,11 +1311,11 @@ async function restartBroadcasting() {
         if (!response.ok || result.success === false) {
             throw new Error(result.message || "Broadcasting could not be restarted.");
         }
-        notice.value = "Broadcasting restarted (Liquidsoap only). Icecast was not restarted. The module status updates within a minute.";
+        notifySuccess("Broadcasting restarted.");
         clearTimeout(moduleRefresh);
         moduleRefresh = setTimeout(refreshModule, 20000);
     } catch (exception) {
-        error.value = exception.message;
+        notifyError(exception.message);
     } finally {
         restarting.value = false;
     }
@@ -1360,7 +1350,7 @@ onMounted(async () => {
         if (current.value === "intros") await loadMedia();
         if (current.value === "history") await loadHistory();
     } catch (exception) {
-        error.value = exception.message;
+        loadError.value = exception.message;
     } finally {
         loading.value = false;
     }

@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace Plugin\AzuracastSweepers\EventHandler;
 
 use App\Enums\StationPermissions;
+use App\Event\BuildConsoleCommands;
 use App\Event\BuildRoutes;
 use App\Event\Radio\WriteLiquidsoapConfiguration;
 use App\Middleware;
+use Plugin\AzuracastSweepers\Console\DetectorAccountCommand;
+use Plugin\AzuracastSweepers\Controller\DetectorController;
 use Plugin\AzuracastSweepers\Controller\InternalController;
+use Plugin\AzuracastSweepers\Controller\MediaFileController;
 use Plugin\AzuracastSweepers\Controller\PanelController;
 use Plugin\AzuracastSweepers\Controller\ReleaseController;
 use Plugin\AzuracastSweepers\Middleware\ProtectIntroField;
@@ -34,6 +38,7 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
     public static function getSubscribedEvents(): array
     {
         return [
+            BuildConsoleCommands::class => 'commands',
             BuildRoutes::class => 'routes',
             WriteLiquidsoapConfiguration::class => [
                 ['header', 32],
@@ -41,6 +46,11 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
                 ['verify', -100],
             ],
         ];
+    }
+
+    public function commands(BuildConsoleCommands $event): void
+    {
+        $event->addAliases([DetectorAccountCommand::NAME => DetectorAccountCommand::class]);
     }
 
     public function routes(BuildRoutes $event): void
@@ -60,6 +70,15 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
             $group->post('/intro/{id:[0-9]+}', PanelController::class . ':introAction');
             $group->post('/settings', PanelController::class . ':settingsAction')
                 ->add(new Middleware\Permissions(StationPermissions::Broadcasting, true));
+            $group->get('/detector', DetectorController::class . ':statusAction');
+            $group->post('/detector/settings', DetectorController::class . ':settingsAction')
+                ->add(new Middleware\Permissions(StationPermissions::Broadcasting, true));
+            $group->post('/detector/key', DetectorController::class . ':keyAction')
+                ->add(new Middleware\Permissions(StationPermissions::Broadcasting, true));
+            $group->post(
+                '/detector/{action:process|retry|backfill|worker}',
+                DetectorController::class . ':actionAction'
+            )->add(new Middleware\Permissions(StationPermissions::Broadcasting, true));
         })
             ->add(new Middleware\Permissions(StationPermissions::Media, true))
             ->add(Middleware\RequireStation::class)
@@ -84,6 +103,13 @@ final readonly class PluginSubscriber implements EventSubscriberInterface
             ->add(Middleware\GetStation::class);
 
         $app->post('/api/station/{station_id}/sweepers/intro/{id:[0-9]+}', PanelController::class . ':importAction')
+            ->add(new Middleware\Permissions(StationPermissions::Media, true))
+            ->add(Middleware\RequireStation::class)
+            ->add(Middleware\GetStation::class)
+            ->add(Middleware\Module\Api::class)
+            ->add(Middleware\Auth\ApiAuth::class)
+            ->add(Middleware\InjectSession::class);
+        $app->get('/api/station/{station_id}/sweepers/file/{id:[0-9]+}', MediaFileController::class . ':downloadAction')
             ->add(new Middleware\Permissions(StationPermissions::Media, true))
             ->add(Middleware\RequireStation::class)
             ->add(Middleware\GetStation::class)

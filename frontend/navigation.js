@@ -1,6 +1,7 @@
 const itemId = "azuracast-sweepers-menu-item";
 const submenuId = "sidebar-submenu-sweepers";
-const views = [["settings", "Settings"], ["intros", "Intro Manager"], ["history", "Playback Timeline"]];
+const views = [["settings", "Settings"], ["intros", "Intro Manager"], ["history", "Playback Timeline"], ["detector", "Intro Detector"]];
+const viewPath = new RegExp(`^/station/[1-9]\\d*/sweepers/(?:${views.map(([view]) => view).join("|")})/?$`);
 
 export function stationContext(pathname, basePath) {
     const prefix = `${basePath}/station/`;
@@ -145,7 +146,7 @@ export function mountNavigation(document, window, basePath = "") {
                 if (stopped) return;
                 const route = router.currentRoute.value;
                 if (!redirectLegacy(route)
-                    && /^\/station\/[1-9]\d*\/sweepers\/(?:settings|intros|history)\/?$/.test(route.path)
+                    && viewPath.test(route.path)
                     && !route.name?.startsWith("sweepers:")) {
                     // Direct links may have resolved before the plugin registered its routes.
                     navigate(route.fullPath, true);

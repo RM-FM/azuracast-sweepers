@@ -64,6 +64,18 @@ globalThis.fetch = async (url, options) => {
     let data;
     if (url.endsWith("/release")) {
         data = releaseInfo;
+    } else if (url.includes("/detector")) {
+        const body = options?.body ? JSON.parse(options.body) : undefined;
+        detectorRequests.push({ path: url.slice(url.indexOf("/detector")), body });
+        if (url.endsWith("/detector/settings")) {
+            detectorSettings = { ...detectorSettings, ...body };
+            data = { station: detectorStation(detectorSettings) };
+        } else if (url.endsWith("/detector/key")) {
+            data = { station: detectorStation(detectorSettings) };
+
+        } else {
+            data = detectorInfo.installed ? { ...detectorInfo, station: detectorStation(detectorSettings) } : { ...detectorInfo };
+        }
     } else if (url === "/api/station/1/backend/restart") {
         restarts.push(options);
         data = { success: true, message: "Station restarted." };
@@ -151,6 +163,24 @@ const previewRequests = [];
 const mediaLookups = [];
 const linkRequests = [];
 const historyRequests = [];
+const detectorRequests = [];
+let detectorInfo = { installed: true, can_manage: true, can_admin: false };
+let detectorSettings = {};
+let detectorActivity = null;
+let detectorLibrary = 300;
+let detectorWorker = null;
+let detectorKey = { stations: 1, spend_month_usd: 0.42, balance_usd: 12.3, balance_checked_at: 1900 };
+const detectorStation = (overrides = {}) => ({
+    settings: { id: 1, enabled: true, auto_process: true, min_song_seconds: 60, max_song_seconds: 900, exclude_playlists: [],
+        budget_usd: 10, idle_timeout_minutes: 5, eu_only: false, ...overrides },
+    queue: { done: 120, pending: 4, failed: 1, known: 300 },
+    publications: { written: 5667, unresolved: 34 },
+    library_without_intro: detectorLibrary, library_estimate_usd: 1.2, process_requested: false, jobs: [], blocked: null, key: detectorKey,
+    spend_month_usd: 0.42, limit_usd: 10, worker: detectorWorker, recovery: null, activity: detectorActivity, now: 2000,
+    runs: [{ id: "r1", status: "complete", songs: 4, started_at: 1792948000, finished_at: 1792948600, error: null }],
+    failures: [{ media_id: 9, path: "broken.mp3", attempts: 2, error: "HTTP 404", updated_at: 1792948000 }],
+});
+const lastToast = () => [...document.querySelectorAll("[data-sweepers-toasts] .toast")].at(-1);
 const activePage = () => document.querySelector(".datatable-toolbar-top .page-item.active")?.textContent.trim();
 const goToPage = async (number) => {
     const link = [...document.querySelectorAll(".datatable-toolbar-top .page-link")].find((node) => node.textContent.trim() === String(number));
@@ -360,7 +390,7 @@ test("intro scan plays five seconds from saved original-file cues through every 
         }
         assert.equal(IntroAudio.instances.length - start, 101, "Blank skipped; zero is playable; all 102 results covered");
         assert.equal(activePage(), "5");
-        assert.ok(document.body.textContent.includes("Finished listening"));
+        assert.ok(document.body.textContent.includes("All intros played."));
         assert.equal(scan.textContent.trim(), "Scan Intros");
         assert.equal(scan.getAttribute("aria-pressed"), "false");
         assert.equal(document.querySelector("article"), null, "Scanning does not open the editor");
@@ -716,11 +746,12 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(first.reverb, false, "Reverb is off by default");
         assert.ok(![...document.querySelectorAll("section.card label")].some((node) => node.textContent.includes("Reverb intensity")),
             "Intensity appears only when reverb is on");
-        assert.equal(document.querySelector('[role="status"]').textContent, "Settings saved.");
-        assert.doesNotMatch(document.querySelector('[role="status"]').textContent, /restart/i);
+        assert.equal(lastToast().textContent.trim(), "Settings saved.");
+        assert.ok(lastToast().classList.contains("text-bg-success"), "Saving is confirmed like in AzuraCast");
+        assert.doesNotMatch(lastToast().textContent, /restart/i);
         needsRestart = true;
         await submit();
-        assert.match(document.querySelector('[role="status"]').textContent, /other changes that need a broadcasting restart/);
+        assert.match(lastToast().textContent, /Broadcasting restart needed/);
         needsRestart = false;
         await change("after a jingle", "3");
         await change("after a sweeper", "2");
@@ -874,7 +905,8 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         document.querySelector("form.sweepers-settings").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
         await settle();
         assert.equal(writes.length, writesBeforeLinks, "A link group with one track blocks saving");
-        assert.match(document.querySelector(".alert-danger").textContent, /at least two tracks/);
+        assert.match(lastToast().textContent, /at least two tracks/);
+        assert.ok(lastToast().classList.contains("text-bg-danger"));
         document.querySelector('[aria-label="Remove Weekend link group"]').dispatchEvent(new Event("click", { bubbles: true }));
         await settle();
         await select(4);
@@ -951,7 +983,7 @@ test("module status tells when a one-time restart is still required", async () =
         assert.equal(status.querySelector("button"), null, "Users without Broadcasting permission get no restart button");
         document.querySelector("section.card form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
         await settle();
-        assert.match(document.querySelector('div.alert-info[role="status"]').textContent, /apply once the sweeper module runs/);
+        assert.match(lastToast().textContent, /module is not active yet/);
     } finally {
         app.unmount();
         moduleState = { state: "active", message: "The sweeper module is loaded and active on this station." };
@@ -976,7 +1008,7 @@ test("restart button restarts only Liquidsoap through AzuraCast's backend API af
         assert.equal(restarts.length, 1);
         assert.equal(restarts[0].method, "POST");
         assert.equal(restarts[0].headers["X-API-CSRF"], "api-token");
-        assert.match(document.querySelector('div.alert-info[role="status"]').textContent, /Broadcasting restarted/);
+        assert.match(lastToast().textContent, /Broadcasting restarted/);
     } finally {
         app.unmount();
         delete globalThis.window.confirm;
@@ -1198,5 +1230,174 @@ test("reverb preview plays the selected sweeper and follows the reverb settings 
     } finally {
         app.unmount();
         delete window.AudioContext;
+    }
+});
+const submitForm = async (field) => {
+    document.querySelector(field).closest("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    await settle();
+};
+
+const mountDetector = async () => {
+    const app = createApp(App, { base: "/sweepers/1", csrf: "session-token", view: "detector" });
+    app.mount(document.querySelector("#app"));
+    await settle();
+    await settle();
+    return app;
+};
+
+test("intro detector page saves only changed station fields, has no shadow mode and keeps the key write-only", async () => {
+    detectorRequests.length = 0;
+    detectorSettings = {};
+    detectorInfo = { installed: true, can_manage: true, can_admin: false };
+    const app = await mountDetector();
+    try {
+        assert.equal(document.querySelector("#detector-heading").textContent, "Intro Detector");
+        assert.match(document.querySelector("[data-detector-spend]").textContent, /USD 0\.42 of 10\.00/);
+        const buttons = [...document.querySelectorAll("#detector-panel-status button")];
+        assert.ok(!buttons.some((button) => button.textContent.trim() === "Refresh"), "The page refreshes itself");
+        assert.ok(buttons.every((button) => button.classList.contains("btn-primary")), "Actions use AzuraCast's blue buttons");
+        assert.doesNotMatch(document.querySelector("#app").textContent, /Shared Account|server administrator/i);
+        const length = document.querySelector("#detector-min-length");
+        length.value = "90";
+        length.dispatchEvent(new Event("input", { bubbles: true }));
+        await settle();
+        const maximum = document.querySelector("#detector-max-length");
+        assert.equal(maximum.value, "900");
+        maximum.value = "1200";
+        maximum.dispatchEvent(new Event("input", { bubbles: true }));
+        await settle();
+        await submitForm("#detector-enabled");
+        assert.deepEqual(detectorRequests.at(-1), { path: "/detector/settings", body: { min_song_seconds: 90, max_song_seconds: 1200 } });
+        assert.equal(document.querySelector("#detector-mode"), null, "Intros are always written");
+        assert.doesNotMatch(document.querySelector("#app").textContent, /Shadow|Write them to AzuraCast|Written to AzuraCast/);
+        const summary = [...document.querySelectorAll("#detector-panel-status > fieldset:not([data-detector-analysis]) .detector-summary dt")].map((term) => term.textContent);
+        assert.deepEqual(summary, ["Detector", "GPU worker", "Analyzed", "Waiting", "Failed", "Older songs without intro"]);
+        const estimate = document.querySelector("[data-detector-estimate]");
+        assert.deepEqual([...estimate.querySelectorAll("dt")].map((term) => term.textContent),
+            ["Songs", "Estimated cost", "Budget left this month"], "The cost is shown without asking for it");
+        assert.deepEqual([...estimate.querySelectorAll("dd")].map((value) => value.textContent), ["300", "USD 1.20", "USD 9.58"]);
+        assert.equal(estimate.querySelector("[data-detector-over-budget]"), null);
+        detectorLibrary = 0;
+        await click("Analyze them");
+        assert.deepEqual(detectorRequests.at(-1), { path: "/detector/backfill", body: {} });
+        assert.equal(document.querySelector('[data-detector-task="library"]'), null, "No older songs, no task");
+        assert.doesNotMatch(document.querySelector(".detector-summary").textContent, /Older songs/);
+        detectorLibrary = 300;
+        const key = document.querySelector("#detector-key");
+        assert.equal(key.type, "password");
+        key.value = " rpa_NEWKEY12345678 ";
+        key.dispatchEvent(new Event("input", { bubbles: true }));
+        const budget = document.querySelector("#detector-budget");
+        budget.value = "20";
+        budget.dispatchEvent(new Event("input", { bubbles: true }));
+        const idle = document.querySelector("#detector-idle");
+        assert.deepEqual([idle.value, idle.getAttribute("min"), idle.getAttribute("max")], ["5", "1", "60"]);
+        idle.value = "15";
+        idle.dispatchEvent(new Event("input", { bubbles: true }));
+        const euOnly = document.querySelector("#detector-eu-only");
+        assert.equal(euOnly.checked, false);
+        euOnly.checked = true;
+        euOnly.dispatchEvent(new Event("change", { bubbles: true }));
+        await settle();
+        const count = detectorRequests.length;
+        await submitForm("#detector-budget");
+        assert.deepEqual(detectorRequests.slice(count), [
+            { path: "/detector/key", body: { key: "rpa_NEWKEY12345678" } },
+            { path: "/detector/settings", body: { budget_usd: 20, idle_timeout_minutes: 15, eu_only: true } },
+        ], "One save stores the checked key first, then the settings");
+        assert.equal(document.querySelector("#detector-key").value, "", "The key is not kept in the page");
+        assert.equal([...document.querySelectorAll("button")].filter((b) => /^Save/.test(b.textContent.trim())).length, 1);
+    } finally {
+        app.unmount();
+    }
+});
+
+test("intro detector page is read-only without Broadcasting and explains a missing installation", async () => {
+    detectorSettings = {};
+    detectorInfo = { installed: true, can_manage: false, can_admin: false };
+    let app = await mountDetector();
+    try {
+        assert.ok(document.querySelector("#detector-enabled").closest("fieldset[disabled]"), "Settings are read-only");
+        assert.equal([...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Analyze now"), undefined);
+        assert.equal(document.querySelector("#detector-key"), null);
+    } finally {
+        app.unmount();
+    }
+    for (const [admin, text] of [[true, /sudo bash bin\/setup\.sh --detector/], [false, /Ask the server administrator/]]) {
+        detectorInfo = { installed: false, can_manage: true, can_admin: admin };
+        app = await mountDetector();
+        try {
+            assert.match(document.querySelector("#app").textContent, text);
+            assert.equal(document.querySelector("#detector-heading"), null);
+        } finally {
+            app.unmount();
+        }
+    }
+    detectorInfo = { installed: true, can_manage: true, can_admin: false };
+});
+test("intro detector page shows how many stations use the key, their spend and the Runpod balance", async () => {
+    detectorRequests.length = 0;
+    detectorSettings = {};
+    detectorInfo = { installed: true, can_manage: true, can_admin: true };
+    let app = await mountDetector();
+    try {
+        const figures = [...document.querySelectorAll("[data-detector-costs] dt")].map((term) => term.textContent);
+        assert.deepEqual(figures, ["This station this month", "Runpod account this month", "Runpod balance", "GPU worker"]);
+        assert.match(document.querySelector("[data-detector-key-use]").textContent, /USD 0\.42\s*Only this station/);
+        assert.match(document.querySelector("[data-detector-balance]").textContent, /USD 12\.30/);
+        assert.equal(document.querySelector("[data-detector-low-balance]"), null);
+        assert.match(document.querySelector("[data-detector-worker]").textContent, /Down/);
+    } finally {
+        app.unmount();
+    }
+    detectorKey = { stations: 3, spend_month_usd: 2.5, balance_usd: 3.2, balance_checked_at: 1900 };
+    detectorWorker = { pod_id: "p", gpu_id: "NVIDIA GeForce RTX 4090", price: 0.89, shutdown_at: 2400 };
+    app = await mountDetector();
+    try {
+        assert.match(document.querySelector("[data-detector-key-use]").textContent, /USD 2\.50\s*3 stations share it/);
+        assert.ok(document.querySelector("[data-detector-balance] dd").classList.contains("text-warning"));
+        assert.match(document.querySelector("[data-detector-low-balance]").textContent, /balance is low/);
+        assert.match(document.querySelector("[data-detector-worker]").textContent, /Idle\s*Shuts down in 6:40/);
+        globalThis.window.confirm = () => true;
+        document.querySelector("[data-detector-remove-key]").click();
+        await settle();
+        assert.deepEqual(detectorRequests.at(-1), { path: "/detector/key", body: { key: null } });
+    } finally {
+        delete globalThis.window.confirm;
+        app.unmount();
+        detectorKey = { stations: 1, spend_month_usd: 0.42, balance_usd: 12.3, balance_checked_at: 1900 };
+        detectorWorker = null;
+        detectorInfo = { installed: true, can_manage: true, can_admin: false };
+    }
+});
+test("intro detector page shows a running batch and tells a waiting station when another one runs", async () => {
+    detectorSettings = {};
+    detectorInfo = { installed: true, can_manage: true, can_admin: false };
+    detectorActivity = { step: "analyze", done: 3, total: 6, started_at: 1400, step_started_at: 1700, own: true, songs: 40, station_songs: 12, detail: { phase: "run", stages: ["qwen"], failed: 0 } };
+    let app = await mountDetector();
+    try {
+        const card = document.querySelector("[data-detector-activity]");
+        assert.match(card.textContent, /Analyzing 40 songs: 50% done/);
+        assert.equal(card.querySelector("[data-detector-detail]").textContent, "Transcribing lyrics.");
+        assert.match(card.textContent, /Running for 10 min · about 5 min left in this step/);
+        assert.match(card.textContent, /12 of the 40 songs/);
+        assert.equal(card.querySelector(".progress-bar").getAttribute("style").replace(/\s|;/g, ""), "width:50%");
+        assert.equal(document.querySelector("[data-detector-queued]"), null);
+        const buttons = () => [...document.querySelectorAll("button")].map((button) => button.textContent.trim());
+        assert.ok(!buttons().includes("Analyze now"), "A running analysis cannot be started again");
+        assert.match(document.querySelector('[data-detector-task="waiting"]').textContent, /4 songs are being analyzed now/);
+    } finally {
+        app.unmount();
+    }
+    detectorActivity = { step: "worker", done: 0, total: 0, started_at: 1900, step_started_at: 1900, own: false };
+    app = await mountDetector();
+    try {
+        assert.equal(document.querySelector("[data-detector-activity]"), null);
+        assert.match(document.querySelector("[data-detector-queued]").textContent,
+            /Another station's analysis is running \(Starting a GPU worker/);
+        assert.doesNotMatch(document.querySelector("[data-detector-queued]").textContent, /songs in this run/);
+    } finally {
+        app.unmount();
+        detectorActivity = null;
     }
 });

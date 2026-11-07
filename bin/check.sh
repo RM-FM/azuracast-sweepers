@@ -23,6 +23,7 @@ if [[ -f vendor/autoload.php ]]; then
     "${php_command[@]}" tests/reservations.php
     "${php_command[@]}" tests/settings.php
     "${php_command[@]}" tests/release.php
+    "${php_command[@]}" tests/detector.php
 fi
 docker run --rm --user "$(id -u):$(id -g)" -e npm_config_cache=/tmp/npm-cache \
     -v "$PWD:/plugin" -w /plugin node:24-alpine \

@@ -1,5 +1,33 @@
 # Release notes
 
+## 2.0.0 - 2026-11-07
+
+### Features
+
+- **Intro Detector integration:** setup offers to install the optional Intro Detector,
+  also when updating to this version, and updates it together with the plugin.
+- **Intro Detector page:** **Sweepers → Intro Detector** manages detection per station:
+  on/off, automatic processing, skipped playlists, minimum and maximum song length,
+  Runpod key, monthly budget, GPU idle timeout and EU-only analysis. It shows the status
+  with live progress, costs, the Runpod balance, the GPU worker and failed songs, and
+  analyzes the existing library on request. Viewing needs the station's Media
+  permission, changes need Broadcasting.
+
+### Improvements
+
+- Success and error messages on all Sweepers pages appear as AzuraCast-style
+  notifications at the top right and close on their own.
+
+### Update notes
+
+- **AzuraCast Broadcast (Liquidsoap) restart: Not required**; the Liquidsoap module
+  is unchanged. Run `sudo bash bin/setup.sh` to rebuild the frontend, reload PHP/worker
+  processes and install or update the Intro Detector.
+- An Intro Detector installed before this release is linked automatically and keeps
+  its stations; each gets the Runpod key used so far, and settings are then managed on
+  the new page. Its shadow mode is gone: enabled stations write intros right away, and
+  intros recorded in shadow mode are written once after the update.
+
 ## 1.3.3 - 2026-11-06
 
 ### Fixes

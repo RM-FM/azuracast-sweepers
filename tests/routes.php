@@ -15,13 +15,21 @@ namespace App\Enums {
         case Media;
         case Broadcasting;
     }
+
+    enum GlobalPermissions
+    {
+        case Settings;
+    }
 }
 
 namespace App\Middleware {
     final class Permissions
     {
+        public static array $created = [];
+
         public function __construct(mixed ...$args)
         {
+            self::$created[] = $args;
         }
     }
 }
@@ -92,8 +100,18 @@ namespace {
         ->newInstanceWithoutConstructor();
     $subscriber->routes(new \App\Event\BuildRoutes($app));
 
-    if ($app->groups !== 2 || count($app->routes) !== 16) {
+    if ($app->groups !== 2 || count($app->routes) !== 21) {
         throw new \RuntimeException('Sweeper routes were not registered.');
     }
-    echo '2 route groups bound; 16 routes registered.' . PHP_EOL;
+    $paths = array_map(static fn(array $route): string => $route[0] . ' ' . $route[1], $app->routes);
+    foreach (['GET /detector', 'POST /detector/settings', 'POST /detector/key',
+        'GET /api/station/{station_id}/sweepers/file/{id:[0-9]+}'] as $route) {
+        if (!in_array($route, $paths, true)) {
+            throw new \RuntimeException("Missing route $route.");
+        }
+    }
+    if (in_array('GET /detector/instance', $paths, true)) {
+        throw new \RuntimeException('Detector settings belong to stations; there is no instance route.');
+    }
+    echo '2 route groups bound; 21 routes registered.' . PHP_EOL;
 }

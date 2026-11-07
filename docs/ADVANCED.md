@@ -413,6 +413,57 @@ not the presence of a server acknowledgment.
 Intro scanning stops and shows an error on audio or page-loading failures. Tracks
 ending before the five-second preview finishes advance immediately.
 
+<a id="intro-detector"></a>
+
+## Intro Detector
+
+The optional [Intro Detector](https://github.com/RM-FM/azuracast-intro-detector) is
+a separate service; detection, its models and analysis data stay in it. The plugin
+installs, updates and connects it and provides its station page.
+
+- **Installation:** `bin/setup.sh` offers it once when no detector is installed, also on
+  an update from an older plugin version; a refusal is remembered in `.detector-declined`.
+  `sudo bash bin/setup.sh --detector` asks again. A detector already running on this
+  server is found through its Compose project, wherever it was installed, and updated
+  instead, also releases from before 1.0. A detector on another server cannot be managed
+  from the plugin: answer **N** and move it to the AzuraCast server first.
+  The detector release pinned in `detector.version` is cloned to
+  `/opt/azuracast-intro-detector` (override with `SWEEPERS_DETECTOR_DIR`) and set
+  up unattended. Every later plugin setup moves it to the pinned release and keeps
+  the previous release running if that fails.
+- **Network:** the detector runs as its own Compose project and joins AzuraCast's
+  Docker network under the alias `intro-detector`, without publishing a port. It
+  reaches AzuraCast through the configured site base URL.
+- **Connection:** the detector's setup writes `.detector.json` (management API address
+  and token) into this directory, readable by AzuraCast's web user only. Installing
+  the detector therefore needs no `web` restart.
+- **AzuraCast account:** setup creates the user `intro-detector@sweepers.invalid` with
+  one role and an API key. The role starts without station permissions; enabling the
+  detector for a station grants View and Media on that station, disabling revokes
+  them. `azuracast_cli sweepers:detector-account --sync` aligns the grants with the
+  stations the detector has enabled; setup runs it after every installation or update.
+- **Permissions:** the page needs the station's Media permission to view. Changing
+  settings, the Runpod key or starting work needs Broadcasting, like the sweeper
+  settings. All detector settings belong to a station; there are no server-wide ones.
+- **Runpod keys** are checked with Runpod, stored only by the detector and never sent
+  back to the browser. Stations whose keys belong to the same Runpod account share one
+  GPU worker, and each station's share of its cost counts against that station's budget.
+  The page shows the number of stations on the account (not which ones), their combined
+  spending this month, the account's Runpod balance and its GPU worker, with a countdown to
+  the shutdown of an idle worker. Each station sets an idle timeout (1 to 60 minutes, default
+  5); a shared worker waits for the longest of its stations. Runpod offers no monthly budget of
+  its own. Without a key a station's songs wait; stored analyses of identical files are
+  still reused at no cost.
+- **Downloads:** the detector downloads songs through AzuraCast's play route. AzuraCast
+  cannot serve file names containing `%` there, so for those the detector uses the
+  plugin's read-only route `/api/station/{station}/sweepers/file/{media}`, which needs the
+  same station Media permission.
+
+A detector installed before the plugin managed it is linked on the next plugin setup:
+it switches to the plugin's AzuraCast account, keeps its stations enabled, gives each of
+them the Runpod key the detector used so far and gets station access granted. Its former AzuraCast API user is no longer
+needed and can be deleted.
+
 ## Troubleshooting
 
 If AzuraCast does not start after installation, check:
@@ -451,6 +502,11 @@ the plugin directory.
 
 The plugin creates no database tables. The `intro_end` custom field and station
 files `sweepers.json` and `sweepers-history.json` remain until you delete them.
+
+To remove the Intro Detector, stop it with `docker compose down` in
+`/opt/azuracast-intro-detector`, delete that directory, `.detector.json` in the
+plugin directory and the AzuraCast user `intro-detector@sweepers.invalid`. Its data
+volume `azuracast-intro-detector_detector-data` holds the stored analyses.
 
 ## Development
 
