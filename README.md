@@ -180,8 +180,8 @@ about US$4 per 1,000 songs, and each song only once.
 - **Permissions:** anyone who may change the station's broadcasting settings manages
   the station's detector settings; others see them read-only.
 
-New uploads are analyzed automatically; **Analyze existing library** queues the
-rest after showing an estimate. Details: [Intro Detector integration](docs/ADVANCED.md#intro-detector).
+New uploads are analyzed automatically. For older songs the Status tab shows the number,
+the estimated cost and the budget left; **Analyze them** queues them. Details: [Intro Detector integration](docs/ADVANCED.md#intro-detector).
 
 ## More documentation
 
