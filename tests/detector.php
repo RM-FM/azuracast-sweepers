@@ -45,6 +45,8 @@ if (($_SERVER['HTTP_AUTHORIZATION'] ?? '') !== 'Bearer ' . str_repeat('a', 40)) 
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 if ($path === '/api/v1/stations/3' && $_SERVER['REQUEST_METHOD'] === 'PUT') {
     echo json_encode(['received' => json_decode(file_get_contents('php://input'), true)]);
+} elseif ($path === '/api/v1/stations/3/backfill') {
+    echo json_encode(['raw' => file_get_contents('php://input')]);
 } elseif ($path === '/api/v1/stations/3/process') {
     http_response_code(409);
     echo '{"error":"The Intro Detector is not enabled for this station"}';
@@ -78,6 +80,10 @@ try {
     check(
         $client->request('PUT', '/api/v1/stations/3', ['enabled' => true]) === ['received' => ['enabled' => true]],
         'JSON bodies reach the detector.'
+    );
+    check(
+        $client->request('POST', '/api/v1/stations/3/backfill', []) === ['raw' => '{}'],
+        'An empty body is sent as a JSON object.'
     );
     $error = failure(fn() => $client->request('POST', '/api/v1/stations/3/process'));
     check($error?->status === 409 && str_contains($error->getMessage(), 'not enabled'), 'Detector errors pass through.');

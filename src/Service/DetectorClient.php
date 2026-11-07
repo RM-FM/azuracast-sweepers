@@ -42,7 +42,8 @@ final readonly class DetectorClient
         $context = stream_context_create(['http' => [
             'method' => $method,
             'header' => $requestHeaders,
-            'content' => $body === null ? '' : json_encode($body, JSON_THROW_ON_ERROR),
+            // An empty PHP array would encode as a JSON list; the detector expects an object.
+            'content' => $body === null ? '' : json_encode((object)$body, JSON_THROW_ON_ERROR),
             'timeout' => self::TIMEOUT_SECONDS,
             'ignore_errors' => true,
             'follow_location' => 0,
