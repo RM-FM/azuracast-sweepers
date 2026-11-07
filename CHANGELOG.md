@@ -5,14 +5,17 @@
 ### Features
 
 - **Intro Detector integration:** setup offers to install the optional Intro Detector,
-  also when updating to this version, and updates it together with the plugin. A new **Sweepers → Intro Detector** page
-  manages it per station: on/off, automatic processing,
-  skipped playlists, minimum and maximum song length, Runpod key, monthly budget, GPU idle timeout, EU-only GPU workers, status, costs, failed songs and
-  analyzing the existing library. Stations on the same Runpod account share one GPU
-  worker; the page shows how many stations use the account, their combined cost and its
-  balance. Station broadcasting permission is enough. The detector manages its disk space
-  on its own: about 0.1 MB per song, data of removed songs is deleted after a day, and
-  analysis pauses below 1 GB of free disk space.
+  also when updating to this version, and updates it together with the plugin.
+- **Intro Detector page:** **Sweepers → Intro Detector** manages detection per station:
+  on/off, automatic processing, skipped playlists, minimum and maximum song length,
+  Runpod key, monthly budget, GPU idle timeout and EU-only analysis. It shows the status
+  with live progress, costs, the Runpod balance, the GPU worker and failed songs, and
+  analyzes the existing library on request. Viewing needs the station's Media
+  permission, changes need Broadcasting.
+- **Shared Runpod accounts:** stations on the same Runpod account share one GPU worker,
+  and a song file is analyzed only once for all stations.
+- **Automatic disk housekeeping:** the detector keeps about 0.1 MB per song, deletes the
+  data of removed songs after a day and pauses analysis below 1 GB of free disk space.
 
 ### Improvements
 
