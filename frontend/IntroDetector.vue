@@ -204,7 +204,7 @@
                                 <dl class="row g-3 mt-2 mb-0 detector-summary" data-detector-costs>
                                     <div class="col-6 col-lg-3" data-detector-spend>
                                         <dt class="small text-muted fw-normal">This station this month</dt>
-                                        <dd class="fs-5 mb-1">{{ money(status.spend_month_usd) }}<span v-if="status.limit_usd" class="fs-6 text-muted"> of {{ money(status.limit_usd) }}</span></dd>
+                                        <dd class="fw-semibold mb-1">{{ money(status.spend_month_usd) }}<span v-if="status.limit_usd" class="fw-normal text-muted"> of {{ money(status.limit_usd) }}</span></dd>
                                         <div v-if="status.limit_usd" class="progress detector-meter" role="progressbar" aria-label="This station this month" :aria-valuenow="spendPercent" aria-valuemin="0" aria-valuemax="100">
                                             <div class="progress-bar" :class="meterClass(spendPercent)" :style="{ width: spendPercent + '%' }"></div>
                                         </div>
@@ -213,22 +213,22 @@
                                     <template v-if="status.key">
                                         <div class="col-6 col-lg-3" data-detector-key-use>
                                             <dt class="small text-muted fw-normal">Runpod account this month</dt>
-                                            <dd class="fs-5 mb-1">{{ money(status.key.spend_month_usd) }}</dd>
+                                            <dd class="fw-semibold mb-1">{{ money(status.key.spend_month_usd) }}</dd>
                                             <div class="small text-muted">{{ accountStationsText(status.key.stations) }}</div>
                                         </div>
                                         <div class="col-6 col-lg-3" data-detector-balance>
                                             <dt class="small text-muted fw-normal">Runpod balance</dt>
-                                            <dd class="fs-5 mb-1" :class="{ 'text-warning': lowBalance }">{{ money(status.key.balance_usd) }}</dd>
+                                            <dd class="fw-semibold mb-1" :class="{ 'text-warning': lowBalance }">{{ money(status.key.balance_usd) }}</dd>
                                             <a class="small" href="https://console.runpod.io/user/billing" target="_blank" rel="noopener">Add funds</a>
                                         </div>
                                         <div class="col-6 col-lg-3" data-detector-worker>
                                             <dt class="small text-muted fw-normal">GPU worker</dt>
-                                            <dd class="fs-5 mb-1">{{ worker[0] }}</dd>
+                                            <dd class="fw-semibold mb-1">{{ worker[0] }}</dd>
                                             <div class="small text-muted">{{ worker[1] }}</div>
                                         </div>
                                     </template>
                                 </dl>
-                                <div v-if="lowBalance" class="alert alert-warning py-2 small mt-3 mb-0" role="status" data-detector-low-balance>The Runpod balance is low. Runpod stops GPU work when it is used up.</div>
+                                <div v-if="lowBalance" class="alert alert-warning py-2 small my-3" role="status" data-detector-low-balance>The Runpod balance is low. Runpod stops GPU work when it is used up.</div>
                             </fieldset>
                         </fieldset>
                         <div v-if="info.can_manage" class="buttons">
