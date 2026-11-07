@@ -565,3 +565,8 @@
 .sweepers-detector .detector-meter {
     height: .375rem;
 }
+
+/* Cost figures at the size of the form labels around them. */
+.sweepers-detector [data-detector-costs] dd {
+    font-size: 1.1em;
+}
