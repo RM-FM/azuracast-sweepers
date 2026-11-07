@@ -293,6 +293,7 @@ const spendPercent = computed(() => status.value?.limit_usd
 const lowBalance = computed(() => (status.value?.key?.balance_usd ?? Infinity) < LOW_BALANCE_USD);
 const summary = computed(() => [
     ["Detector", status.value.settings.enabled ? "On" : "Off"],
+    ["GPU worker", worker.value[0]],
     ["Analyzed", counts.value.done],
     ["Waiting", counts.value.waiting],
     ["Failed", counts.value.failed],

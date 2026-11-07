@@ -42,9 +42,9 @@ export function countdown(seconds) {
 
 /** [state, detail] of the account's GPU worker; an idle worker counts down to its shutdown. */
 export function workerState(worker, now) {
-    if (!worker) return ["Off", "Started when songs need analysis"];
+    if (!worker) return ["Down", "Started when songs need analysis"];
     const rented = [worker.gpu_id && gpuName(worker.gpu_id), `${money(worker.price)}/hour`].filter(Boolean).join(" · ");
-    if (worker.shutdown_at === null || worker.shutdown_at === undefined) return ["Working", rented];
+    if (worker.shutdown_at === null || worker.shutdown_at === undefined) return ["Up", rented];
     const left = worker.shutdown_at - now;
     return ["Idle", left > 0 ? `Shuts down in ${countdown(left)}` : "Shutting down…"];
 }
