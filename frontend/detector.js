@@ -85,7 +85,7 @@ export function waitingText(count, automatic, requested, activity = null) {
     }
     if (activity && count) return `${count} songs are waiting until the current analysis of another station has finished.`;
     if (requested) return "The analysis starts within a minute or two.";
-    if (!count) return `No songs are waiting. ${automatic ? "New uploads are analyzed automatically." : "New uploads wait here until you start the analysis."}`;
+    if (!count) return `All songs are analyzed. ${automatic ? "New uploads are analyzed automatically." : "New uploads wait here until you start the analysis."}`;
     return automatic
         ? `${count} songs are waiting. They are analyzed automatically within a few minutes, or right away with Analyze now.`
         : `${count} songs are waiting until you start the analysis.`;

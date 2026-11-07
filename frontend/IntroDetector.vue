@@ -73,7 +73,7 @@
                             <ul class="list-group mb-0">
                                 <li class="list-group-item d-flex flex-wrap align-items-center gap-2" data-detector-task="waiting">
                                     <div class="flex-fill">
-                                        <div class="fw-semibold">Waiting songs</div>
+                                        <div class="fw-semibold">{{ counts.waiting || status.activity ? "Waiting songs" : "Up to date" }}</div>
                                         <div class="small">{{ waitingText(counts.waiting, status.settings.auto_process, status.process_requested, status.activity) }}</div>
                                     </div>
                                     <button v-if="info.can_manage && counts.waiting && !status.process_requested && !status.activity" type="button" class="btn btn-sm btn-primary" :disabled="busy" @click="action('process', {})">Analyze now</button>
