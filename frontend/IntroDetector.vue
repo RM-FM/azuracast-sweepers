@@ -294,7 +294,7 @@ const lowBalance = computed(() => (status.value?.key?.balance_usd ?? Infinity) <
 const summary = computed(() => [
     ["Detector", status.value.settings.enabled ? "On" : "Off"],
     ["GPU worker", worker.value[0]],
-    ["Analyzed", counts.value.done],
+    ["Analyzed", status.value.analyzed ?? counts.value.done],
     ["Waiting", counts.value.waiting],
     ["Failed", counts.value.failed],
     ...(status.value.library_without_intro ? [["Older songs without intro", status.value.library_without_intro]] : []),
