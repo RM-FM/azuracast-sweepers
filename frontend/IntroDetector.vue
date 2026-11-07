@@ -263,6 +263,9 @@ const dirty = computed(() => status.value
     && (stationKey.value.trim() !== "" || Object.keys(changedFields(form.value, status.value.settings)).length > 0));
 const budgetLeft = computed(() => status.value?.limit_usd ? Math.max(0, status.value.limit_usd - status.value.spend_month_usd) : null);
 const libraryEstimate = computed(() => ({ songs: status.value.library_without_intro, estimated_usd: status.value.library_estimate_usd ?? null }));
+// A run is going or about to start; refresh often so its progress appears promptly.
+const activeSoon = computed(() => Boolean(status.value?.activity)
+    || (counts.value.waiting > 0 && (status.value?.process_requested || status.value?.settings.auto_process) && !status.value?.blocked));
 const lowBalance = computed(() => (status.value?.key?.balance_usd ?? Infinity) < LOW_BALANCE_USD);
 const summary = computed(() => [
     ["Detector", status.value.settings.enabled ? "On" : "Off"],
@@ -335,7 +338,7 @@ function action(name, data) {
     return run(async () => {
         const result = await props.api(`detector/${name}`, data);
         status.value = result.station ?? result;
-    }, name === "process" ? "Analysis was requested; new songs are processed shortly." : "The songs were queued again.");
+    }, name === "process" ? "The analysis starts within a minute or two; its progress appears here." : "The songs were queued again.");
 }
 
 
@@ -343,7 +346,7 @@ function action(name, data) {
 function startLibrary() {
     return run(async () => {
         status.value = (await props.api("detector/backfill", {})).station;
-    }, "The library was queued. Its songs are analyzed after new uploads.");
+    }, "The songs were queued. The analysis starts within a minute or two (after any new uploads); its progress appears here.");
 }
 
 function retireWorker() {
@@ -358,7 +361,7 @@ onMounted(async () => {
     await load();
     lastRefresh = Date.now();
     timer = setInterval(() => {
-        const due = Date.now() - lastRefresh >= (status.value?.activity ? REFRESH_RUNNING_MS : REFRESH_MS);
+        const due = Date.now() - lastRefresh >= (activeSoon.value ? REFRESH_RUNNING_MS : REFRESH_MS);
         if (due && !busy.value && info.value.installed && document.visibilityState === "visible") {
             lastRefresh = Date.now();
             props.api("detector").then(apply, () => {});
