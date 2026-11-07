@@ -1139,7 +1139,7 @@ async function scanNext(index, run) {
             }
             if (page.value >= pageCount.value) {
                 stopListening();
-                notifySuccess("Finished listening to all matching intros.");
+                notifySuccess("All intros played.");
                 return;
             }
             if (!await loadMedia(page.value + 1) || run !== listeningRun) return;
@@ -1280,10 +1280,8 @@ async function saveSettings() {
         syncDefaultPool();
         const result = await api("settings", settings.value);
         moduleStatus.value = result.module ?? moduleStatus.value;
-        notifySuccess((moduleStatus.value.state === "active"
-            ? "Settings saved."
-            : "Settings saved. They apply once the sweeper module runs on this station (see the status above).")
-            + (result.needs_restart ? " AzuraCast also reports other changes that need a broadcasting restart." : ""));
+        notifySuccess((moduleStatus.value.state === "active" ? "Settings saved." : "Settings saved; the module is not active yet.")
+            + (result.needs_restart ? " Broadcasting restart needed." : ""));
     });
 }
 
@@ -1313,7 +1311,7 @@ async function restartBroadcasting() {
         if (!response.ok || result.success === false) {
             throw new Error(result.message || "Broadcasting could not be restarted.");
         }
-        notifySuccess("Broadcasting restarted (Liquidsoap only). Icecast was not restarted. The module status updates within a minute.");
+        notifySuccess("Broadcasting restarted.");
         clearTimeout(moduleRefresh);
         moduleRefresh = setTimeout(refreshModule, 20000);
     } catch (exception) {

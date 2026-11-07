@@ -389,7 +389,7 @@ test("intro scan plays five seconds from saved original-file cues through every 
         }
         assert.equal(IntroAudio.instances.length - start, 101, "Blank skipped; zero is playable; all 102 results covered");
         assert.equal(activePage(), "5");
-        assert.ok(document.body.textContent.includes("Finished listening"));
+        assert.ok(document.body.textContent.includes("All intros played."));
         assert.equal(scan.textContent.trim(), "Scan Intros");
         assert.equal(scan.getAttribute("aria-pressed"), "false");
         assert.equal(document.querySelector("article"), null, "Scanning does not open the editor");
@@ -750,7 +750,7 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.doesNotMatch(lastToast().textContent, /restart/i);
         needsRestart = true;
         await submit();
-        assert.match(lastToast().textContent, /other changes that need a broadcasting restart/);
+        assert.match(lastToast().textContent, /Broadcasting restart needed/);
         needsRestart = false;
         await change("after a jingle", "3");
         await change("after a sweeper", "2");
@@ -982,7 +982,7 @@ test("module status tells when a one-time restart is still required", async () =
         assert.equal(status.querySelector("button"), null, "Users without Broadcasting permission get no restart button");
         document.querySelector("section.card form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
         await settle();
-        assert.match(lastToast().textContent, /apply once the sweeper module runs/);
+        assert.match(lastToast().textContent, /module is not active yet/);
     } finally {
         app.unmount();
         moduleState = { state: "active", message: "The sweeper module is loaded and active on this station." };

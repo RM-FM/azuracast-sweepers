@@ -324,21 +324,21 @@ function saveSettings() {
         }
         if (Object.keys(changes).length) status.value = (await props.api("detector/settings", changes)).station;
         form.value = stationForm(status.value.settings);
-    }, key ? "Saved. Runpod accepted the key." : "Saved.");
+    }, key ? "Saved. Key accepted." : "Saved.");
 }
 
 function removeKey() {
     if (!window.confirm("Remove the stored Runpod key from this station? GPU analysis for this station stops until a key is entered.")) return;
     return run(async () => {
         status.value = (await props.api("detector/key", { key: null })).station;
-    }, "The Runpod key was removed from this station.");
+    }, "Runpod key removed.");
 }
 
 function action(name, data) {
     return run(async () => {
         const result = await props.api(`detector/${name}`, data);
         status.value = result.station ?? result;
-    }, name === "process" ? "The analysis starts within a minute or two; its progress appears here." : "The songs were queued again.");
+    }, name === "process" ? "Analysis requested." : "Songs queued again.");
 }
 
 
@@ -346,7 +346,7 @@ function action(name, data) {
 function startLibrary() {
     return run(async () => {
         status.value = (await props.api("detector/backfill", {})).station;
-    }, "The songs were queued. The analysis starts within a minute or two; its progress appears here.");
+    }, "The songs were queued.");
 }
 
 function retireWorker() {
@@ -354,7 +354,7 @@ function retireWorker() {
     return run(async () => {
         await props.api("detector/worker", { delete: true, force: true });
         await load();
-    }, "The GPU worker was deleted.");
+    }, "GPU worker deleted.");
 }
 
 onMounted(async () => {
