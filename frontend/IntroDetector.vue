@@ -204,7 +204,7 @@
                                             <input id="detector-eu-only" v-model="form.eu_only" class="form-check-input" type="checkbox" role="switch">
                                             <label class="form-check-label" for="detector-eu-only">Analyze this station's songs in the EU only</label>
                                         </div>
-                                        <div class="form-text">Uses GPU workers in EU data centers only. Fewer GPUs are available there, so songs may wait longer. Stations sharing a Runpod key keep their own choice; a running worker outside the EU is replaced when this station's songs need it.</div>
+                                        <div class="form-text">Uses GPU workers in EU data centers only. Fewer GPUs are available there, so songs may wait longer.</div>
                                     </div>
                                 </div>
                                 <dl class="row g-3 mt-2 mb-0 detector-summary" data-detector-costs>
