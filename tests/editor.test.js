@@ -179,6 +179,7 @@ const detectorStation = (overrides = {}) => ({
     runs: [{ id: "r1", status: "complete", songs: 4, started_at: 1792948000, finished_at: 1792948600, error: null }],
     failures: [{ media_id: 9, path: "broken.mp3", attempts: 2, error: "HTTP 404", updated_at: 1792948000 }],
 });
+const lastToast = () => [...document.querySelectorAll("[data-sweepers-toasts] .toast")].at(-1);
 const activePage = () => document.querySelector(".datatable-toolbar-top .page-item.active")?.textContent.trim();
 const goToPage = async (number) => {
     const link = [...document.querySelectorAll(".datatable-toolbar-top .page-link")].find((node) => node.textContent.trim() === String(number));
@@ -744,11 +745,12 @@ test("settings save spacing, playlist selection, longest fit and nullable delay"
         assert.equal(first.reverb, false, "Reverb is off by default");
         assert.ok(![...document.querySelectorAll("section.card label")].some((node) => node.textContent.includes("Reverb intensity")),
             "Intensity appears only when reverb is on");
-        assert.equal(document.querySelector('[role="status"]').textContent, "Settings saved.");
-        assert.doesNotMatch(document.querySelector('[role="status"]').textContent, /restart/i);
+        assert.equal(lastToast().textContent.trim(), "Settings saved.");
+        assert.ok(lastToast().classList.contains("text-bg-success"), "Saving is confirmed like in AzuraCast");
+        assert.doesNotMatch(lastToast().textContent, /restart/i);
         needsRestart = true;
         await submit();
-        assert.match(document.querySelector('[role="status"]').textContent, /other changes that need a broadcasting restart/);
+        assert.match(lastToast().textContent, /other changes that need a broadcasting restart/);
         needsRestart = false;
         await change("after a jingle", "3");
         await change("after a sweeper", "2");
@@ -902,7 +904,8 @@ test("settings tabs preserve edits, reveal invalid fields and share the native s
         document.querySelector("form.sweepers-settings").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
         await settle();
         assert.equal(writes.length, writesBeforeLinks, "A link group with one track blocks saving");
-        assert.match(document.querySelector(".alert-danger").textContent, /at least two tracks/);
+        assert.match(lastToast().textContent, /at least two tracks/);
+        assert.ok(lastToast().classList.contains("text-bg-danger"));
         document.querySelector('[aria-label="Remove Weekend link group"]').dispatchEvent(new Event("click", { bubbles: true }));
         await settle();
         await select(4);
@@ -979,7 +982,7 @@ test("module status tells when a one-time restart is still required", async () =
         assert.equal(status.querySelector("button"), null, "Users without Broadcasting permission get no restart button");
         document.querySelector("section.card form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
         await settle();
-        assert.match(document.querySelector('div.alert-info[role="status"]').textContent, /apply once the sweeper module runs/);
+        assert.match(lastToast().textContent, /apply once the sweeper module runs/);
     } finally {
         app.unmount();
         moduleState = { state: "active", message: "The sweeper module is loaded and active on this station." };
@@ -1004,7 +1007,7 @@ test("restart button restarts only Liquidsoap through AzuraCast's backend API af
         assert.equal(restarts.length, 1);
         assert.equal(restarts[0].method, "POST");
         assert.equal(restarts[0].headers["X-API-CSRF"], "api-token");
-        assert.match(document.querySelector('div.alert-info[role="status"]').textContent, /Broadcasting restarted/);
+        assert.match(lastToast().textContent, /Broadcasting restarted/);
     } finally {
         app.unmount();
         delete globalThis.window.confirm;
@@ -1249,6 +1252,9 @@ test("intro detector page saves only changed station fields, has no shadow mode 
     try {
         assert.equal(document.querySelector("#detector-heading").textContent, "Intro Detector");
         assert.match(document.querySelector("[data-detector-spend]").textContent, /US\$0\.42 of US\$10\.00/);
+        const buttons = [...document.querySelectorAll("#detector-panel-status button")];
+        assert.ok(!buttons.some((button) => button.textContent.trim() === "Refresh"), "The page refreshes itself");
+        assert.ok(buttons.every((button) => button.classList.contains("btn-primary")), "Actions use AzuraCast's blue buttons");
         assert.doesNotMatch(document.querySelector("#app").textContent, /Shared Account|server administrator/i);
         const length = document.querySelector("#detector-min-length");
         length.value = "90";
@@ -1270,10 +1276,9 @@ test("intro detector page saves only changed station fields, has no shadow mode 
             ["Songs", "Estimated cost", "Budget left this month"], "The cost is shown without asking for it");
         assert.deepEqual([...estimate.querySelectorAll("dd")].map((value) => value.textContent), ["300", "US$1.20", "US$9.58"]);
         assert.equal(estimate.querySelector("[data-detector-over-budget]"), null);
+        detectorLibrary = 0;
         await click("Analyze them");
         assert.deepEqual(detectorRequests.at(-1), { path: "/detector/backfill", body: {} });
-        detectorLibrary = 0;
-        await click("Refresh");
         assert.equal(document.querySelector('[data-detector-task="library"]'), null, "No older songs, no task");
         assert.doesNotMatch(document.querySelector(".detector-summary").textContent, /Older songs/);
         detectorLibrary = 300;

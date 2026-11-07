@@ -5,8 +5,8 @@
                 <button class="nav-link" :class="{ active: current === key }" type="button" role="tab" :aria-selected="current === key" @click="show(key)">{{ label }}</button>
             </li>
         </ul>
-        <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
-        <div v-if="notice" class="alert alert-info" role="status">{{ notice }}</div>
+        <div v-if="loadError" class="alert alert-danger" role="alert">{{ loadError }}</div>
+        <Toasts />
         <div v-if="loading" class="d-flex justify-content-center py-3">
             <div class="spinner-border" role="status"><span class="visually-hidden">Loading…</span></div>
         </div>
@@ -549,7 +549,8 @@ import PlaylistPicker from "./PlaylistPicker.vue";
 import SweeperRoute from "./SweeperRoute.vue";
 import Waveform from "./Waveform.vue";
 import { formatStationTime, lastDay, presetRanges, startOfDay } from "./dates.js";
-import { useNotice } from "./notice.js";
+import Toasts from "./Toasts.vue";
+import { notifyError, notifySuccess } from "./toasts.js";
 import { createReverbPreview, reverbLevel } from "./reverb.js";
 
 const props = defineProps({
@@ -658,8 +659,7 @@ const position = ref(0);
 const loading = ref(true);
 const stateLoaded = ref(false);
 const saving = ref(false);
-const notice = useNotice();
-const error = ref("");
+const loadError = ref("");
 const validDraft = computed(() => draft.value === "" || (
     draft.value !== null && draft.value !== undefined
     && Number.isFinite(Number(draft.value))
@@ -820,7 +820,6 @@ async function loadHistory(target = 1) {
     clearTimeout(historyTimer);
     const request = ++historyRequest;
     historyLoading.value = true;
-    error.value = "";
     const [start, end] = historyRange.value;
     const query = new URLSearchParams({
         start: start.toISOString(),
@@ -838,7 +837,7 @@ async function loadHistory(target = 1) {
         historyPage.value = result.page;
         retentionDays.value = result.retention_days ?? retentionDays.value;
     } catch (exception) {
-        if (request === historyRequest) error.value = exception.message;
+        if (request === historyRequest) notifyError(exception.message);
     } finally {
         if (request === historyRequest) historyLoading.value = false;
     }
@@ -874,7 +873,6 @@ onUnmounted(() => {
 
 async function show(view) {
     current.value = view;
-    notice.value = "";
     if (view === "intros" && !mediaLoaded.value) await loadMedia();
     if (view === "history") {
         if (rollingRange) historyRange.value = lastDay();
@@ -1090,7 +1088,7 @@ function stopListening() {
 function listeningError(exception, run) {
     if (run !== listeningRun) return;
     stopListening();
-    error.value = exception.message || "The intro could not be played.";
+    notifyError(exception.message || "The intro could not be played.");
 }
 
 function playIntro(row, run, next) {
@@ -1128,7 +1126,6 @@ function playIntro(row, run, next) {
 
 function listenOne(row) {
     stopListening();
-    error.value = "";
     playIntro(row, listeningRun, stopListening);
 }
 
@@ -1142,7 +1139,7 @@ async function scanNext(index, run) {
             }
             if (page.value >= pageCount.value) {
                 stopListening();
-                notice.value = "Finished listening to all matching intros.";
+                notifySuccess("Finished listening to all matching intros.");
                 return;
             }
             if (!await loadMedia(page.value + 1) || run !== listeningRun) return;
@@ -1155,8 +1152,6 @@ async function scanNext(index, run) {
 
 function startListening() {
     stopListening();
-    error.value = "";
-    notice.value = "";
     scanning.value = true;
     void scanNext(0, listeningRun);
 }
@@ -1202,7 +1197,6 @@ onUnmounted(() => {
 async function loadMedia(target = 1) {
     const request = ++mediaRequest;
     mediaLoading.value = true;
-    error.value = "";
     try {
         const result = await api(`media?search=${encodeURIComponent(search.value)}${unknownOnly.value ? "&unknown=1" : ""}&page=${target}&per_page=${mediaPerPage.value}`);
         if (request !== mediaRequest) return false;
@@ -1217,7 +1211,7 @@ async function loadMedia(target = 1) {
     } catch (exception) {
         if (request === mediaRequest) {
             stopListening();
-            error.value = exception.message;
+            notifyError(exception.message);
         }
         return false;
     } finally {
@@ -1228,7 +1222,6 @@ async function loadMedia(target = 1) {
 async function editIntro(id) {
     stopListening();
     current.value = "intros";
-    notice.value = "";
     clearTimeout(searchTimer);
     const request = ++mediaRequest;
     mediaLoading.value = true;
@@ -1245,7 +1238,7 @@ async function editIntro(id) {
         page.value = 1;
         select(row);
     } catch (exception) {
-        if (request === mediaRequest) error.value = exception.message;
+        if (request === mediaRequest) notifyError(exception.message);
     } finally {
         if (request === mediaRequest) mediaLoading.value = false;
     }
@@ -1269,7 +1262,7 @@ async function saveIntro() {
             selected.value = { ...selected.value, intro_end: result.intro_end };
             if (marker.value === value) draft.value = result.intro_end ?? "";
         }
-        notice.value = "Intro end saved.";
+        notifySuccess("Intro end saved.");
         if (unknownOnly.value) {
             const target = rows.value.length === 1 && page.value > 1 && result.intro_end !== null
                 ? page.value - 1 : page.value;
@@ -1287,21 +1280,19 @@ async function saveSettings() {
         syncDefaultPool();
         const result = await api("settings", settings.value);
         moduleStatus.value = result.module ?? moduleStatus.value;
-        notice.value = (moduleStatus.value.state === "active"
+        notifySuccess((moduleStatus.value.state === "active"
             ? "Settings saved."
             : "Settings saved. They apply once the sweeper module runs on this station (see the status above).")
-            + (result.needs_restart ? " AzuraCast also reports other changes that need a broadcasting restart." : "");
+            + (result.needs_restart ? " AzuraCast also reports other changes that need a broadcasting restart." : ""));
     });
 }
 
 async function save(action) {
     saving.value = true;
-    error.value = "";
-    notice.value = "";
     try {
         await action();
     } catch (exception) {
-        error.value = exception.message;
+        notifyError(exception.message);
     } finally {
         saving.value = false;
     }
@@ -1312,8 +1303,6 @@ let moduleRefresh;
 async function restartBroadcasting() {
     if (!window.confirm("Restart Liquidsoap broadcasting only? Audio is briefly interrupted; Icecast stays running.")) return;
     restarting.value = true;
-    error.value = "";
-    notice.value = "";
     try {
         const response = await fetch(restart.value.url, {
             method: "POST",
@@ -1324,11 +1313,11 @@ async function restartBroadcasting() {
         if (!response.ok || result.success === false) {
             throw new Error(result.message || "Broadcasting could not be restarted.");
         }
-        notice.value = "Broadcasting restarted (Liquidsoap only). Icecast was not restarted. The module status updates within a minute.";
+        notifySuccess("Broadcasting restarted (Liquidsoap only). Icecast was not restarted. The module status updates within a minute.");
         clearTimeout(moduleRefresh);
         moduleRefresh = setTimeout(refreshModule, 20000);
     } catch (exception) {
-        error.value = exception.message;
+        notifyError(exception.message);
     } finally {
         restarting.value = false;
     }
@@ -1363,7 +1352,7 @@ onMounted(async () => {
         if (current.value === "intros") await loadMedia();
         if (current.value === "history") await loadHistory();
     } catch (exception) {
-        error.value = exception.message;
+        loadError.value = exception.message;
     } finally {
         loading.value = false;
     }

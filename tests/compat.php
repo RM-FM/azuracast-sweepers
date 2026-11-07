@@ -18,6 +18,8 @@ $frontendContracts = [
         'class="navdrawer-nav"',
     ],
     'frontend/components/Layout/DashboardWithSidebar.vue' => ['id="content"'],
+    'frontend/components/Common/Toasts/ToastContainer.vue' => ['toast-container position-fixed top-0 end-0 p-3'],
+    'frontend/components/Common/Toasts/Toast.vue' => ['toast align-items-center toast-notification mb-3'],
     'frontend/components/Stations/menu.ts' => ['key: "media"'],
     'backend/config/routes/dashboard.php' => ["\$group->get('/{routes:.+}', DashboardAction::class);"],
 ];

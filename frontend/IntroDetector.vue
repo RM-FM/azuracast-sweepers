@@ -1,7 +1,6 @@
 <template>
     <div class="sweepers-detector">
-        <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
-        <div v-if="notice" class="alert alert-info" role="status">{{ notice }}</div>
+        <div v-if="loadError" class="alert alert-danger" role="alert">{{ loadError }}</div>
         <div v-if="loading" class="d-flex justify-content-center py-3">
             <div class="spinner-border" role="status"><span class="visually-hidden">Loading…</span></div>
         </div>
@@ -35,7 +34,7 @@
                 <form id="detector-panel-status" v-show="tab === 'status'" class="form sweepers-settings" role="tabpanel" aria-labelledby="detector-tab-status" @submit.prevent>
                     <div v-if="status.recovery" class="alert alert-warning" role="alert" data-detector-recovery>
                         <p class="mb-2">A stopped GPU worker may still hold results that were never copied back. Analysis is paused until it is removed.</p>
-                        <button v-if="info.can_manage" type="button" class="btn btn-sm btn-warning" :disabled="busy" @click="retireWorker">Delete the worker and analyze its songs again</button>
+                        <button v-if="info.can_manage" type="button" class="btn btn-sm btn-danger" :disabled="busy" @click="retireWorker">Delete the worker and analyze its songs again</button>
                     </div>
                     <div v-else-if="status.blocked" class="alert alert-warning" role="status" data-detector-blocked>{{ blockedText(status.blocked) }}</div>
 
@@ -61,7 +60,6 @@
                                 <dd class="fs-5 mb-0">{{ value }}</dd>
                             </div>
                         </dl>
-                        <button type="button" class="btn btn-sm btn-secondary" :disabled="busy" @click="load"><Icon name="refresh" /><span>Refresh</span></button>
                     </fieldset>
 
                     <fieldset v-if="!status.settings.enabled" class="form-group">
@@ -102,7 +100,7 @@
                                         <div class="fw-semibold">Failed songs</div>
                                         <div class="small">{{ counts.failed }} songs could not be analyzed; the reasons are listed below.</div>
                                     </div>
-                                    <button v-if="info.can_manage" type="button" class="btn btn-sm btn-outline-secondary" :disabled="busy" @click="action('retry', {})">Try again</button>
+                                    <button v-if="info.can_manage" type="button" class="btn btn-sm btn-primary" :disabled="busy" @click="action('retry', {})">Try again</button>
                                 </li>
                             </ul>
                         </fieldset>
@@ -134,7 +132,7 @@
                                         <tr v-for="failure in status.failures" :key="failure.media_id">
                                             <td class="text-break">{{ failure.path }}</td>
                                             <td class="small">{{ failure.error }}</td>
-                                            <td class="text-end"><button v-if="info.can_manage" type="button" class="btn btn-sm btn-outline-secondary" :disabled="busy" @click="action('retry', { media_id: failure.media_id })">Retry</button></td>
+                                            <td class="text-end"><button v-if="info.can_manage" type="button" class="btn btn-sm btn-primary" :disabled="busy" @click="action('retry', { media_id: failure.media_id })">Retry</button></td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -229,7 +227,6 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import Icon from "./Icon.vue";
 import PlaylistPicker from "./PlaylistPicker.vue";
 import SpendMeter from "./SpendMeter.vue";
 import {
@@ -237,21 +234,22 @@ import {
     overBudget, progressPercent, queueCounts, runResult, spendNote, stationForm, stepText, waitingText,
 } from "./detector.js";
 import { formatStationTime } from "./dates.js";
-import { useNotice } from "./notice.js";
+import { notifyError, notifySuccess } from "./toasts.js";
 
 const props = defineProps({
     api: { type: Function, required: true },
     playlists: { type: Array, required: true },
     timezone: { type: String, default: undefined },
 });
-const REFRESH_MS = 30000;
-const REFRESH_RUNNING_MS = 10000;
+const REFRESH_MS = 15000;
+// While an analysis runs or is about to start, the page follows it closely.
+const REFRESH_ACTIVE_MS = 3000;
+const REFRESH_CHECK_MS = 1000;
 const tabs = [["status", "Status"], ["settings", "Settings"]];
 const tab = ref("status");
 const loading = ref(true);
 const busy = ref(false);
-const error = ref("");
-const notice = useNotice();
+const loadError = ref("");
 const info = ref({});
 const status = ref(null);
 const form = ref({});
@@ -259,6 +257,7 @@ const stationKey = ref("");
 
 let timer;
 let lastRefresh = 0;
+let refreshing = false;
 
 const counts = computed(() => queueCounts(status.value?.queue));
 const dirty = computed(() => status.value
@@ -291,11 +290,12 @@ function apply(result) {
 }
 
 async function load() {
-    error.value = "";
     try {
         apply(await props.api("detector"));
+        loadError.value = "";
     } catch (exception) {
-        error.value = exception.message;
+        if (status.value) notifyError(exception.message);
+        else loadError.value = exception.message;
     } finally {
         loading.value = false;
     }
@@ -303,13 +303,11 @@ async function load() {
 
 async function run(task, message = "") {
     busy.value = true;
-    error.value = "";
-    notice.value = "";
     try {
         await task();
-        notice.value = message;
+        notifySuccess(message);
     } catch (exception) {
-        error.value = exception.message;
+        notifyError(exception.message);
     } finally {
         busy.value = false;
     }
@@ -363,12 +361,13 @@ onMounted(async () => {
     await load();
     lastRefresh = Date.now();
     timer = setInterval(() => {
-        const due = Date.now() - lastRefresh >= (activeSoon.value ? REFRESH_RUNNING_MS : REFRESH_MS);
-        if (due && !busy.value && info.value.installed && document.visibilityState === "visible") {
+        const due = Date.now() - lastRefresh >= (activeSoon.value ? REFRESH_ACTIVE_MS : REFRESH_MS);
+        if (due && !busy.value && !refreshing && info.value.installed && document.visibilityState === "visible") {
             lastRefresh = Date.now();
-            props.api("detector").then(apply, () => {});
+            refreshing = true;
+            props.api("detector").then(apply, () => {}).finally(() => { refreshing = false; });
         }
-    }, REFRESH_RUNNING_MS);
+    }, REFRESH_CHECK_MS);
 });
 onUnmounted(() => clearInterval(timer));
 </script>
