@@ -53,7 +53,7 @@
 
                     <fieldset class="form-group">
                         <legend>Status</legend>
-                        <p class="card-text">Finds the intro end of new songs and writes it to AzuraCast, so sweepers fit automatically: where the vocals start or, in songs that open without vocals, where the musical intro ends. Intros entered by hand are never overwritten.</p>
+                        <p class="card-text">Finds the intro end of new songs and writes it to AzuraCast, so sweepers fit automatically.</p>
                         <dl class="row g-3 mb-2 detector-summary">
                             <div v-for="[label, value] in summary" :key="label" class="col-6 col-md-4 col-xl-2">
                                 <dt class="small text-muted fw-normal">{{ label }}</dt>
