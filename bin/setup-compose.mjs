@@ -47,7 +47,7 @@ export function mergeOverride(text, root) {
             const entries = environment.items.filter((item) => item.value.split("=")[0] === flag);
             if (entries.length > 1) throw new Error(`web.environment contains duplicate ${flag} entries.`);
             if (entries.length) entries[0].value = `${flag}=true`;
-            else environment.add(`${flag}=true`);
+            else environment.add(document.createNode(`${flag}=true`));
         }
     } else {
         const variables = mapping(document, web, "environment");
