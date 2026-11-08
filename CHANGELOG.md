@@ -1,5 +1,18 @@
 # Release notes
 
+## 2.0.1 - 2026-11-08
+
+### Fixes
+
+- **Automated installation:** setup now enables AzuraCast plugin discovery as well as
+  Composer plugin mode, so the plugin loads automatically.
+
+### Update notes
+
+- **AzuraCast Broadcast (Liquidsoap) restart: Not required**; the Liquidsoap module is
+  unchanged. Applying the new Compose flag may recreate the web container and interrupt
+  broadcasting on all stations in it; setup asks for confirmation first.
+
 ## 2.0.0 - 2026-11-07
 
 ### Features
