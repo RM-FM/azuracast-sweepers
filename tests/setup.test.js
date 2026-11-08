@@ -31,6 +31,7 @@ services:
     const original = parse(input);
     const output = mergeOverride(input, root);
     const expected = structuredClone(original);
+    expected.services.web.environment.AZURACAST_PLUGIN_MODE = "true";
     expected.services.web.environment.COMPOSER_PLUGIN_MODE = "true";
     expected.services.web.volumes.push(mount);
     assert.deepEqual(parse(output), expected);
