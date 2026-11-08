@@ -38,16 +38,20 @@ export function mergeOverride(text, root) {
     const web = mapping(document, mapping(document, document.contents, "services"), "web");
     const environment = web.get("environment", true);
     if (environment?.tag) throw new Error("Tagged web.environment requires manual setup.");
+    const pluginFlags = ["AZURACAST_PLUGIN_MODE", "COMPOSER_PLUGIN_MODE"];
     if (isSeq(environment)) {
-        const entries = environment.items.filter((item) => isScalar(item) && typeof item.value === "string"
-            && item.value.split("=")[0] === "COMPOSER_PLUGIN_MODE");
-        if (entries.length > 1 || environment.items.some((item) => !isScalar(item) || typeof item.value !== "string")) {
+        if (environment.items.some((item) => !isScalar(item) || typeof item.value !== "string")) {
             throw new Error("web.environment contains duplicate or unsupported entries.");
         }
-        if (entries.length) entries[0].value = 'COMPOSER_PLUGIN_MODE=true';
-        else environment.add("COMPOSER_PLUGIN_MODE=true");
+        for (const flag of pluginFlags) {
+            const entries = environment.items.filter((item) => item.value.split("=")[0] === flag);
+            if (entries.length > 1) throw new Error(`web.environment contains duplicate ${flag} entries.`);
+            if (entries.length) entries[0].value = `${flag}=true`;
+            else environment.add(`${flag}=true`);
+        }
     } else {
-        mapping(document, web, "environment").set("COMPOSER_PLUGIN_MODE", "true");
+        const variables = mapping(document, web, "environment");
+        for (const flag of pluginFlags) variables.set(flag, "true");
     }
     let volumes = web.get("volumes", true);
     if (volumes?.tag) throw new Error("Tagged web.volumes requires manual setup.");

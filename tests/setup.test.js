@@ -10,7 +10,7 @@ const target = "/var/azuracast/www/plugins/azuracast-sweepers";
 test("setup creates an override and is idempotent", () => {
     const output = mergeOverride("", root);
     assert.deepEqual(parse(output), { services: { web: {
-        environment: { COMPOSER_PLUGIN_MODE: "true" }, volumes: [mount],
+        environment: { AZURACAST_PLUGIN_MODE: "true", COMPOSER_PLUGIN_MODE: "true" }, volumes: [mount],
     } } });
     assert.equal(mergeOverride(output, root), output);
 });
@@ -44,6 +44,7 @@ test("setup supports environment lists and read-only long bind syntax", () => {
   web:
     environment:
       - OTHER=value
+      - AZURACAST_PLUGIN_MODE=false
       - COMPOSER_PLUGIN_MODE=false
     volumes:
       - type: bind
@@ -52,19 +53,25 @@ test("setup supports environment lists and read-only long bind syntax", () => {
         read_only: true
 `;
     const data = parse(mergeOverride(input, root));
-    assert.deepEqual(data.services.web.environment, ["OTHER=value", "COMPOSER_PLUGIN_MODE=true"]);
+    assert.deepEqual(data.services.web.environment, [
+        "OTHER=value", "AZURACAST_PLUGIN_MODE=true", "COMPOSER_PLUGIN_MODE=true",
+    ]);
     assert.equal(data.services.web.volumes.length, 1);
     assert.deepEqual(data.services.web.volumes, parse(input).services.web.volumes);
 });
 
 test("setup adds an environment list entry and preserves interpolation", () => {
     const data = parse(mergeOverride("services:\n  web:\n    environment:\n      - OTHER=${OTHER}\n", root));
-    assert.deepEqual(data.services.web.environment, ["OTHER=${OTHER}", "COMPOSER_PLUGIN_MODE=true"]);
+    assert.deepEqual(data.services.web.environment, [
+        "OTHER=${OTHER}", "AZURACAST_PLUGIN_MODE=true", "COMPOSER_PLUGIN_MODE=true",
+    ]);
 });
 
 test("setup fills empty environment and volumes keys instead of refusing them", () => {
     const data = parse(mergeOverride("services:\n  web:\n    environment:\n    volumes:\n", root));
-    assert.deepEqual(data.services.web, { environment: { COMPOSER_PLUGIN_MODE: "true" }, volumes: [mount] });
+    assert.deepEqual(data.services.web, { environment: {
+        AZURACAST_PLUGIN_MODE: "true", COMPOSER_PLUGIN_MODE: "true",
+    }, volumes: [mount] });
 });
 
 test("setup preserves Compose reset and override tags outside modified sections", () => {
@@ -96,6 +103,7 @@ test("setup refuses ambiguous YAML or conflicting mounts instead of overwriting 
         "services:\n  web: {}\n  web: {}",
         "services:\n  web:\n    <<: {environment: {OTHER: yes}}",
         "services:\n  web:\n    environment:\n      - COMPOSER_PLUGIN_MODE=true\n      - COMPOSER_PLUGIN_MODE=false",
+        "services:\n  web:\n    environment:\n      - AZURACAST_PLUGIN_MODE=true\n      - AZURACAST_PLUGIN_MODE=false",
         `services:\n  web:\n    volumes:\n      - /wrong:${target}:ro`,
         `services:\n  web:\n    volumes:\n      - ./plugins/azuracast-sweepers:${target}`,
         `services:\n  web:\n    volumes:\n      - ${mount}\n      - ${mount}`,
