@@ -39,7 +39,11 @@ elif [[ "$1" == inspect && "$*" == *Mounts* ]]; then
 elif [[ "$1" == inspect && "$*" == *State.Running* ]]; then
     [[ "${TEST_STOPPED:-false}" == true ]] && printf 'false\n' || printf 'true\n'
 elif [[ "$1" == inspect ]]; then
-    printf 'COMPOSER_PLUGIN_MODE=true\n'
+    if [[ "${TEST_AZURACAST_PLUGIN_MODE_MISSING:-false}" == true ]]; then
+        printf 'COMPOSER_PLUGIN_MODE=true\n'
+    else
+        printf 'AZURACAST_PLUGIN_MODE=true\nCOMPOSER_PLUGIN_MODE=true\n'
+    fi
 elif [[ "$1" == compose && "$2" == ps ]]; then
     [[ "${TEST_RECREATE:-false}" == true ]] || printf 'container\n'
 elif [[ "$1" == compose && "$2" == up ]]; then
@@ -88,6 +92,11 @@ grep -q 'ports: !override' "$TEST_ROOT/docker-compose.override.yml"
 backup=$(find "$TEST_ROOT" -name '*.sweepers-backup.*')
 cmp "$backup" "$work/original"
 if TEST_RECREATE=true bash "$setup" < /dev/null > "$work/result" 2>&1; then echo 'Noninteractive recreation unexpectedly accepted' >&2; exit 1; fi
+grep -q 'Interactive confirmation is required' "$work/result"
+! grep -q 'compose up' "$TEST_ROOT/commands"
+if TEST_AZURACAST_PLUGIN_MODE_MISSING=true bash "$setup" < /dev/null > "$work/result" 2>&1; then
+    echo 'Missing AzuraCast plugin mode unexpectedly accepted' >&2; exit 1
+fi
 grep -q 'Interactive confirmation is required' "$work/result"
 ! grep -q 'compose up' "$TEST_ROOT/commands"
 if command -v script >/dev/null; then

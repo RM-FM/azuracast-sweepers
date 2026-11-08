@@ -107,6 +107,7 @@ if [[ -n "$container" ]]; then
     environment=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$container")
     if [[ "$running" == true ]] &&
         grep -Fxq "$plugin_dir /var/azuracast/www/plugins/azuracast-sweepers false" <<< "$mounts" &&
+        grep -Fxq 'AZURACAST_PLUGIN_MODE=true' <<< "$environment" &&
         grep -Fxq 'COMPOSER_PLUGIN_MODE=true' <<< "$environment"; then
         recreate=false
     fi

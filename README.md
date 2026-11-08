@@ -22,7 +22,8 @@ cd /var/azuracast/plugins/azuracast-sweepers
 bash bin/setup.sh
 ```
 
-The script handles installation for you. At the end it offers the optional
+The script handles installation for you, including AzuraCast plugin mode and Composer
+plugin mode. At the end it offers the optional
 [Intro Detector](#intro-detector-optional); answer **N** if you do not want it.
 
 > [!WARNING]

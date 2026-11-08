@@ -34,6 +34,7 @@ It adds these entries:
 services:
   web:
     environment:
+      AZURACAST_PLUGIN_MODE: "true"
       COMPOSER_PLUGIN_MODE: "true"
     volumes:
       - ./plugins/azuracast-sweepers:/var/azuracast/www/plugins/azuracast-sweepers:ro
@@ -46,9 +47,10 @@ Changed existing overrides receive a backup named
 `docker-compose.override.yml.sweepers-backup.*`. The candidate is validated with
 Docker Compose before replacing the override.
 
-`COMPOSER_PLUGIN_MODE` is an AzuraCast setting: on start, the web container runs
-`composer update` with the plugins' `composer.json` merged in, so AzuraCast can load
-the plugin's PHP classes. This makes the first container start slower.
+`AZURACAST_PLUGIN_MODE` enables AzuraCast to discover plugins. `COMPOSER_PLUGIN_MODE`
+also makes the web container run `composer update` with the plugins' `composer.json`
+merged in, so AzuraCast can load the plugin's PHP classes. This makes the first
+container start slower. Both settings are required for this plugin.
 
 Setup does not automatically roll back an applied override after a later failure.
 Keep the backup; restoring it does not itself reconfigure a running container.
@@ -139,7 +141,7 @@ Moonbase LS-Config-Replace could contain:
 services:
   web:
     environment:
-      AZURACAST_PLUGIN_MODE: true
+      AZURACAST_PLUGIN_MODE: "true"
       COMPOSER_PLUGIN_MODE: "true"
     volumes:
       - /home/cue_file/ls-config-replace:/var/azuracast/www/plugins/ls-config-replace
