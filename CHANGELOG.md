@@ -1,5 +1,22 @@
 # Release notes
 
+## 2.0.2 - 2026-11-10
+
+### Fixes
+
+- **Intro Detector 1.0.2:** songs whose vocals start immediately are recognized as having
+  no intro, so sweepers no longer play over their first lines. Analyses interrupted by a
+  GPU worker recovery are no longer lost.
+
+### Update notes
+
+- **AzuraCast Broadcast (Liquidsoap) restart: Not required**; the Liquidsoap module is
+  unchanged. Setup updates the Intro Detector to 1.0.2.
+- To apply the detection fix to songs analyzed before, run per station in the detector
+  directory: `docker compose exec detector intro-detector decision-diff --station <ID>`
+  (dry run), then `docker compose exec detector intro-detector republish --station <ID>`.
+  This needs no new GPU analysis and keeps intro values that were set manually.
+
 ## 2.0.1 - 2026-11-08
 
 ### Fixes

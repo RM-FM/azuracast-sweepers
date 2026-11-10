@@ -35,9 +35,6 @@
 
 ## Releases
 
-- For the next Sweepers update, first release the detector change tracked in
-  RM-FM/azuracast-intro-detector#17, then pin `detector.version` to that detector release.
-  This note does not authorize either release.
 - The agent owns version selection, release tags and release notes for every `develop` -> `main` PR.
   Prepare the proposed version and compact notes with the PR; publish the annotated tag and GitHub
   Release on the resulting `main` merge commit only after the user authorizes the release.
